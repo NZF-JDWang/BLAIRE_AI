@@ -12,6 +12,11 @@
 4. Response streams token-by-token.
 5. RAG status and citations appear under the response.
 
+Model tips:
+- Overrides are validated against the backend allowlist for the selected class.
+- Use `GET /runtime/options` or `GET /models` to see currently allowed models.
+- For configuration details, see `docs/model_selection.md`.
+
 ## Search
 - Open `/search` to run direct web search with configured mode:
   - `searxng_only`
