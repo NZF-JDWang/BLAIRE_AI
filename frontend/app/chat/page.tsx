@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { getRuntimeOptionsTyped, RuntimeOptions } from "@/lib/api";
+import { getMyPreferences, getRuntimeOptionsTyped, RuntimeOptions } from "@/lib/api";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -81,8 +81,12 @@ export default function ChatPage() {
   const [citations, setCitations] = useState<Array<{ source_name?: string; chunk_index?: number; text?: string }>>([]);
 
   useEffect(() => {
-    getRuntimeOptionsTyped()
-      .then((data) => setRuntimeOptions(data))
+    Promise.all([getRuntimeOptionsTyped(), getMyPreferences()])
+      .then(([runtime, prefs]) => {
+        setRuntimeOptions(runtime);
+        setModelClass(prefs.model_class ?? "general");
+        setModelOverride(prefs.model_override ?? "");
+      })
       .catch(() => setRuntimeOptions(null));
   }, []);
 

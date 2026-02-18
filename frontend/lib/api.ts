@@ -30,6 +30,14 @@ export type RuntimeOptions = {
   }>;
 };
 
+export type UserPreferences = {
+  subject: string;
+  search_mode: string;
+  model_class: string;
+  model_override: string | null;
+  updated_at: string;
+};
+
 function apiBaseUrl(): string {
   if (typeof window === "undefined") {
     return process.env.INTERNAL_API_BASE_URL ?? "http://backend:8000";
@@ -139,12 +147,21 @@ export type ResearchResponse = {
 };
 
 export async function runResearch(query: string, searchMode?: string): Promise<ResearchResponse> {
+  let effectiveSearchMode = searchMode;
+  if (!effectiveSearchMode) {
+    try {
+      const prefs = await getMyPreferences();
+      effectiveSearchMode = prefs.search_mode;
+    } catch {
+      effectiveSearchMode = undefined;
+    }
+  }
   const response = await apiFetch("/agents/research", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       query,
-      search_mode: searchMode || null
+      search_mode: effectiveSearchMode || null
     })
   });
   if (!response.ok) {
@@ -165,6 +182,30 @@ export async function getDependencyStatus(): Promise<DependencyStatus> {
   const response = await apiFetch("/health/dependencies", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Dependency status request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function getMyPreferences(): Promise<UserPreferences> {
+  const response = await apiFetch("/preferences/me", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Preferences request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateMyPreferences(update: {
+  search_mode: string;
+  model_class: string;
+  model_override: string | null;
+}): Promise<UserPreferences> {
+  const response = await apiFetch("/preferences/me", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(update),
+  });
+  if (!response.ok) {
+    throw new Error(`Preferences update failed: ${response.status}`);
   }
   return response.json();
 }

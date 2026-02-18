@@ -8,6 +8,7 @@ from app.api.routes.chat import router as chat_router
 from app.api.routes.dependencies import router as dependencies_router
 from app.api.routes.knowledge import router as knowledge_router
 from app.api.routes.mcp import router as mcp_router
+from app.api.routes.preferences import router as preferences_router
 from app.api.routes.runtime_options import router as runtime_options_router
 from app.api.routes.search import router as search_router
 from app.api.routes.tools import router as tools_router
@@ -22,6 +23,7 @@ from app.core.security_headers import SecurityHeadersMiddleware
 from app.rag.qdrant_bootstrap import QdrantBootstrapService
 from app.services.approval_service import ApprovalService
 from app.services.dependency_checks import collect_dependency_status
+from app.services.preferences_service import PreferencesService
 
 
 @asynccontextmanager
@@ -40,6 +42,12 @@ async def lifespan(app: FastAPI):
         logger.info("approval_schema_ready")
     except Exception:
         logger.exception("approval_schema_init_failed")
+        raise
+    try:
+        await PreferencesService(settings.database_url.get_secret_value()).init_schema()
+        logger.info("preferences_schema_ready")
+    except Exception:
+        logger.exception("preferences_schema_init_failed")
         raise
     try:
         await QdrantBootstrapService(
@@ -93,6 +101,7 @@ def create_app() -> FastAPI:
     app.include_router(agents_router)
     app.include_router(dependencies_router)
     app.include_router(mcp_router)
+    app.include_router(preferences_router)
     return app
 
 

@@ -2,15 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-import { getRuntimeOptionsTyped, RuntimeOptions } from "@/lib/api";
+import { getMyPreferences, getRuntimeOptionsTyped, RuntimeOptions, updateMyPreferences } from "@/lib/api";
 
 type Preferences = {
   searchMode: string;
   modelClass: string;
   modelOverride: string;
 };
-
-const STORAGE_KEY = "blaire_preferences_v1";
 
 export default function SettingsPage() {
   const [options, setOptions] = useState<RuntimeOptions | null>(null);
@@ -21,27 +19,24 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    getRuntimeOptionsTyped()
-      .then((data) => {
-        setOptions(data);
-        setPrefs((prev) => ({ ...prev, searchMode: data.default_search_mode }));
+    Promise.all([getRuntimeOptionsTyped(), getMyPreferences()])
+      .then(([runtime, current]) => {
+        setOptions(runtime);
+        setPrefs({
+          searchMode: current.search_mode,
+          modelClass: current.model_class,
+          modelOverride: current.model_override ?? ""
+        });
       })
       .catch(() => setOptions(null));
   }, []);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Preferences;
-      setPrefs(parsed);
-    } catch {
-      // Ignore malformed local preferences.
-    }
-  }, []);
-
-  function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  async function save() {
+    await updateMyPreferences({
+      search_mode: prefs.searchMode,
+      model_class: prefs.modelClass,
+      model_override: prefs.modelOverride || null
+    });
   }
 
   const models = options?.model_allowlist[prefs.modelClass] ?? [];
@@ -112,4 +107,3 @@ export default function SettingsPage() {
     </main>
   );
 }
-

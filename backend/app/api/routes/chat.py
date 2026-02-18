@@ -12,6 +12,7 @@ from app.rag.retrieval import RetrievalService
 from app.rag.vector_store import QdrantVectorStore
 from app.services.model_router import ModelRouter
 from app.services.ollama_client import OllamaClient
+from app.services.preferences_service import PreferencesService
 
 router = APIRouter(tags=["chat"])
 
@@ -23,20 +24,26 @@ def _sse_event(event: str, data: dict) -> str:
 @router.post("/chat")
 async def chat(
     request: ChatRequest,
-    _principal: Principal = Depends(require_roles("admin", "user")),
+    principal: Principal = Depends(require_roles("admin", "user")),
 ):
     settings = get_settings()
     logger = get_logger(component="chat")
     model_router = ModelRouter(settings)
+    prefs = await PreferencesService(settings.database_url.get_secret_value()).get_or_default(
+        subject=principal.subject,
+        default_search_mode=settings.search_mode_default,
+    )
+    effective_model_class = request.model_class or prefs.model_class
+    effective_override = request.model_override or prefs.model_override
 
     try:
-        selection = model_router.select_model(request.model_class, request.model_override)
+        selection = model_router.select_model(effective_model_class, effective_override)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     logger.info(
         "chat_request_received",
-        model_class=request.model_class,
+        model_class=effective_model_class,
         model_name=selection.model_name,
         selection_reason=selection.reason,
         message_count=len(request.messages),

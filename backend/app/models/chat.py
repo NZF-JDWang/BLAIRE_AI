@@ -14,7 +14,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=100)
-    model_class: ModelClass = "general"
+    model_class: ModelClass | None = None
     model_override: str | None = Field(default=None, max_length=128)
     stream: bool = True
     use_rag: bool = True
