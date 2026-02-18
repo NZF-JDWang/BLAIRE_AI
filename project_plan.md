@@ -64,8 +64,8 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Integrate SearxNG adapter and add per-request provider selection mode:
 - [x] Add modes: `Brave only`, `SearxNG only`, `Auto fallback`, `Parallel`.
 - [x] Implement provider failover policy and normalized result schema.
-- [ ] Add API surface for frontend settings to control search mode.
-- [ ] Set system default search mode to `SearxNG only` with explicit user override.
+- [x] Add API surface for frontend settings to control search mode.
+- [x] Set system default search mode to `SearxNG only` with explicit user override.
 
 ### F. MCP Integration Layer
 - [ ] Implement MCP client wrapper with connection management and retries.
