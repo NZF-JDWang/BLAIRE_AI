@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     model_code_default: str | None = Field(default=None, alias="MODEL_CODE_DEFAULT")
     qdrant_collection_name: str = Field(default="knowledge_multimodal", alias="QDRANT_COLLECTION_NAME")
     qdrant_embedding_dim: int = Field(default=768, alias="QDRANT_EMBEDDING_DIM")
+    max_upload_mb: int = Field(default=25, alias="MAX_UPLOAD_MB")
 
     @field_validator("app_env")
     @classmethod

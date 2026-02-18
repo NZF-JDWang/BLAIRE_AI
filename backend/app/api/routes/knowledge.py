@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Depends
+from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
@@ -11,6 +15,7 @@ from app.models.knowledge import (
     KnowledgeStatusResponse,
 )
 from app.rag.ingestion import DropFolderIngestionService
+from app.rag.ingestion import SUPPORTED_EXTENSIONS
 from app.rag.qdrant_client import QdrantHealthClient
 from app.rag.retrieval import IngestionPipeline, RetrievalService
 from app.rag.vector_store import QdrantVectorStore
@@ -96,3 +101,29 @@ async def retrieve_knowledge(
             for item in results
         ],
     )
+
+
+@router.post("/knowledge/upload")
+async def upload_to_drop_folder(
+    file: UploadFile = File(...),
+    _principal: Principal = Depends(require_roles("admin", "user")),
+) -> dict[str, str | int]:
+    settings = get_settings()
+    filename = Path(file.filename or "").name
+    if not filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    content = await file.read()
+    max_bytes = settings.max_upload_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail="File too large")
+
+    drop_dir = Path(settings.drop_folder)
+    drop_dir.mkdir(parents=True, exist_ok=True)
+    stamped_name = f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:8]}-{filename}"
+    target = drop_dir / stamped_name
+    target.write_bytes(content)
+    return {"stored_filename": stamped_name, "bytes": len(content)}

@@ -20,7 +20,10 @@ async function proxy(request: NextRequest, params: { path: string[] }) {
   const init: RequestInit = {
     method: request.method,
     headers,
-    body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
+    body:
+      request.method === "GET" || request.method === "HEAD"
+        ? undefined
+        : Buffer.from(await request.arrayBuffer()),
     redirect: "manual",
   };
 
@@ -54,4 +57,3 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ p
 export async function DELETE(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   return proxy(request, await context.params);
 }
-
