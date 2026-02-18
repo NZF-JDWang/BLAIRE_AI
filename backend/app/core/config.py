@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     model_vision_default: str = Field(alias="MODEL_VISION_DEFAULT")
     model_embedding_default: str = Field(alias="MODEL_EMBEDDING_DEFAULT")
     model_code_default: str | None = Field(default=None, alias="MODEL_CODE_DEFAULT")
+    qdrant_collection_name: str = Field(default="knowledge_multimodal", alias="QDRANT_COLLECTION_NAME")
+    qdrant_embedding_dim: int = Field(default=768, alias="QDRANT_EMBEDDING_DIM")
 
     @field_validator("app_env")
     @classmethod
