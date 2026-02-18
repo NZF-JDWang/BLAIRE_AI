@@ -29,3 +29,6 @@ Blacksite Lab AI Hub: a custom, self-hosted agent platform with FastAPI backend,
 
 ## Deployment Notes
 See `deployment_notes.md` for profile usage, bind mounts, and Watchtower rollout guidance.
+
+## Full Documentation
+See `docs/README.md` for complete setup instructions, user/admin manual, API reference, security model, and troubleshooting guides.
