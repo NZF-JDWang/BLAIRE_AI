@@ -119,7 +119,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [ ] Add Google Calendar and Gmail/IMAP tool integrations (with HITL for sensitive actions).
 - [x] Add local TTS (Piper) integration.
 - [x] Add local STT (faster-whisper) integration.
-- [ ] Add Telegram bot channel with shared orchestration backend.
+- [x] Add Telegram bot channel with shared orchestration backend.
 - [x] Add responsive PWA shell around existing frontend routes.
 
 ## 4. Dependency Order (Critical Path)

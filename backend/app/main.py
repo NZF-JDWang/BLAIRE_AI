@@ -12,6 +12,7 @@ from app.api.routes.ops import router as ops_router
 from app.api.routes.preferences import router as preferences_router
 from app.api.routes.runtime_options import router as runtime_options_router
 from app.api.routes.search import router as search_router
+from app.api.routes.telegram import router as telegram_router
 from app.api.routes.tools import router as tools_router
 from app.api.routes.voice import router as voice_router
 from fastapi import FastAPI
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(preferences_router)
     app.include_router(ops_router)
     app.include_router(voice_router)
+    app.include_router(telegram_router)
     return app
 
 

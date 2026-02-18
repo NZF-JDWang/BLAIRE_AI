@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     piper_voice_model: str = Field(default="", alias="PIPER_VOICE_MODEL")
     faster_whisper_bin: str = Field(default="faster-whisper", alias="FASTER_WHISPER_BIN")
     faster_whisper_model: str = Field(default="small", alias="FASTER_WHISPER_MODEL")
+    telegram_bot_token: SecretStr | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
+    telegram_default_chat_id: str = Field(default="", alias="TELEGRAM_DEFAULT_CHAT_ID")
 
     @field_validator("app_env")
     @classmethod
