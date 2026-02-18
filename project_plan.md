@@ -111,8 +111,8 @@ Build the platform in vertical slices, starting with backend foundations and sec
 
 ### K. Phase 2 Extensions
 - [x] Implement live multi-agent swarm visualization API and frontend view.
-- [ ] Build custom homelab MCP server (Docker/Portainer/backup/media safe operations).
-- [ ] Route homelab MCP operations through same HITL approval system.
+- [x] Build custom homelab MCP server (Docker/Portainer/backup/media safe operations).
+- [x] Route homelab MCP operations through same HITL approval system.
 - [x] Implement production-ready CLI sandbox allowlist workflows.
 
 ### L. Phase 3+ Extensions

@@ -141,6 +141,16 @@ services:
     networks:
       - containers_core
 
+  homelab-mcp:
+    build:
+      context: ./mcp-homelab
+    container_name: blaire-homelab-mcp
+    restart: unless-stopped
+    profiles:
+      - mcp
+    networks:
+      - containers_core
+
   watchtower:
     image: containrrr/watchtower:latest
     container_name: blaire-watchtower

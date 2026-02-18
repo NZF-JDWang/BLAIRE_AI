@@ -21,6 +21,8 @@ def _set_required_env() -> None:
     os.environ["ADMIN_API_KEYS"] = "test-admin-key"
     os.environ["ALLOWED_OBSIDIAN_PATHS"] = "notes,daily"
     os.environ["ALLOWED_HA_OPERATIONS"] = "light.turn_on"
+    os.environ["MCP_HOMELAB_URL"] = "http://localhost:3002"
+    os.environ["ALLOWED_HOMELAB_OPERATIONS"] = "docker.ps"
 
 
 _set_required_env()
@@ -123,3 +125,49 @@ def test_obsidian_read_rejects_path_traversal(monkeypatch) -> None:
         headers={"X-API-Key": "test-user-key"},
     )
     assert response.status_code == 400
+
+
+def test_homelab_allowlist_enforced() -> None:
+    get_settings.cache_clear()
+    client = TestClient(create_app())
+    response = client.post(
+        "/mcp/homelab/call",
+        json={"operation": "docker.restart", "payload": {}},
+        headers={"X-API-Key": "test-user-key"},
+    )
+    assert response.status_code == 403
+
+
+def test_homelab_requires_approval(monkeypatch) -> None:
+    get_settings.cache_clear()
+
+    async def fake_create_pending(self, **kwargs):  # noqa: ANN001, ANN202
+        now = datetime.now(timezone.utc)
+        return ApprovalRecord(
+            id=kwargs["approval_id"],
+            status="pending",
+            action_class="network_sensitive",
+            target_host="homelab_mcp",
+            tool_name="mcp_homelab_call",
+            action_payload=kwargs["action_payload"],
+            payload_hash="b" * 64,
+            requested_by=kwargs["requested_by"],
+            approved_by=None,
+            created_at=now,
+            updated_at=now,
+            token_expires_at=None,
+            executed_at=None,
+            rejection_reason=None,
+        )
+
+    monkeypatch.setattr(ApprovalService, "create_pending", fake_create_pending)
+    client = TestClient(create_app())
+    response = client.post(
+        "/mcp/homelab/call",
+        json={"operation": "docker.ps", "payload": {}},
+        headers={"X-API-Key": "test-user-key"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "approval_required"
+    assert payload["source"] == "homelab"

@@ -28,6 +28,15 @@ class HomeAssistantCallRequest(BaseModel):
     expected_payload_hash: str | None = Field(default=None, min_length=64, max_length=64)
 
 
+class HomelabCallRequest(BaseModel):
+    operation: str = Field(min_length=1, max_length=128)
+    payload: dict[str, Any] = Field(default_factory=dict)
+    requested_by: str = Field(default="system", min_length=1, max_length=128)
+    approval_id: UUID | None = None
+    execution_token: str | None = Field(default=None, min_length=20, max_length=256)
+    expected_payload_hash: str | None = Field(default=None, min_length=64, max_length=64)
+
+
 class McpActionResponse(BaseModel):
     status: McpStatus
     source: str

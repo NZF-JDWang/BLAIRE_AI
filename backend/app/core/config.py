@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     mcp_obsidian_url: str = Field(alias="MCP_OBSIDIAN_URL")
     mcp_ha_url: str = Field(alias="MCP_HA_URL")
+    mcp_homelab_url: str = Field(default="http://homelab-mcp:3000", alias="MCP_HOMELAB_URL")
     drop_folder: str = Field(default="/app/knowledge/drop", alias="DROP_FOLDER")
     obsidian_vault_path: str = Field(default="/vault", alias="OBSIDIAN_VAULT_PATH")
     sensitive_actions_enabled: bool = Field(default=True, alias="SENSITIVE_ACTIONS_ENABLED")
@@ -40,6 +41,7 @@ class Settings(BaseSettings):
     allowed_write_paths: str = Field(default="/app/knowledge/drop", alias="ALLOWED_WRITE_PATHS")
     allowed_obsidian_paths: str = Field(default="", alias="ALLOWED_OBSIDIAN_PATHS")
     allowed_ha_operations: str = Field(default="", alias="ALLOWED_HA_OPERATIONS")
+    allowed_homelab_operations: str = Field(default="", alias="ALLOWED_HOMELAB_OPERATIONS")
     require_auth: bool = Field(default=True, alias="REQUIRE_AUTH")
     admin_api_keys: str = Field(default="", alias="ADMIN_API_KEYS")
     user_api_keys: str = Field(default="", alias="USER_API_KEYS")
@@ -141,6 +143,9 @@ class Settings(BaseSettings):
 
     def allowed_ha_operations_list(self) -> list[str]:
         return [op.strip() for op in self.allowed_ha_operations.split(",") if op.strip()]
+
+    def allowed_homelab_operations_list(self) -> list[str]:
+        return [op.strip() for op in self.allowed_homelab_operations.split(",") if op.strip()]
 
     def admin_api_keys_list(self) -> list[str]:
         return [key.strip() for key in self.admin_api_keys.split(",") if key.strip()]
