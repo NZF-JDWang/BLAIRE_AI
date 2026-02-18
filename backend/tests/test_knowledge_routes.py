@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.rag.ingestion import IngestionResult
+from app.rag.ingestion import IngestionResult, WatchIngestionResult
 from app.rag.retrieval import RetrievalItem
 
 
@@ -91,3 +91,62 @@ def test_knowledge_ingest_route(monkeypatch, tmp_path: Path) -> None:
     assert payload["accepted_files"] == 2
     assert payload["skipped_files"] == 1
     assert payload["chunks_indexed"] == 6
+
+
+def test_knowledge_ingest_watcher_mode(monkeypatch, tmp_path: Path) -> None:
+    _set_required_env(tmp_path)
+    from app.core.config import get_settings
+    from app.main import create_app
+    from app.rag.ingestion import DropFolderIngestionService
+
+    get_settings.cache_clear()
+
+    async def fake_ingest_changed_with_retry(  # noqa: ANN001, ANN202
+        self,
+        *,
+        pipeline,
+        limit: int = 100,
+        debounce_seconds: int = 10,
+        retry_base_seconds: int = 5,
+        retry_max_seconds: int = 300,
+        current_time_ts: float | None = None,
+    ):
+        _ = (
+            self,
+            pipeline,
+            limit,
+            debounce_seconds,
+            retry_base_seconds,
+            retry_max_seconds,
+            current_time_ts,
+        )
+        return WatchIngestionResult(
+            scanned_files=3,
+            indexed_files=1,
+            skipped_files=2,
+            failed_files=0,
+            chunks_indexed=4,
+            started_at=datetime.now(timezone.utc),
+        )
+
+    monkeypatch.setattr(DropFolderIngestionService, "ingest_changed_with_retry", fake_ingest_changed_with_retry)
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/knowledge/ingest",
+        headers={"X-API-Key": "test-user-key"},
+        json={
+            "use_watcher": True,
+            "limit": 50,
+            "debounce_seconds": 12,
+            "retry_base_seconds": 6,
+            "retry_max_seconds": 60,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["accepted_files"] == 3
+    assert payload["indexed_files"] == 1
+    assert payload["skipped_files"] == 2
+    assert payload["failed_files"] == 0
+    assert payload["chunks_indexed"] == 4

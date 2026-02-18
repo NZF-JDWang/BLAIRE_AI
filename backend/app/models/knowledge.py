@@ -16,6 +16,10 @@ class KnowledgeStatusResponse(BaseModel):
 class KnowledgeIngestRequest(BaseModel):
     full_rescan: bool = False
     limit: int = 100
+    use_watcher: bool = False
+    debounce_seconds: int = 10
+    retry_base_seconds: int = 5
+    retry_max_seconds: int = 300
 
 
 class KnowledgeIngestResponse(BaseModel):
@@ -23,6 +27,8 @@ class KnowledgeIngestResponse(BaseModel):
     skipped_files: int
     started_at: datetime
     chunks_indexed: int = 0
+    indexed_files: int | None = None
+    failed_files: int | None = None
 
 
 class KnowledgeRetrieveRequest(BaseModel):

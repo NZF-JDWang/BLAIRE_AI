@@ -77,6 +77,23 @@ async def trigger_ingestion(
         vector_store=QdrantVectorStore(settings.qdrant_url, settings.qdrant_collection_name),
         embedding_model=settings.model_embedding_default,
     )
+    if request.use_watcher:
+        watched = await ingestion.ingest_changed_with_retry(
+            pipeline=pipeline,
+            limit=request.limit,
+            debounce_seconds=request.debounce_seconds,
+            retry_base_seconds=request.retry_base_seconds,
+            retry_max_seconds=request.retry_max_seconds,
+        )
+        return KnowledgeIngestResponse(
+            accepted_files=watched.scanned_files,
+            skipped_files=watched.skipped_files,
+            started_at=watched.started_at,
+            chunks_indexed=watched.chunks_indexed,
+            indexed_files=watched.indexed_files,
+            failed_files=watched.failed_files,
+        )
+
     result = await ingestion.ingest_with_pipeline(
         pipeline=pipeline,
         full_rescan=request.full_rescan,

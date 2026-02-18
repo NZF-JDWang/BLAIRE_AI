@@ -44,7 +44,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 ### C. RAG Engine and Knowledge Pipeline
 - [x] Implement ingestion service skeleton under `backend/app/rag/`.
 - [x] Configure Qdrant collection creation and embedding pipeline.
-- [ ] Implement drop-folder watcher for `knowledge/drop` with debounce and retry handling.
+- [x] Implement drop-folder watcher for `knowledge/drop` with debounce and retry handling.
 - [ ] Implement multimodal parsing pipeline for text/PDF/image ingestion via LlamaIndex components.
 - [ ] Implement Obsidian vault indexer with initial full index + delta updates.
 - [ ] Implement citation metadata model (source path, chunk id, timestamp).

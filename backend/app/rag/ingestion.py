@@ -15,10 +15,29 @@ class IngestionResult:
     chunks_indexed: int = 0
 
 
+@dataclass
+class WatchIngestionResult:
+    scanned_files: int
+    indexed_files: int
+    skipped_files: int
+    failed_files: int
+    chunks_indexed: int
+    started_at: datetime
+
+
+@dataclass
+class _FileWatchState:
+    last_success_mtime: float | None = None
+    last_attempt_ts: float = 0.0
+    failure_count: int = 0
+    next_retry_ts: float = 0.0
+
+
 class DropFolderIngestionService:
     def __init__(self, drop_folder: str):
         self._drop_folder = Path(drop_folder)
         self._last_scan_at: datetime | None = None
+        self._watch_state: dict[str, _FileWatchState] = {}
 
     def scan_files(self, limit: int = 100) -> tuple[list[Path], int]:
         if not self._drop_folder.exists():
@@ -64,6 +83,61 @@ class DropFolderIngestionService:
             skipped_files=skipped,
             started_at=datetime.now(timezone.utc),
             chunks_indexed=indexed_chunks,
+        )
+
+    async def ingest_changed_with_retry(
+        self,
+        *,
+        pipeline: IngestionPipeline,
+        limit: int = 100,
+        debounce_seconds: int = 10,
+        retry_base_seconds: int = 5,
+        retry_max_seconds: int = 300,
+        current_time_ts: float | None = None,
+    ) -> WatchIngestionResult:
+        files, skipped = self.scan_files(limit=limit)
+        started_at = datetime.now(timezone.utc)
+        now_ts = current_time_ts if current_time_ts is not None else started_at.timestamp()
+        indexed_files = 0
+        failed_files = 0
+        chunks_indexed = 0
+
+        for file_path in files:
+            key = str(file_path)
+            state = self._watch_state.setdefault(key, _FileWatchState())
+            current_mtime = file_path.stat().st_mtime
+
+            unchanged = state.last_success_mtime is not None and current_mtime <= state.last_success_mtime
+            if unchanged and state.failure_count == 0:
+                skipped += 1
+                continue
+            if now_ts - state.last_attempt_ts < debounce_seconds:
+                skipped += 1
+                continue
+            if state.next_retry_ts and now_ts < state.next_retry_ts:
+                skipped += 1
+                continue
+
+            state.last_attempt_ts = now_ts
+            try:
+                chunks_indexed += await pipeline.ingest_file(file_path)
+                indexed_files += 1
+                state.last_success_mtime = current_mtime
+                state.failure_count = 0
+                state.next_retry_ts = 0.0
+            except Exception:  # noqa: BLE001
+                failed_files += 1
+                state.failure_count += 1
+                backoff = min(retry_base_seconds * (2 ** (state.failure_count - 1)), retry_max_seconds)
+                state.next_retry_ts = now_ts + backoff
+
+        return WatchIngestionResult(
+            scanned_files=len(files),
+            indexed_files=indexed_files,
+            skipped_files=skipped,
+            failed_files=failed_files,
+            chunks_indexed=chunks_indexed,
+            started_at=started_at,
         )
 
     @property
