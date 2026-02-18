@@ -5,6 +5,7 @@ export type ApprovalRecord = {
   target_host: string;
   tool_name: string;
   payload_hash: string;
+  action_payload?: Record<string, unknown>;
   requested_by: string;
   approved_by: string | null;
   created_at: string;
@@ -181,6 +182,67 @@ export async function executeApproval(approvalId: string, executionToken: string
   return response.json();
 }
 
+
+
+export type CliCommandRequestResponse = {
+  status: "completed" | "approval_required";
+  approval_id?: string | null;
+  record?: Record<string, unknown> | null;
+};
+
+export type CliUnrestrictedMode = {
+  enabled: boolean;
+  updated_at: string;
+};
+
+
+export async function requestCliCommand(command: string, args: string[] = [], timeoutSeconds = 10): Promise<CliCommandRequestResponse> {
+  const response = await apiFetch('/ops/cli/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ command, args, timeout_seconds: timeoutSeconds })
+  });
+  if (!response.ok) {
+    throw new Error(`CLI command request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function submitCliDecision(approvalId: string, decision: 'allow_once' | 'allow_always' | 'reject'): Promise<CliCommandRequestResponse> {
+  const response = await apiFetch(`/ops/cli/approvals/${approvalId}/decision`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision })
+  });
+  if (!response.ok) {
+    throw new Error(`CLI decision request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function getCliUnrestrictedMode(): Promise<CliUnrestrictedMode> {
+  const response = await apiFetch('/ops/cli/unrestricted', { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`CLI unrestricted mode request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateCliUnrestrictedMode(update: {
+  enabled: boolean;
+  acknowledged_danger: boolean;
+  confirmation_text: string;
+}): Promise<CliUnrestrictedMode> {
+  const response = await apiFetch('/ops/cli/unrestricted', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update)
+  });
+  if (!response.ok) {
+    throw new Error(`CLI unrestricted mode update failed: ${response.status}`);
+  }
+  return response.json();
+}
 export type KnowledgeStatus = {
   drop_folder: string;
   files_detected: number;

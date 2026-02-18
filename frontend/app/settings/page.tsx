@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 
 import {
   getBrowserApiKey,
+  getCliUnrestrictedMode,
   getMyPreferences,
   getRuntimeOptionsTyped,
   RuntimeOptions,
   setBrowserApiKey,
+  updateCliUnrestrictedMode,
   updateMyPreferences
 } from "@/lib/api";
 
@@ -17,6 +19,8 @@ type Preferences = {
   modelOverride: string;
 };
 
+const DANGER_CONFIRM_TEXT = "I UNDERSTAND THIS IS DANGEROUS";
+
 export default function SettingsPage() {
   const [options, setOptions] = useState<RuntimeOptions | null>(null);
   const [apiKey, setApiKey] = useState("");
@@ -25,17 +29,22 @@ export default function SettingsPage() {
     modelClass: "general",
     modelOverride: ""
   });
+  const [unrestrictedEnabled, setUnrestrictedEnabled] = useState(false);
+  const [dangerAck, setDangerAck] = useState(false);
+  const [dangerText, setDangerText] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     setApiKey(getBrowserApiKey());
-    Promise.all([getRuntimeOptionsTyped(), getMyPreferences()])
-      .then(([runtime, current]) => {
+    Promise.all([getRuntimeOptionsTyped(), getMyPreferences(), getCliUnrestrictedMode()])
+      .then(([runtime, current, mode]) => {
         setOptions(runtime);
         setPrefs({
           searchMode: current.search_mode,
           modelClass: current.model_class,
           modelOverride: current.model_override ?? ""
         });
+        setUnrestrictedEnabled(mode.enabled);
       })
       .catch(() => setOptions(null));
   }, []);
@@ -47,6 +56,18 @@ export default function SettingsPage() {
       model_class: prefs.modelClass,
       model_override: prefs.modelOverride || null
     });
+    setMessage("Preferences saved.");
+  }
+
+  async function saveUnrestrictedMode() {
+    setMessage("");
+    const response = await updateCliUnrestrictedMode({
+      enabled: unrestrictedEnabled,
+      acknowledged_danger: dangerAck,
+      confirmation_text: dangerText
+    });
+    setUnrestrictedEnabled(response.enabled);
+    setMessage(response.enabled ? "Dangerous mode enabled. Restrictions are OFF." : "Dangerous mode disabled.");
   }
 
   const models = options?.model_allowlist[prefs.modelClass] ?? [];
@@ -124,6 +145,39 @@ export default function SettingsPage() {
       <button style={{ marginTop: "16px", padding: "10px 16px" }} onClick={save}>
         Save Preferences
       </button>
+
+      <section
+        style={{ marginTop: "24px", padding: "12px", border: "1px solid #ef4444", borderRadius: "8px", background: "#fff7ed" }}
+      >
+        <h2 style={{ margin: "0 0 8px", color: "#b91c1c" }}>Dangerous mode (disable CLI restrictions)</h2>
+        <p style={{ margin: "0 0 8px" }}>
+          Warning: this disables command restrictions and allows direct local command execution. Use only if you fully trust prompts.
+        </p>
+        <label style={{ display: "block", marginBottom: "8px" }}>
+          <input
+            type="checkbox"
+            checked={unrestrictedEnabled}
+            onChange={(e) => setUnrestrictedEnabled(e.target.checked)}
+          />{" "}
+          Enable dangerous unrestricted mode
+        </label>
+        <label style={{ display: "block", marginBottom: "8px" }}>
+          <input type="checkbox" checked={dangerAck} onChange={(e) => setDangerAck(e.target.checked)} /> I understand this can be dangerous
+        </label>
+        <label style={{ display: "block", marginBottom: "8px" }}>
+          Type exactly: <code>{DANGER_CONFIRM_TEXT}</code>
+          <input
+            style={{ marginLeft: "8px", minWidth: "360px" }}
+            value={dangerText}
+            onChange={(e) => setDangerText(e.target.value)}
+            placeholder={DANGER_CONFIRM_TEXT}
+          />
+        </label>
+        <button style={{ padding: "8px 12px" }} onClick={saveUnrestrictedMode}>
+          Save Dangerous Mode Setting
+        </button>
+      </section>
+      {message ? <p style={{ marginTop: "10px" }}>{message}</p> : null}
     </main>
   );
 }

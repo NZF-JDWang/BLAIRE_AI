@@ -66,3 +66,7 @@ Auth: `X-API-Key` when `REQUIRE_AUTH=true`.
 
 ## Telegram
 - `POST /telegram/webhook`
+
+- `POST /ops/cli/request` (request CLI command execution; returns `approval_required` or executes if previously allowed).
+- `POST /ops/cli/approvals/{approval_id}/decision` (`allow_once`, `allow_always`, `reject`).
+- `GET /ops/cli/unrestricted` and `PUT /ops/cli/unrestricted` (toggle dangerous unrestricted command mode with explicit confirmation).

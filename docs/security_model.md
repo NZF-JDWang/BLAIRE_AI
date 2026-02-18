@@ -33,6 +33,8 @@
 ## Sandboxing
 - Filesystem write sandbox with traversal/symlink defenses
 - CLI sandbox with allowlist and backend isolation (`firejail`/`bubblewrap`)
+- CLI command approval modes: `allow_once` and per-user `allow_always` for approved commands
+- Optional per-user unrestricted CLI mode requires explicit dangerous-mode acknowledgement and confirmation text
 
 ## Webhook protection
 - Telegram webhook supports secret token verification

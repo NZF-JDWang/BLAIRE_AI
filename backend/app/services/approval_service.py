@@ -11,6 +11,9 @@ from psycopg.rows import dict_row
 from app.models.approval import ActionClass, ApprovalAuditEvent, ApprovalRecord
 
 
+DANGEROUS_MODE_CONFIRMATION = "I UNDERSTAND THIS IS DANGEROUS"
+
+
 def canonical_payload_hash(payload: dict[str, Any]) -> str:
     serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
@@ -60,15 +63,34 @@ class ApprovalService:
             event_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         """
+        create_permissions = """
+        CREATE TABLE IF NOT EXISTS cli_command_permissions (
+            subject TEXT NOT NULL,
+            command TEXT NOT NULL,
+            allow_always BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (subject, command)
+        );
+        """
+        create_dangerous_mode = """
+        CREATE TABLE IF NOT EXISTS cli_unrestricted_mode (
+            subject TEXT PRIMARY KEY,
+            enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """
         async with await psycopg.AsyncConnection.connect(self._database_url, autocommit=True) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(create_approvals)
                 await cur.execute(create_audit)
+                await cur.execute(create_permissions)
+                await cur.execute(create_dangerous_mode)
 
     async def create_pending(
         self,
         *,
-        approval_id: UUID,
+        approval_id: UUID | None,
         action_class: ActionClass,
         target_host: str,
         tool_name: str,
@@ -122,7 +144,7 @@ class ApprovalService:
                 row = await cur.fetchone()
         return _to_record(row) if row else None
 
-    async def approve(self, approval_id: UUID, actor: str, ttl_minutes: int = 10) -> tuple[ApprovalRecord, str, datetime]:
+    async def approve(self, approval_id: UUID | None, actor: str, ttl_minutes: int = 10) -> tuple[ApprovalRecord, str, datetime]:
         token = secrets.token_urlsafe(32)
         token_hash = hash_token(token)
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
@@ -163,7 +185,7 @@ class ApprovalService:
             await conn.commit()
         return _to_record(row), token, expires_at
 
-    async def reject(self, approval_id: UUID, actor: str, reason: str) -> ApprovalRecord:
+    async def reject(self, approval_id: UUID | None, actor: str, reason: str) -> ApprovalRecord:
         query = """
         UPDATE approvals
         SET status = 'rejected',
@@ -195,7 +217,7 @@ class ApprovalService:
 
     async def execute(
         self,
-        approval_id: UUID,
+        approval_id: UUID | None,
         actor: str,
         execution_token: str,
         expected_payload_hash: str,
@@ -277,7 +299,7 @@ class ApprovalService:
                 rows = await cur.fetchall()
         return [_to_record(row) for row in rows]
 
-    async def list_audit_events(self, approval_id: UUID, limit: int = 200) -> list[ApprovalAuditEvent]:
+    async def list_audit_events(self, approval_id: UUID | None, limit: int = 200) -> list[ApprovalAuditEvent]:
         query = """
         SELECT id, approval_id, event_type, actor, details, event_time
         FROM approval_audit_events
@@ -291,7 +313,79 @@ class ApprovalService:
                 rows = await cur.fetchall()
         return [ApprovalAuditEvent(**row) for row in rows]
 
-    async def _expire(self, conn: psycopg.AsyncConnection, approval_id: UUID, actor: str) -> None:
+    async def has_cli_command_permission(self, *, subject: str, command: str) -> bool:
+        query = """
+        SELECT allow_always
+        FROM cli_command_permissions
+        WHERE subject = %(subject)s
+          AND command = %(command)s;
+        """
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, {"subject": subject, "command": command})
+                row = await cur.fetchone()
+        return bool(row and row["allow_always"])
+
+    async def set_cli_command_permission(self, *, subject: str, command: str, actor: str) -> None:
+        query = """
+        INSERT INTO cli_command_permissions (subject, command, allow_always, updated_at)
+        VALUES (%(subject)s, %(command)s, TRUE, NOW())
+        ON CONFLICT (subject, command) DO UPDATE
+        SET allow_always = TRUE,
+            updated_at = NOW();
+        """
+        async with await psycopg.AsyncConnection.connect(self._database_url) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, {"subject": subject, "command": command})
+                await self._insert_audit(
+                    conn,
+                    approval_id=None,
+                    event_type="cli_command_allow_always",
+                    actor=actor,
+                    details={"subject": subject, "command": command},
+                )
+            await conn.commit()
+
+    async def get_cli_unrestricted_mode(self, *, subject: str) -> tuple[bool, datetime]:
+        query = """
+        SELECT enabled, updated_at
+        FROM cli_unrestricted_mode
+        WHERE subject = %(subject)s;
+        """
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, {"subject": subject})
+                row = await cur.fetchone()
+        if row is None:
+            return False, datetime.now(timezone.utc)
+        return bool(row["enabled"]), row["updated_at"]
+
+    async def set_cli_unrestricted_mode(self, *, subject: str, enabled: bool, actor: str) -> datetime:
+        query = """
+        INSERT INTO cli_unrestricted_mode (subject, enabled, updated_at)
+        VALUES (%(subject)s, %(enabled)s, NOW())
+        ON CONFLICT (subject) DO UPDATE
+        SET enabled = EXCLUDED.enabled,
+            updated_at = NOW()
+        RETURNING updated_at;
+        """
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, {"subject": subject, "enabled": enabled})
+                row = await cur.fetchone()
+                await self._insert_audit(
+                    conn,
+                    approval_id=None,
+                    event_type="cli_unrestricted_mode_updated",
+                    actor=actor,
+                    details={"subject": subject, "enabled": enabled},
+                )
+            await conn.commit()
+        if row is None:
+            raise ValueError("Failed to persist unrestricted mode")
+        return row["updated_at"]
+
+    async def _expire(self, conn: psycopg.AsyncConnection, approval_id: UUID | None, actor: str) -> None:
         query = """
         UPDATE approvals
         SET status = 'expired',
@@ -314,7 +408,7 @@ class ApprovalService:
         self,
         conn: psycopg.AsyncConnection,
         *,
-        approval_id: UUID,
+        approval_id: UUID | None,
         event_type: str,
         actor: str,
         details: dict[str, Any],

@@ -1,4 +1,7 @@
 import os
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -24,6 +27,7 @@ def _set_required_env() -> None:
 _set_required_env()
 
 from app.main import create_app  # noqa: E402
+from app.services.approval_service import ApprovalService  # noqa: E402
 from app.services.cli_sandbox import CliSandboxRunner  # noqa: E402
 from app.services.init_service import InitService  # noqa: E402
 
@@ -74,3 +78,41 @@ def test_ops_cli_execute_route(monkeypatch) -> None:
     payload = response.json()
     assert payload["status"] == "completed"
     assert payload["record"]["backend"] == "firejail"
+
+
+def test_cli_request_creates_approval_when_not_allowlisted(monkeypatch) -> None:
+    async def fake_get_mode(self, *, subject: str):  # noqa: ANN001, ANN202
+        _ = (self, subject)
+        return False, datetime.now(timezone.utc)
+
+    async def fake_has_permission(self, *, subject: str, command: str):  # noqa: ANN001, ANN202
+        _ = (self, subject, command)
+        return False
+
+    async def fake_create_pending(self, **kwargs):  # noqa: ANN001, ANN202
+        return SimpleNamespace(id=uuid4(), **kwargs)
+
+    monkeypatch.setattr(ApprovalService, "get_cli_unrestricted_mode", fake_get_mode)
+    monkeypatch.setattr(ApprovalService, "has_cli_command_permission", fake_has_permission)
+    monkeypatch.setattr(ApprovalService, "create_pending", fake_create_pending)
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/ops/cli/request",
+        headers={"X-API-Key": "test-user-key"},
+        json={"command": "echo", "args": ["hello"], "timeout_seconds": 10},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "approval_required"
+    assert payload["approval_id"]
+
+
+def test_update_unrestricted_mode_requires_confirmation() -> None:
+    client = TestClient(create_app())
+    response = client.put(
+        "/ops/cli/unrestricted",
+        headers={"X-API-Key": "test-user-key"},
+        json={"enabled": True, "acknowledged_danger": False, "confirmation_text": "nope"},
+    )
+    assert response.status_code == 400
