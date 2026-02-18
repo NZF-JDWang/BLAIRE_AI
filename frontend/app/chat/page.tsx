@@ -9,6 +9,15 @@ type ChatMessage = {
   content: string;
 };
 
+type Citation = {
+  source_name?: string;
+  source_path?: string;
+  file_type?: string;
+  chunk_index?: number;
+  score?: number;
+  text?: string;
+};
+
 const API_BASE = "/api";
 
 async function streamChat(params: {
@@ -16,7 +25,7 @@ async function streamChat(params: {
   modelClass: string;
   modelOverride?: string;
   onToken: (token: string) => void;
-  onMeta: (meta: { citations?: Array<{ source_name?: string; chunk_index?: number; text?: string }> }) => void;
+  onMeta: (meta: { citations?: Citation[]; rag_status?: string; rag_error?: string | null }) => void;
   onDone: () => void;
 }): Promise<void> {
   const response = await fetch(`${API_BASE}/chat`, {
@@ -48,7 +57,13 @@ async function streamChat(params: {
       const event = lines.find((line) => line.startsWith("event:"))?.replace("event:", "").trim();
       const dataLine = lines.find((line) => line.startsWith("data:"))?.replace("data:", "").trim();
       if (!dataLine) continue;
-      let payload: { text?: string; message?: string; citations?: Array<{ source_name?: string; chunk_index?: number; text?: string }> } = {};
+      let payload: {
+        text?: string;
+        message?: string;
+        citations?: Citation[];
+        rag_status?: string;
+        rag_error?: string | null;
+      } = {};
       try {
         payload = JSON.parse(dataLine);
       } catch {
@@ -78,7 +93,9 @@ export default function ChatPage() {
   const [runtimeOptions, setRuntimeOptions] = useState<RuntimeOptions | null>(null);
   const [modelClass, setModelClass] = useState("general");
   const [modelOverride, setModelOverride] = useState("");
-  const [citations, setCitations] = useState<Array<{ source_name?: string; chunk_index?: number; text?: string }>>([]);
+  const [citations, setCitations] = useState<Citation[]>([]);
+  const [ragStatus, setRagStatus] = useState<string>("disabled");
+  const [ragError, setRagError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([getRuntimeOptionsTyped(), getMyPreferences()])
@@ -100,6 +117,8 @@ export default function ChatPage() {
     if (!input.trim() || loading) return;
     setError("");
     setCitations([]);
+    setRagStatus("disabled");
+    setRagError(null);
 
     const userMessage: ChatMessage = { role: "user", content: input.trim() };
     const nextMessages = [...messages, userMessage];
@@ -115,7 +134,11 @@ export default function ChatPage() {
         messages: nextMessages.map((message) => ({ role: message.role, content: message.content })),
         modelClass,
         modelOverride: modelOverride || undefined,
-        onMeta: (meta) => setCitations(meta.citations ?? []),
+        onMeta: (meta) => {
+          setCitations(meta.citations ?? []);
+          setRagStatus(meta.rag_status ?? "disabled");
+          setRagError(meta.rag_error ?? null);
+        },
         onToken: (token) => {
           assistantBuffer += token;
           setMessages((prev) => {
@@ -186,14 +209,20 @@ export default function ChatPage() {
         </button>
       </form>
       {error ? <p style={{ color: "#b91c1c", marginTop: "8px" }}>{error}</p> : null}
+      <p style={{ marginTop: "10px", fontFamily: "monospace" }}>
+        rag: {ragStatus}
+        {ragError ? ` (${ragError})` : ""}
+      </p>
       {citations.length > 0 ? (
         <section style={{ marginTop: "16px" }}>
           <h2 style={{ fontSize: "1.1rem", marginBottom: "8px" }}>Citations</h2>
           <ul>
             {citations.map((citation, idx) => (
               <li key={`${citation.source_name}-${citation.chunk_index}-${idx}`}>
-                <strong>{citation.source_name}</strong> #{citation.chunk_index}:{" "}
-                {String(citation.text ?? "").slice(0, 180)}
+                <strong>{citation.source_name}</strong> ({citation.file_type}) #{citation.chunk_index} score=
+                {typeof citation.score === "number" ? citation.score.toFixed(3) : "n/a"}
+                <div style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>{citation.source_path}</div>
+                <div>{String(citation.text ?? "").slice(0, 220)}</div>
               </li>
             ))}
           </ul>

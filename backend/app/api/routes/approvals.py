@@ -6,6 +6,7 @@ from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.core.rate_limit import RateLimitRule, rate_limiter
 from app.models.approval import (
+    ApprovalAuditEvent,
     ApprovalApproveResponse,
     ApprovalCreateRequest,
     ApprovalCreateResponse,
@@ -61,6 +62,15 @@ async def get_approval(approval_id: UUID, _: Principal = Depends(require_roles("
     if record is None:
         raise HTTPException(status_code=404, detail="Approval not found")
     return record
+
+
+@router.get("/approvals/{approval_id}/audit", response_model=list[ApprovalAuditEvent])
+async def get_approval_audit(
+    approval_id: UUID,
+    limit: int = Query(default=200, ge=1, le=500),
+    _: Principal = Depends(require_roles("admin")),
+) -> list[ApprovalAuditEvent]:
+    return await _service().list_audit_events(approval_id=approval_id, limit=limit)
 
 
 @router.post("/approvals/{approval_id}/approve", response_model=ApprovalApproveResponse)

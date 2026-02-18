@@ -2,13 +2,22 @@
 
 import { useEffect, useState } from "react";
 
-import { ApprovalRecord, approveApproval, executeApproval, getRecentApprovals, rejectApproval } from "@/lib/api";
+import {
+  ApprovalAuditEvent,
+  ApprovalRecord,
+  approveApproval,
+  executeApproval,
+  getApprovalAudit,
+  getRecentApprovals,
+  rejectApproval
+} from "@/lib/api";
 
 export default function ApprovalsPage() {
   const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [tokens, setTokens] = useState<Record<string, string>>({});
+  const [audit, setAudit] = useState<Record<string, ApprovalAuditEvent[]>>({});
 
   async function load() {
     setLoading(true);
@@ -63,6 +72,16 @@ export default function ApprovalsPage() {
     }
   }
 
+  async function onLoadAudit(id: string) {
+    setError("");
+    try {
+      const events = await getApprovalAudit(id, 100);
+      setAudit((prev) => ({ ...prev, [id]: events }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Audit load failed");
+    }
+  }
+
   return (
     <main style={{ maxWidth: "1000px", margin: "48px auto", padding: "0 16px" }}>
       <h1 style={{ fontSize: "2rem", marginBottom: "16px" }}>Approval Queue</h1>
@@ -109,7 +128,19 @@ export default function ApprovalsPage() {
                     <button onClick={() => onReject(approval.id)} style={{ padding: "6px 10px" }}>
                       Reject
                     </button>
+                    <button onClick={() => onLoadAudit(approval.id)} style={{ padding: "6px 10px" }}>
+                      Audit
+                    </button>
                   </div>
+                  {(audit[approval.id] ?? []).length > 0 ? (
+                    <div style={{ marginTop: "8px", fontSize: "0.8rem", maxWidth: "380px" }}>
+                      {(audit[approval.id] ?? []).slice(0, 5).map((event) => (
+                        <div key={event.id} style={{ marginBottom: "4px", fontFamily: "monospace" }}>
+                          {event.event_type} by {event.actor}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </td>
               </tr>
             ))}

@@ -32,3 +32,5 @@ class ChatResponse(BaseModel):
     model: str
     text: str
     citations: list[dict] = Field(default_factory=list)
+    rag_status: str = "disabled"
+    rag_error: str | None = None

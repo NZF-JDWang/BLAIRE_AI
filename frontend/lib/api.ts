@@ -14,6 +14,15 @@ export type ApprovalRecord = {
   rejection_reason: string | null;
 };
 
+export type ApprovalAuditEvent = {
+  id: number;
+  approval_id: string | null;
+  event_type: string;
+  actor: string;
+  details: Record<string, unknown>;
+  event_time: string;
+};
+
 export type RuntimeOptions = {
   search_modes: string[];
   default_search_mode: string;
@@ -97,6 +106,14 @@ export async function getRecentApprovals(limit = 100): Promise<ApprovalRecord[]>
   const response = await apiFetch(`/approvals/recent?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Recent approvals request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function getApprovalAudit(approvalId: string, limit = 200): Promise<ApprovalAuditEvent[]> {
+  const response = await apiFetch(`/approvals/${approvalId}/audit?limit=${limit}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Approval audit request failed: ${response.status}`);
   }
   return response.json();
 }

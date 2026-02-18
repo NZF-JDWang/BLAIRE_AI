@@ -8,7 +8,7 @@ from uuid import UUID
 import psycopg
 from psycopg.rows import dict_row
 
-from app.models.approval import ActionClass, ApprovalRecord
+from app.models.approval import ActionClass, ApprovalAuditEvent, ApprovalRecord
 
 
 def canonical_payload_hash(payload: dict[str, Any]) -> str:
@@ -276,6 +276,20 @@ class ApprovalService:
                 await cur.execute(query, {"limit": limit})
                 rows = await cur.fetchall()
         return [_to_record(row) for row in rows]
+
+    async def list_audit_events(self, approval_id: UUID, limit: int = 200) -> list[ApprovalAuditEvent]:
+        query = """
+        SELECT id, approval_id, event_type, actor, details, event_time
+        FROM approval_audit_events
+        WHERE approval_id = %(approval_id)s
+        ORDER BY event_time DESC
+        LIMIT %(limit)s;
+        """
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, {"approval_id": approval_id, "limit": limit})
+                rows = await cur.fetchall()
+        return [ApprovalAuditEvent(**row) for row in rows]
 
     async def _expire(self, conn: psycopg.AsyncConnection, approval_id: UUID, actor: str) -> None:
         query = """

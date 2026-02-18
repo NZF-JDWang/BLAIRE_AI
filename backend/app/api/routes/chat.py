@@ -58,7 +58,10 @@ async def chat(
     ]
     client = OllamaClient(settings.ollama_base_url)
     citations: list[dict] = []
+    rag_status = "disabled"
+    rag_error: str | None = None
     if request.use_rag:
+        rag_status = "none"
         try:
             latest_user = next((msg.content for msg in reversed(request.messages) if msg.role == "user"), "")
             if latest_user:
@@ -80,6 +83,7 @@ async def chat(
                     for item in results
                 ]
                 if citations:
+                    rag_status = "used"
                     context_text = "\n\n".join(
                         [f"[{c['source_name']}#{c['chunk_index']}] {c['text']}" for c in citations]
                     )
@@ -96,6 +100,8 @@ async def chat(
                     )
         except Exception:
             logger.exception("rag_retrieval_failed")
+            rag_status = "failed"
+            rag_error = "retrieval_unavailable"
 
     if request.stream:
         async def event_stream() -> AsyncIterator[str]:
@@ -107,6 +113,8 @@ async def chat(
                         "model": selection.model_name,
                         "model_class": selection.model_class,
                         "selection_reason": selection.reason,
+                        "rag_status": rag_status,
+                        "rag_error": rag_error,
                         "citations": citations,
                     },
                 )
@@ -133,5 +141,7 @@ async def chat(
             model=selection.model_name,
             text="".join(chunks),
             citations=citations,
+            rag_status=rag_status,
+            rag_error=rag_error,
         ).model_dump()
     )

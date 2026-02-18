@@ -55,3 +55,11 @@ class ApprovalExecuteRequest(ApprovalActionRequest):
     execution_token: str = Field(min_length=20, max_length=256)
     expected_payload_hash: str = Field(min_length=64, max_length=64)
 
+
+class ApprovalAuditEvent(BaseModel):
+    id: int
+    approval_id: UUID | None
+    event_type: str
+    actor: str
+    details: dict[str, Any]
+    event_time: datetime
