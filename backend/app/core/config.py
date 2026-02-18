@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     allowed_network_hosts: str = Field(default="", alias="ALLOWED_NETWORK_HOSTS")
     allowed_network_tools: str = Field(default="", alias="ALLOWED_NETWORK_TOOLS")
     allowed_write_paths: str = Field(default="/app/knowledge/drop", alias="ALLOWED_WRITE_PATHS")
+    allowed_ha_operations: str = Field(default="", alias="ALLOWED_HA_OPERATIONS")
 
     model_general_default: str = Field(alias="MODEL_GENERAL_DEFAULT")
     model_vision_default: str = Field(alias="MODEL_VISION_DEFAULT")
@@ -90,6 +91,9 @@ class Settings(BaseSettings):
 
     def allowed_write_paths_list(self) -> list[str]:
         return [path.strip() for path in self.allowed_write_paths.split(",") if path.strip()]
+
+    def allowed_ha_operations_list(self) -> list[str]:
+        return [op.strip() for op in self.allowed_ha_operations.split(",") if op.strip()]
 
 
 @lru_cache(maxsize=1)
