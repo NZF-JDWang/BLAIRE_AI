@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     qdrant_collection_name: str = Field(default="knowledge_multimodal", alias="QDRANT_COLLECTION_NAME")
     qdrant_embedding_dim: int = Field(default=768, alias="QDRANT_EMBEDDING_DIM")
     max_upload_mb: int = Field(default=25, alias="MAX_UPLOAD_MB")
+    backup_path: str = Field(default="/backups", alias="BACKUP_PATH")
 
     @field_validator("app_env")
     @classmethod

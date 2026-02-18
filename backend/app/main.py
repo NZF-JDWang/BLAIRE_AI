@@ -8,6 +8,7 @@ from app.api.routes.chat import router as chat_router
 from app.api.routes.dependencies import router as dependencies_router
 from app.api.routes.knowledge import router as knowledge_router
 from app.api.routes.mcp import router as mcp_router
+from app.api.routes.ops import router as ops_router
 from app.api.routes.preferences import router as preferences_router
 from app.api.routes.runtime_options import router as runtime_options_router
 from app.api.routes.search import router as search_router
@@ -102,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(dependencies_router)
     app.include_router(mcp_router)
     app.include_router(preferences_router)
+    app.include_router(ops_router)
     return app
 
 
