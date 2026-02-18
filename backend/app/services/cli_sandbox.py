@@ -37,16 +37,49 @@ class CliSandboxRunner:
         self._backend = backend
         self._allow = set(allowed_commands)
 
+    def _resolve_command(self, command: str) -> str:
+        resolved = which(command)
+        if not resolved:
+            raise CliSandboxError(f"Command '{command}' is not available on PATH")
+        return resolved
+
     def _sandbox_prefix(self) -> list[str]:
         if self._backend == "firejail":
             if which("firejail") is None:
                 raise CliSandboxError("firejail is not installed")
-            return ["firejail", "--quiet", "--net=none", "--private"]
+            return ["firejail", "--quiet", "--net=none", "--private", "--"]
         if self._backend == "bubblewrap":
             bwrap = which("bwrap") or which("bubblewrap")
             if bwrap is None:
                 raise CliSandboxError("bubblewrap is not installed")
-            return [bwrap, "--unshare-net", "--proc", "/proc", "--dev", "/dev"]
+            return [
+                bwrap,
+                "--die-with-parent",
+                "--unshare-net",
+                "--unshare-pid",
+                "--new-session",
+                "--ro-bind",
+                "/usr",
+                "/usr",
+                "--ro-bind",
+                "/bin",
+                "/bin",
+                "--ro-bind",
+                "/lib",
+                "/lib",
+                "--ro-bind",
+                "/lib64",
+                "/lib64",
+                "--proc",
+                "/proc",
+                "--dev",
+                "/dev",
+                "--tmpfs",
+                "/tmp",
+                "--chdir",
+                "/tmp",
+                "--",
+            ]
         raise CliSandboxError("Unsupported sandbox backend")
 
     def run(self, *, command: str, args: list[str], timeout_seconds: int = 10) -> CliSandboxRecord:
@@ -54,7 +87,8 @@ class CliSandboxRunner:
             raise CliSandboxError("Command is not allowlisted")
 
         started_at = datetime.now(timezone.utc).isoformat()
-        sandbox_cmd = [*self._sandbox_prefix(), command, *args]
+        resolved_command = self._resolve_command(command)
+        sandbox_cmd = [*self._sandbox_prefix(), resolved_command, *args]
         try:
             proc = subprocess.run(  # noqa: S603
                 sandbox_cmd,
