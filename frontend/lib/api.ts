@@ -60,3 +60,18 @@ export async function getPendingApprovals(limit = 50): Promise<ApprovalRecord[]>
   }
   return response.json();
 }
+
+export type KnowledgeStatus = {
+  drop_folder: string;
+  files_detected: number;
+  last_scan_at: string | null;
+  qdrant_reachable: boolean;
+};
+
+export async function getKnowledgeStatus(): Promise<KnowledgeStatus> {
+  const response = await fetch(`${apiBaseUrl}/knowledge/status`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Knowledge status request failed: ${response.status}`);
+  }
+  return response.json();
+}

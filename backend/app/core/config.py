@@ -31,6 +31,8 @@ class Settings(BaseSettings):
 
     mcp_obsidian_url: str = Field(alias="MCP_OBSIDIAN_URL")
     mcp_ha_url: str = Field(alias="MCP_HA_URL")
+    drop_folder: str = Field(default="/app/knowledge/drop", alias="DROP_FOLDER")
+    obsidian_vault_path: str = Field(default="/vault", alias="OBSIDIAN_VAULT_PATH")
     sensitive_actions_enabled: bool = Field(default=True, alias="SENSITIVE_ACTIONS_ENABLED")
     approval_token_ttl_minutes: int = Field(default=10, alias="APPROVAL_TOKEN_TTL_MINUTES")
     allowed_network_hosts: str = Field(default="", alias="ALLOWED_NETWORK_HOSTS")

@@ -45,6 +45,9 @@ export default async function HomePage() {
       <p style={{ marginTop: "8px" }}>
         <a href="/approvals">Open approval queue</a>
       </p>
+      <p style={{ marginTop: "8px" }}>
+        <a href="/knowledge">Open knowledge status</a>
+      </p>
     </main>
   );
 }

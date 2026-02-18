@@ -4,6 +4,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.routes.approvals import router as approvals_router
 from app.api.routes.chat import router as chat_router
+from app.api.routes.knowledge import router as knowledge_router
 from app.api.routes.runtime_options import router as runtime_options_router
 from app.api.routes.search import router as search_router
 from app.api.routes.tools import router as tools_router
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(approvals_router)
     app.include_router(tools_router)
     app.include_router(search_router)
+    app.include_router(knowledge_router)
     return app
 
 
