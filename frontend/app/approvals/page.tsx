@@ -2,19 +2,19 @@
 
 import { useEffect, useState } from "react";
 
-import { ApprovalRecord, approveApproval, getPendingApprovals, rejectApproval } from "@/lib/api";
+import { ApprovalRecord, approveApproval, executeApproval, getRecentApprovals, rejectApproval } from "@/lib/api";
 
 export default function ApprovalsPage() {
   const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [lastToken, setLastToken] = useState<string>("");
+  const [tokens, setTokens] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const data = await getPendingApprovals(100);
+      const data = await getRecentApprovals(150);
       setApprovals(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load approvals");
@@ -31,7 +31,7 @@ export default function ApprovalsPage() {
     setError("");
     try {
       const result = await approveApproval(id);
-      setLastToken(result.execution_token);
+      setTokens((prev) => ({ ...prev, [id]: result.execution_token }));
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Approve failed");
@@ -48,19 +48,29 @@ export default function ApprovalsPage() {
     }
   }
 
+  async function onExecute(id: string, expectedPayloadHash: string) {
+    setError("");
+    const token = tokens[id];
+    if (!token) {
+      setError("No execution token available for this approval. Approve first.");
+      return;
+    }
+    try {
+      await executeApproval(id, token, expectedPayloadHash);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Execute failed");
+    }
+  }
+
   return (
     <main style={{ maxWidth: "1000px", margin: "48px auto", padding: "0 16px" }}>
       <h1 style={{ fontSize: "2rem", marginBottom: "16px" }}>Approval Queue</h1>
       <button onClick={load} disabled={loading} style={{ marginBottom: "12px", padding: "8px 12px" }}>
         {loading ? "Refreshing..." : "Refresh"}
       </button>
-      {lastToken ? (
-        <p style={{ fontFamily: "monospace", background: "#f8fafc", padding: "8px", borderRadius: "6px" }}>
-          last execution token: {lastToken}
-        </p>
-      ) : null}
       {error ? <p style={{ color: "#b91c1c" }}>{error}</p> : null}
-      {!error && approvals.length === 0 ? <p>No pending approvals.</p> : null}
+      {!error && approvals.length === 0 ? <p>No approvals found.</p> : null}
       {!error && approvals.length > 0 ? (
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.92rem" }}>
           <thead>
@@ -71,6 +81,7 @@ export default function ApprovalsPage() {
               <th style={{ padding: "8px" }}>Tool</th>
               <th style={{ padding: "8px" }}>Requested By</th>
               <th style={{ padding: "8px" }}>Created</th>
+              <th style={{ padding: "8px" }}>Payload Hash</th>
               <th style={{ padding: "8px" }}>Actions</th>
             </tr>
           </thead>
@@ -83,10 +94,17 @@ export default function ApprovalsPage() {
                 <td style={{ padding: "8px" }}>{approval.tool_name}</td>
                 <td style={{ padding: "8px" }}>{approval.requested_by}</td>
                 <td style={{ padding: "8px" }}>{new Date(approval.created_at).toLocaleString()}</td>
+                <td style={{ padding: "8px", fontFamily: "monospace" }}>{approval.payload_hash.slice(0, 14)}...</td>
                 <td style={{ padding: "8px" }}>
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button onClick={() => onApprove(approval.id)} style={{ padding: "6px 10px" }}>
                       Approve
+                    </button>
+                    <button
+                      onClick={() => onExecute(approval.id, approval.payload_hash)}
+                      style={{ padding: "6px 10px" }}
+                    >
+                      Execute
                     </button>
                     <button onClick={() => onReject(approval.id)} style={{ padding: "6px 10px" }}>
                       Reject
@@ -101,4 +119,3 @@ export default function ApprovalsPage() {
     </main>
   );
 }
-

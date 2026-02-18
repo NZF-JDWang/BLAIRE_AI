@@ -263,6 +263,20 @@ class ApprovalService:
                 rows = await cur.fetchall()
         return [_to_record(row) for row in rows]
 
+    async def list_recent(self, limit: int = 100) -> list[ApprovalRecord]:
+        query = """
+        SELECT id, status, action_class, target_host, tool_name, action_payload, payload_hash, requested_by,
+               approved_by, created_at, updated_at, token_expires_at, executed_at, rejection_reason
+        FROM approvals
+        ORDER BY created_at DESC
+        LIMIT %(limit)s;
+        """
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, {"limit": limit})
+                rows = await cur.fetchall()
+        return [_to_record(row) for row in rows]
+
     async def _expire(self, conn: psycopg.AsyncConnection, approval_id: UUID, actor: str) -> None:
         query = """
         UPDATE approvals
@@ -305,4 +319,3 @@ class ApprovalService:
                     "details": json.dumps(details),
                 },
             )
-

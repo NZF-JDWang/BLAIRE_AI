@@ -93,6 +93,14 @@ export async function getPendingApprovals(limit = 50): Promise<ApprovalRecord[]>
   return response.json();
 }
 
+export async function getRecentApprovals(limit = 100): Promise<ApprovalRecord[]> {
+  const response = await apiFetch(`/approvals/recent?limit=${limit}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Recent approvals request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function approveApproval(approvalId: string): Promise<{
   approval: ApprovalRecord;
   execution_token: string;
@@ -117,6 +125,22 @@ export async function rejectApproval(approvalId: string, reason: string): Promis
   });
   if (!response.ok) {
     throw new Error(`Reject request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function executeApproval(approvalId: string, executionToken: string, expectedPayloadHash: string): Promise<ApprovalRecord> {
+  const response = await apiFetch(`/approvals/${approvalId}/execute`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      actor: "ui-admin",
+      execution_token: executionToken,
+      expected_payload_hash: expectedPayloadHash
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`Execute request failed: ${response.status}`);
   }
   return response.json();
 }

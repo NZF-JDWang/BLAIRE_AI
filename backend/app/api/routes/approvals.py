@@ -31,6 +31,14 @@ async def list_pending_approvals(
     return await _service().list_pending(limit=limit)
 
 
+@router.get("/approvals/recent", response_model=list[ApprovalRecord])
+async def list_recent_approvals(
+    limit: int = Query(default=100, ge=1, le=300),
+    _: Principal = Depends(require_roles("admin")),
+) -> list[ApprovalRecord]:
+    return await _service().list_recent(limit=limit)
+
+
 @router.post("/approvals", response_model=ApprovalCreateResponse, status_code=201)
 async def create_approval(
     request: ApprovalCreateRequest,
