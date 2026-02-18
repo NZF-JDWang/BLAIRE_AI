@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +23,12 @@ class Settings(BaseSettings):
 
     database_url: SecretStr = Field(alias="DATABASE_URL")
     qdrant_url: str = Field(alias="QDRANT_URL")
-    ollama_base_url: str = Field(alias="OLLAMA_BASE_URL")
+    inference_base_url: str = Field(
+        default="http://localai:8080",
+        alias="INFERENCE_BASE_URL",
+        validation_alias=AliasChoices("INFERENCE_BASE_URL", "LOCALAI_BASE_URL", "OLLAMA_BASE_URL"),
+    )
+    vllm_base_url: str = Field(default="http://vllm:8000", alias="VLLM_BASE_URL")
 
     search_mode_default: str = Field(default="searxng_only", alias="SEARCH_MODE_DEFAULT")
     brave_api_key: SecretStr | None = Field(default=None, alias="BRAVE_API_KEY")
@@ -50,7 +55,11 @@ class Settings(BaseSettings):
     model_vision_default: str = Field(alias="MODEL_VISION_DEFAULT")
     model_embedding_default: str = Field(alias="MODEL_EMBEDDING_DEFAULT")
     model_code_default: str | None = Field(default=None, alias="MODEL_CODE_DEFAULT")
-    model_allow_any_ollama: bool = Field(default=False, alias="MODEL_ALLOW_ANY_OLLAMA")
+    model_allow_any_inference: bool = Field(
+        default=False,
+        alias="MODEL_ALLOW_ANY_INFERENCE",
+        validation_alias=AliasChoices("MODEL_ALLOW_ANY_INFERENCE", "MODEL_ALLOW_ANY_OLLAMA"),
+    )
     model_allowlist_extra_general: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_GENERAL")
     model_allowlist_extra_vision: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_VISION")
     model_allowlist_extra_embedding: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_EMBEDDING")
@@ -189,6 +198,14 @@ class Settings(BaseSettings):
 
     def model_disallowlist_list(self) -> list[str]:
         return [model.strip() for model in self.model_disallowlist.split(",") if model.strip()]
+
+    @property
+    def ollama_base_url(self) -> str:
+        return self.inference_base_url
+
+    @property
+    def model_allow_any_ollama(self) -> bool:
+        return self.model_allow_any_inference
 
 
 @lru_cache(maxsize=1)

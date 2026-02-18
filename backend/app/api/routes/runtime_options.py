@@ -55,5 +55,6 @@ async def models(
             "embedding": settings.model_embedding_default,
             "code": settings.model_code_default,
         },
+        model_allow_any_inference=settings.model_allow_any_inference,
         model_allow_any_ollama=settings.model_allow_any_ollama,
     )

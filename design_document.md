@@ -63,7 +63,7 @@ blaire-frontend           blaire-backend
 ┌─────────────────────┬───────────────┼───────────────┬─────────────────────┐
 │                     │               │               │                     │
 Agent Layer          RAG Engine      Tool Registry     MCP Client           Inference
-(LangGraph)         (LlamaIndex)     (Brave/Searx/MCP/FS)   (Obsidian/HA/etc)      (Ollama)
+(LangGraph)         (LlamaIndex)     (Brave/Searx/MCP/FS)   (Obsidian/HA/etc)      (LocalAI/vLLM)
 │                     │               │               │                     │
 └─────────────────────┴───────────────┴───────────────┴─────────────────────┘
 │
@@ -89,7 +89,8 @@ Qdrant vector database
 Pydantic v2 + structlog
 
 **Inference**  
-Ollama (http://ollama:11434 inside containers_core)  
+Inference API (LocalAI at http://localai:8080 inside containers_core)  
+Optional vLLM backend (http://vllm:8000 inside containers_core, `gpu` profile)
 Default models:  
 • Supervisor → qwen2.5:7b-instruct or llama3.2:3b (Q5)  
 • Research agents → phi-3.5-mini-instruct + gemma2:2b  
@@ -153,7 +154,7 @@ text**Important bind mounts / volumes**
 4. Scaffold either:
    - frontend skeleton (Next.js + basic chat page + api proxy)
    - backend skeleton (FastAPI + health endpoint + LangGraph supervisor stub)
-5. Deploy Qdrant + Ollama connectivity test
+5. Deploy Qdrant + inference connectivity test (LocalAI + optional vLLM)
 6. Implement drop-folder watcher + first ingestion pipeline
 
 If you would like the next piece (docker-compose.yml skeleton, .env.example, FastAPI main.py structure, Next.js layout.tsx, etc.), just tell me which one to generate first.

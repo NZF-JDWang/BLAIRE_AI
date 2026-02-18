@@ -18,7 +18,7 @@
 ## Knowledge ingestion issues
 - Confirm `DROP_FOLDER` path mounted and readable
 - Verify file extension support
-- Check Ollama embedding model availability
+- Check inference embedding model availability (`GET /v1/models` on `INFERENCE_BASE_URL`)
 
 ## MCP call failures
 - Verify MCP sidecars are running (`--profile mcp`)

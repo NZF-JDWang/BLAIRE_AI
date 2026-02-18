@@ -4,7 +4,7 @@ from app.core.config import Settings
 from app.services.model_router import ModelRouter
 
 
-def _settings(*, allow_any_ollama: bool = False) -> Settings:
+def _settings(*, allow_any_inference: bool = False) -> Settings:
     os.environ["DATABASE_URL"] = "postgresql+psycopg://user:pass@localhost:5432/db"
     os.environ["QDRANT_URL"] = "http://localhost:6333"
     os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
@@ -13,7 +13,7 @@ def _settings(*, allow_any_ollama: bool = False) -> Settings:
     os.environ["MODEL_GENERAL_DEFAULT"] = "qwen2.5:7b-instruct"
     os.environ["MODEL_VISION_DEFAULT"] = "qwen2.5vl:7b"
     os.environ["MODEL_EMBEDDING_DEFAULT"] = "nomic-embed-text:v1.5"
-    os.environ["MODEL_ALLOW_ANY_OLLAMA"] = "true" if allow_any_ollama else "false"
+    os.environ["MODEL_ALLOW_ANY_INFERENCE"] = "true" if allow_any_inference else "false"
     os.environ["MODEL_ALLOWLIST_EXTRA_GENERAL"] = ""
     os.environ["MODEL_ALLOWLIST_EXTRA_VISION"] = ""
     os.environ["MODEL_ALLOWLIST_EXTRA_EMBEDDING"] = ""
@@ -65,10 +65,10 @@ def test_select_model_falls_back_to_class_default() -> None:
 
 def test_select_model_allows_installed_override_when_allow_any_enabled(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.services.model_router.fetch_installed_model_names",
+        "app.services.model_router.fetch_available_model_names",
         lambda *_args, **_kwargs: ["dolphin-llama3:8b-v2.9-q4_K_M"],
     )
-    router = ModelRouter(_settings(allow_any_ollama=True))
+    router = ModelRouter(_settings(allow_any_inference=True))
     selection = router.select_model("general", request_override="dolphin-llama3:8b-v2.9-q4_K_M")
     assert selection.model_name == "dolphin-llama3:8b-v2.9-q4_K_M"
     assert selection.reason == "session_override"
@@ -76,10 +76,10 @@ def test_select_model_allows_installed_override_when_allow_any_enabled(monkeypat
 
 def test_select_model_rejects_installed_override_when_allow_any_disabled(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.services.model_router.fetch_installed_model_names",
+        "app.services.model_router.fetch_available_model_names",
         lambda *_args, **_kwargs: ["dolphin-llama3:8b-v2.9-q4_K_M"],
     )
-    router = ModelRouter(_settings(allow_any_ollama=False))
+    router = ModelRouter(_settings(allow_any_inference=False))
     selection = router.select_model("general", request_override="dolphin-llama3:8b-v2.9-q4_K_M")
     assert selection.model_name == "qwen2.5:7b-instruct"
     assert selection.reason == "class_default"

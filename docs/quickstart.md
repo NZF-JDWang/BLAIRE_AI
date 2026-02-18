@@ -32,7 +32,10 @@ Recommended security values:
 - Optional services:
   - Search sidecar: `docker compose --profile search up -d`
   - MCP sidecars: `docker compose --profile mcp up -d`
+  - vLLM backend: `docker compose --profile gpu up -d`
   - Watchtower ops: `docker compose --profile ops up -d watchtower`
+
+Before chat requests, make sure `${LOCALAI_MODELS_PATH}` contains your LocalAI model configs.
 
 ## 4) Initialize metadata/vector state
 - Call `POST /ops/init` with an admin API key.

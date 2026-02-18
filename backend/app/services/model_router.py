@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.core.config import Settings
-from app.services.ollama_client import fetch_installed_model_names
+from app.services.inference_client import fetch_available_model_names
 
 ModelClass = Literal["general", "vision", "embedding", "code"]
 
@@ -50,7 +50,7 @@ class ModelRouter:
 
     def _load_installed_models(self) -> set[str]:
         try:
-            return set(fetch_installed_model_names(self._settings.ollama_base_url))
+            return set(fetch_available_model_names(self._settings.inference_base_url))
         except Exception:  # noqa: BLE001
             return set()
 
@@ -71,7 +71,7 @@ class ModelRouter:
         for model_class, model_names in extras.items():
             allowlist[model_class].update(model_names)
 
-        if self._settings.model_allow_any_ollama and self._installed_models:
+        if self._settings.model_allow_any_inference and self._installed_models:
             for model_class in ("general", "vision", "embedding", "code"):
                 allowlist[model_class].update(self._installed_models)
 

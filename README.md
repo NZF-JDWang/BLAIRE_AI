@@ -5,6 +5,7 @@ Blacksite Lab AI Hub: a custom, self-hosted agent platform with FastAPI backend,
 ## Stack
 - Backend: FastAPI, Pydantic v2, structlog, LangGraph/LangChain/LlamaIndex, Qdrant, PostgreSQL
 - Frontend: Next.js 16 App Router, React 19
+- Inference: LocalAI (OpenAI-compatible) with optional vLLM backend profile
 - Orchestration: multi-agent swarm + live trace API
 - Safety: approval workflow, action classes, rate limits, filesystem + CLI sandboxing
 

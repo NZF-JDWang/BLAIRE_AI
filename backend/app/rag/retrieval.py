@@ -3,7 +3,7 @@ from pathlib import Path
 
 from app.rag.chunking import chunk_text, extract_text
 from app.rag.vector_store import QdrantVectorStore
-from app.services.ollama_client import OllamaClient
+from app.services.inference_client import InferenceClient
 
 
 @dataclass(frozen=True)
@@ -22,16 +22,16 @@ class RetrievalService:
     def __init__(
         self,
         *,
-        ollama_client: OllamaClient,
+        inference_client: InferenceClient,
         vector_store: QdrantVectorStore,
         embedding_model: str,
     ):
-        self._ollama = ollama_client
+        self._inference = inference_client
         self._vector = vector_store
         self._embedding_model = embedding_model
 
     async def retrieve(self, query: str, limit: int = 5) -> list[RetrievalItem]:
-        embedding = await self._ollama.embed(self._embedding_model, query)
+        embedding = await self._inference.embed(self._embedding_model, query)
         rows = await self._vector.search(embedding, limit=limit)
         return [
             RetrievalItem(
@@ -52,11 +52,11 @@ class IngestionPipeline:
     def __init__(
         self,
         *,
-        ollama_client: OllamaClient,
+        inference_client: InferenceClient,
         vector_store: QdrantVectorStore,
         embedding_model: str,
     ):
-        self._ollama = ollama_client
+        self._inference = inference_client
         self._vector = vector_store
         self._embedding_model = embedding_model
 
@@ -67,6 +67,6 @@ class IngestionPipeline:
             return 0
         embeddings = []
         for chunk in chunks:
-            embedding = await self._ollama.embed(self._embedding_model, chunk.text)
+            embedding = await self._inference.embed(self._embedding_model, chunk.text)
             embeddings.append(embedding)
         return await self._vector.upsert_chunks(path, chunks, embeddings)
