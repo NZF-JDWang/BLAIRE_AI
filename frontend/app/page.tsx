@@ -37,6 +37,12 @@ export default async function HomePage() {
       <p style={{ marginTop: "8px", fontFamily: "monospace" }}>general models: {generalModels}</p>
       <p style={{ marginTop: "8px", fontFamily: "monospace" }}>sensitive actions enabled: {sensitiveActions}</p>
       <p style={{ marginTop: "16px" }}>
+        <a href="/chat">Open chat</a>
+      </p>
+      <p style={{ marginTop: "8px" }}>
+        <a href="/settings">Open settings</a>
+      </p>
+      <p style={{ marginTop: "8px" }}>
         <a href="/approvals">Open approval queue</a>
       </p>
     </main>
