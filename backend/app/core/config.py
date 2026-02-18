@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     sandbox_allowed_commands: str = Field(default="echo", alias="SANDBOX_ALLOWED_COMMANDS")
     cli_sandbox_backend: str = Field(default="firejail", alias="CLI_SANDBOX_BACKEND")
     cli_sandbox_enabled: bool = Field(default=False, alias="CLI_SANDBOX_ENABLED")
+    piper_bin: str = Field(default="piper", alias="PIPER_BIN")
+    piper_voice_model: str = Field(default="", alias="PIPER_VOICE_MODEL")
+    faster_whisper_bin: str = Field(default="faster-whisper", alias="FASTER_WHISPER_BIN")
+    faster_whisper_model: str = Field(default="small", alias="FASTER_WHISPER_MODEL")
 
     @field_validator("app_env")
     @classmethod

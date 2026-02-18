@@ -117,8 +117,8 @@ Build the platform in vertical slices, starting with backend foundations and sec
 
 ### L. Phase 3+ Extensions
 - [ ] Add Google Calendar and Gmail/IMAP tool integrations (with HITL for sensitive actions).
-- [ ] Add local TTS (Piper) integration.
-- [ ] Add local STT (faster-whisper) integration.
+- [x] Add local TTS (Piper) integration.
+- [x] Add local STT (faster-whisper) integration.
 - [ ] Add Telegram bot channel with shared orchestration backend.
 - [x] Add responsive PWA shell around existing frontend routes.
 
