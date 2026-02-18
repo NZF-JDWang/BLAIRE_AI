@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     allowed_network_hosts: str = Field(default="", alias="ALLOWED_NETWORK_HOSTS")
     allowed_network_tools: str = Field(default="", alias="ALLOWED_NETWORK_TOOLS")
     allowed_write_paths: str = Field(default="/app/knowledge/drop", alias="ALLOWED_WRITE_PATHS")
+    allowed_obsidian_paths: str = Field(default="", alias="ALLOWED_OBSIDIAN_PATHS")
     allowed_ha_operations: str = Field(default="", alias="ALLOWED_HA_OPERATIONS")
     require_auth: bool = Field(default=True, alias="REQUIRE_AUTH")
     admin_api_keys: str = Field(default="", alias="ADMIN_API_KEYS")
@@ -123,6 +124,9 @@ class Settings(BaseSettings):
 
     def allowed_write_paths_list(self) -> list[str]:
         return [path.strip() for path in self.allowed_write_paths.split(",") if path.strip()]
+
+    def allowed_obsidian_paths_list(self) -> list[str]:
+        return [path.strip() for path in self.allowed_obsidian_paths.split(",") if path.strip()]
 
     def allowed_ha_operations_list(self) -> list[str]:
         return [op.strip() for op in self.allowed_ha_operations.split(",") if op.strip()]

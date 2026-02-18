@@ -1,4 +1,5 @@
 from uuid import uuid4
+from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -17,6 +18,33 @@ from app.services.mcp_client import McpClient, McpClientError
 router = APIRouter(tags=["mcp"])
 
 
+def _normalize_obsidian_path(path: str) -> str:
+    candidate = path.strip().replace("\\", "/")
+    if not candidate:
+        raise HTTPException(status_code=400, detail="Path cannot be empty")
+    normalized = str(PurePosixPath(candidate))
+    if normalized.startswith("../") or "/../" in normalized or normalized == "..":
+        raise HTTPException(status_code=400, detail="Path traversal is not allowed")
+    if normalized.startswith("/"):
+        raise HTTPException(status_code=400, detail="Absolute paths are not allowed")
+    return normalized
+
+
+def _enforce_obsidian_scope(path: str) -> str:
+    settings = get_settings()
+    normalized = _normalize_obsidian_path(path)
+    allowed = settings.allowed_obsidian_paths_list()
+    if not allowed:
+        return normalized
+    for prefix in allowed:
+        cleaned = str(PurePosixPath(prefix.strip().replace("\\", "/")))
+        if not cleaned:
+            continue
+        if normalized == cleaned or normalized.startswith(cleaned.rstrip("/") + "/"):
+            return normalized
+    raise HTTPException(status_code=403, detail="Obsidian path is not allowlisted")
+
+
 @router.post("/mcp/obsidian/read", response_model=McpActionResponse)
 async def obsidian_read(
     request: ObsidianReadRequest,
@@ -24,8 +52,9 @@ async def obsidian_read(
 ) -> McpActionResponse:
     settings = get_settings()
     client = McpClient()
+    scoped_path = _enforce_obsidian_scope(request.path)
     try:
-        data = await client.call(settings.mcp_obsidian_url, "vault.read", {"path": request.path})
+        data = await client.call(settings.mcp_obsidian_url, "vault.read", {"path": scoped_path})
     except McpClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return McpActionResponse(status="completed", source="obsidian", data=data)
@@ -38,6 +67,7 @@ async def obsidian_write(
     principal: Principal = Depends(require_roles("admin", "user")),
 ) -> McpActionResponse:
     settings = get_settings()
+    scoped_path = _enforce_obsidian_scope(request.path)
     if not settings.sensitive_actions_enabled:
         raise HTTPException(status_code=503, detail="Sensitive actions are globally disabled")
     rate_limiter.check(
@@ -45,7 +75,7 @@ async def obsidian_write(
         RateLimitRule(30, 60),
     )
     approval_service = ApprovalService(settings.database_url.get_secret_value())
-    payload = {"path": request.path, "content": request.content, "operation": "vault.write"}
+    payload = {"path": scoped_path, "content": request.content, "operation": "vault.write"}
     payload_hash = canonical_payload_hash(payload)
 
     if not request.approval_id or not request.execution_token or not request.expected_payload_hash:

@@ -19,6 +19,7 @@ def _set_required_env() -> None:
     os.environ["REQUIRE_AUTH"] = "true"
     os.environ["USER_API_KEYS"] = "test-user-key"
     os.environ["ADMIN_API_KEYS"] = "test-admin-key"
+    os.environ["ALLOWED_OBSIDIAN_PATHS"] = "notes,daily"
     os.environ["ALLOWED_HA_OPERATIONS"] = "light.turn_on"
 
 
@@ -86,3 +87,37 @@ def test_home_assistant_allowlist_enforced() -> None:
         headers={"X-API-Key": "test-user-key"},
     )
     assert response.status_code == 403
+
+
+def test_obsidian_read_scope_enforced(monkeypatch) -> None:
+    get_settings.cache_clear()
+
+    async def fake_call(self, base_url: str, method: str, params: dict):  # noqa: ANN001, ANN202
+        _ = (self, base_url, method, params)
+        return {"ok": True}
+
+    monkeypatch.setattr(McpClient, "call", fake_call)
+    client = TestClient(create_app())
+    response = client.post(
+        "/mcp/obsidian/read",
+        json={"path": "private/secrets.md"},
+        headers={"X-API-Key": "test-user-key"},
+    )
+    assert response.status_code == 403
+
+
+def test_obsidian_read_rejects_path_traversal(monkeypatch) -> None:
+    get_settings.cache_clear()
+
+    async def fake_call(self, base_url: str, method: str, params: dict):  # noqa: ANN001, ANN202
+        _ = (self, base_url, method, params)
+        return {"ok": True}
+
+    monkeypatch.setattr(McpClient, "call", fake_call)
+    client = TestClient(create_app())
+    response = client.post(
+        "/mcp/obsidian/read",
+        json={"path": "../secret.md"},
+        headers={"X-API-Key": "test-user-key"},
+    )
+    assert response.status_code == 400
