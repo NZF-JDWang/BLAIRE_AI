@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     faster_whisper_model: str = Field(default="small", alias="FASTER_WHISPER_MODEL")
     telegram_bot_token: SecretStr | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
     telegram_default_chat_id: str = Field(default="", alias="TELEGRAM_DEFAULT_CHAT_ID")
+    telegram_webhook_secret_token: SecretStr | None = Field(default=None, alias="TELEGRAM_WEBHOOK_SECRET_TOKEN")
     google_api_base: str = Field(default="https://www.googleapis.com", alias="GOOGLE_API_BASE")
     google_oauth_token: SecretStr | None = Field(default=None, alias="GOOGLE_OAUTH_TOKEN")
     imap_host: str = Field(default="", alias="IMAP_HOST")

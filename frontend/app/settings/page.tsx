@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-import { getMyPreferences, getRuntimeOptionsTyped, RuntimeOptions, updateMyPreferences } from "@/lib/api";
+import {
+  getBrowserApiKey,
+  getMyPreferences,
+  getRuntimeOptionsTyped,
+  RuntimeOptions,
+  setBrowserApiKey,
+  updateMyPreferences
+} from "@/lib/api";
 
 type Preferences = {
   searchMode: string;
@@ -12,6 +19,7 @@ type Preferences = {
 
 export default function SettingsPage() {
   const [options, setOptions] = useState<RuntimeOptions | null>(null);
+  const [apiKey, setApiKey] = useState("");
   const [prefs, setPrefs] = useState<Preferences>({
     searchMode: "searxng_only",
     modelClass: "general",
@@ -19,6 +27,7 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
+    setApiKey(getBrowserApiKey());
     Promise.all([getRuntimeOptionsTyped(), getMyPreferences()])
       .then(([runtime, current]) => {
         setOptions(runtime);
@@ -32,6 +41,7 @@ export default function SettingsPage() {
   }, []);
 
   async function save() {
+    setBrowserApiKey(apiKey);
     await updateMyPreferences({
       search_mode: prefs.searchMode,
       model_class: prefs.modelClass,
@@ -49,6 +59,16 @@ export default function SettingsPage() {
       </p>
 
       <div style={{ display: "grid", gap: "12px" }}>
+        <label>
+          API key
+          <input
+            style={{ marginLeft: "8px", minWidth: "260px" }}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Paste your user API key"
+          />
+        </label>
+
         <label>
           Search mode
           <select

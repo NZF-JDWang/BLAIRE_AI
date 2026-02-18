@@ -16,6 +16,7 @@ def _set_required_env() -> None:
     os.environ["MODEL_VISION_DEFAULT"] = "qwen2.5vl:7b"
     os.environ["MODEL_EMBEDDING_DEFAULT"] = "nomic-embed-text:v1.5"
     os.environ["TELEGRAM_BOT_TOKEN"] = "fake-token"
+    os.environ["TELEGRAM_WEBHOOK_SECRET_TOKEN"] = "secret-token"
 
 
 _set_required_env()
@@ -26,13 +27,24 @@ from app.services.telegram_service import TelegramService  # noqa: E402
 
 
 def test_telegram_webhook_ignored_for_non_text() -> None:
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
     client = TestClient(create_app())
-    response = client.post("/telegram/webhook", json={"update_id": 1})
+    response = client.post(
+        "/telegram/webhook",
+        json={"update_id": 1},
+        headers={"X-Telegram-Bot-Api-Secret-Token": "secret-token"},
+    )
     assert response.status_code == 200
     assert response.json()["status"] == "ignored"
 
 
 def test_telegram_webhook_runs_research_and_sends(monkeypatch) -> None:
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+
     async def fake_research(self, query: str, search_mode: str | None = None, recursion_depth: int = 0):  # noqa: ANN001, ANN202
         _ = (self, query, search_mode, recursion_depth)
         return ResearchResponse(
@@ -50,6 +62,7 @@ def test_telegram_webhook_runs_research_and_sends(monkeypatch) -> None:
     client = TestClient(create_app())
     response = client.post(
         "/telegram/webhook",
+        headers={"X-Telegram-Bot-Api-Secret-Token": "secret-token"},
         json={
             "message": {
                 "chat": {"id": 12345},
@@ -59,3 +72,16 @@ def test_telegram_webhook_runs_research_and_sends(monkeypatch) -> None:
     )
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_telegram_webhook_rejects_invalid_secret() -> None:
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    client = TestClient(create_app())
+    response = client.post(
+        "/telegram/webhook",
+        headers={"X-Telegram-Bot-Api-Secret-Token": "wrong"},
+        json={"message": {"chat": {"id": 12345}, "text": "hello"}},
+    )
+    assert response.status_code == 403

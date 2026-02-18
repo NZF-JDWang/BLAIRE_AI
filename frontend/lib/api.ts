@@ -59,7 +59,26 @@ function apiKeyHeader(): Record<string, string> {
     const key = process.env.FRONTEND_PROXY_API_KEY ?? "";
     return key ? { "X-API-Key": key } : {};
   }
-  return {};
+  const key = window.localStorage.getItem("blaire_api_key") ?? "";
+  return key ? { "X-API-Key": key } : {};
+}
+
+export function setBrowserApiKey(key: string) {
+  const trimmed = key.trim();
+  if (!trimmed) {
+    window.localStorage.removeItem("blaire_api_key");
+    document.cookie = "blaire_api_key=; Path=/; Max-Age=0; SameSite=Lax";
+    return;
+  }
+  window.localStorage.setItem("blaire_api_key", trimmed);
+  document.cookie = `blaire_api_key=${encodeURIComponent(trimmed)}; Path=/; SameSite=Lax`;
+}
+
+export function getBrowserApiKey(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  return window.localStorage.getItem("blaire_api_key") ?? "";
 }
 
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
