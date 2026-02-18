@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
-from app.models.agent import ResearchRequest, ResearchResponse
+from app.models.agent import ResearchRequest, ResearchResponse, SwarmLiveResponse, SwarmLiveRun, SwarmTraceStep, WorkerResult
 from app.services.agent_swarm import AgentSwarmService
 from app.services.preferences_service import PreferencesService
 from app.services.search_service import SearchError, SearchService
+from app.services.swarm_trace_store import swarm_trace_store
 
 router = APIRouter(tags=["agents"])
 
@@ -30,8 +31,36 @@ async def run_research(
         overall_timeout_seconds=settings.agent_overall_timeout_seconds,
     )
     try:
-        return await swarm.run_research(query=request.query, search_mode=mode)
+        result = await swarm.run_research(query=request.query, search_mode=mode)
+        swarm_trace_store.add_run(
+            query=result.query,
+            supervisor_summary=result.supervisor_summary,
+            workers=[worker.model_dump() for worker in result.workers],
+            trace=[step.model_dump() for step in result.trace],
+        )
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except SearchError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/agents/swarm/live", response_model=SwarmLiveResponse)
+async def swarm_live(
+    limit: int = 20,
+    _principal: Principal = Depends(require_roles("admin", "user")),
+) -> SwarmLiveResponse:
+    records = swarm_trace_store.list_recent(limit=max(1, min(limit, 50)))
+    return SwarmLiveResponse(
+        runs=[
+            SwarmLiveRun(
+                run_id=record.run_id,
+                query=record.query,
+                created_at=record.created_at,
+                supervisor_summary=record.supervisor_summary,
+                workers=[WorkerResult(**item) for item in record.workers],
+                trace=[SwarmTraceStep(**item) for item in record.trace],
+            )
+            for record in records
+        ]
+    )

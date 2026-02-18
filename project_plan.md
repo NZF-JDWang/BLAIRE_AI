@@ -110,7 +110,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Add Watchtower update strategy with safe rollout notes.
 
 ### K. Phase 2 Extensions
-- [ ] Implement live multi-agent swarm visualization API and frontend view.
+- [x] Implement live multi-agent swarm visualization API and frontend view.
 - [ ] Build custom homelab MCP server (Docker/Portainer/backup/media safe operations).
 - [ ] Route homelab MCP operations through same HITL approval system.
 - [ ] Implement production-ready CLI sandbox allowlist workflows.

@@ -36,6 +36,19 @@ class ResearchResponse(BaseModel):
     trace: list[SwarmTraceStep] = Field(default_factory=list)
 
 
+class SwarmLiveRun(BaseModel):
+    run_id: str
+    query: str
+    created_at: str
+    supervisor_summary: str
+    workers: list[WorkerResult]
+    trace: list[SwarmTraceStep]
+
+
+class SwarmLiveResponse(BaseModel):
+    runs: list[SwarmLiveRun]
+
+
 WorkerStatus = Literal["pending", "running", "completed", "failed"]
 SupervisorStatus = Literal["pending", "running", "completed", "failed"]
 

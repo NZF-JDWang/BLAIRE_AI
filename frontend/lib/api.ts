@@ -218,6 +218,26 @@ export type ResearchResponse = {
   }>;
 };
 
+export type SwarmLiveResponse = {
+  runs: Array<{
+    run_id: string;
+    query: string;
+    created_at: string;
+    supervisor_summary: string;
+    workers: Array<{
+      worker_id: string;
+      summary: string;
+      sources: string[];
+    }>;
+    trace: Array<{
+      step: string;
+      status: "started" | "completed" | "failed" | "skipped";
+      timestamp: string;
+      details: Record<string, string | number | boolean>;
+    }>;
+  }>;
+};
+
 export async function runResearch(query: string, searchMode?: string): Promise<ResearchResponse> {
   let effectiveSearchMode = searchMode;
   if (!effectiveSearchMode) {
@@ -238,6 +258,14 @@ export async function runResearch(query: string, searchMode?: string): Promise<R
   });
   if (!response.ok) {
     throw new Error(`Research request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function getLiveSwarmRuns(limit = 20): Promise<SwarmLiveResponse> {
+  const response = await apiFetch(`/agents/swarm/live?limit=${limit}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Live swarm request failed: ${response.status}`);
   }
   return response.json();
 }
