@@ -12,3 +12,10 @@ class RuntimeOptionsResponse(BaseModel):
     allowed_network_hosts: list[str]
     allowed_network_tools: list[str]
     tools: list[dict[str, str | bool]]
+
+
+class ModelsResponse(BaseModel):
+    installed_models: list[str]
+    allowlist: dict[str, list[str]]
+    defaults: dict[str, str | None]
+    model_allow_any_ollama: bool

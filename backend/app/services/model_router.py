@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.core.config import Settings
-from app.services.ollama_client import OllamaModelCatalog
+from app.services.ollama_client import fetch_installed_model_names
 
 ModelClass = Literal["general", "vision", "embedding", "code"]
 
@@ -19,97 +19,80 @@ class ModelSelection:
 class ModelRouter:
     def __init__(self, settings: Settings):
         self._settings = settings
-        self._catalog = OllamaModelCatalog(settings.ollama_base_url)
+        self._installed_models = self._load_installed_models()
+        self._allowlist = self._build_allowlist()
 
-    def _fallback_allowlist(self) -> dict[ModelClass, set[str]]:
+    def _baseline_allowlist(self) -> dict[ModelClass, set[str]]:
         return {
             "general": {
-                self._settings.model_general_default,
                 "llama3.2:3b",
                 "qwen2.5:7b-instruct",
             },
             "vision": {
-                self._settings.model_vision_default,
                 "llava:7b",
                 "llava:13b",
             },
             "embedding": {
-                self._settings.model_embedding_default,
                 "nomic-embed-text:v1.5",
             },
             "code": {
-                model
-                for model in [self._settings.model_code_default, "qwen2.5-coder:7b"]
-                if model
+                "qwen2.5-coder:7b",
             },
         }
 
-    @staticmethod
-    def _is_embedding_model(name: str, model_meta: dict) -> bool:
-        lowered = name.lower()
-        if lowered.startswith("nomic-embed-text"):
-            return True
-        details = model_meta.get("details", {}) if isinstance(model_meta.get("details"), dict) else {}
-        family = str(details.get("family", "")).lower()
-        families = details.get("families", [])
-        family_blob = " ".join([family, " ".join(str(item).lower() for item in families if item)])
-        return "embed" in lowered or "embed" in family_blob
-
-    @staticmethod
-    def _is_vision_model(name: str, model_meta: dict) -> bool:
-        lowered = name.lower()
-        if "llava" in lowered or "vl" in lowered:
-            return True
-        details = model_meta.get("details", {}) if isinstance(model_meta.get("details"), dict) else {}
-        family = str(details.get("family", "")).lower()
-        families = details.get("families", [])
-        family_blob = " ".join([family, " ".join(str(item).lower() for item in families if item)])
-        return "vision" in family_blob or "vl" in family_blob
-
-    def _dynamic_allowlist(self) -> dict[ModelClass, set[str]]:
-        fallback = self._fallback_allowlist()
-        models = self._catalog.get_models()
-        if not models:
-            return fallback
-
-        by_name: dict[str, dict] = {
-            str(model.get("name", "")).strip(): model
-            for model in models
-            if str(model.get("name", "")).strip()
-        }
-        names = set(by_name.keys())
-        allowlist: dict[ModelClass, set[str]] = {
-            "general": set(names),
-            "code": set(names),
-            "embedding": {name for name in names if self._is_embedding_model(name, by_name[name])},
-            "vision": (
-                set(names)
-                if self._settings.allow_any_vision_models
-                else {name for name in names if self._is_vision_model(name, by_name[name])}
-            ),
-        }
-
-        defaults: dict[ModelClass, str | None] = {
+    def _defaults(self) -> dict[ModelClass, str | None]:
+        return {
             "general": self._settings.model_general_default,
             "vision": self._settings.model_vision_default,
             "embedding": self._settings.model_embedding_default,
             "code": self._settings.model_code_default,
         }
+
+    def _load_installed_models(self) -> set[str]:
+        try:
+            return set(fetch_installed_model_names(self._settings.ollama_base_url))
+        except Exception:  # noqa: BLE001
+            return set()
+
+    def _build_allowlist(self) -> dict[ModelClass, set[str]]:
+        allowlist = self._baseline_allowlist()
+        defaults = self._defaults()
+        extras: dict[ModelClass, list[str]] = {
+            "general": self._settings.model_allowlist_extra_general_list(),
+            "vision": self._settings.model_allowlist_extra_vision_list(),
+            "embedding": self._settings.model_allowlist_extra_embedding_list(),
+            "code": self._settings.model_allowlist_extra_code_list(),
+        }
+
         for model_class, default_model in defaults.items():
-            if default_model and default_model in names:
+            if default_model:
                 allowlist[model_class].add(default_model)
 
-        for model_class in ("general", "vision", "embedding", "code"):
-            if not allowlist[model_class]:
-                allowlist[model_class] = fallback.get(model_class, set())
+        for model_class, model_names in extras.items():
+            allowlist[model_class].update(model_names)
+
+        if self._settings.model_allow_any_ollama and self._installed_models:
+            for model_class in ("general", "vision", "embedding", "code"):
+                allowlist[model_class].update(self._installed_models)
+
+        disallowed = set(self._settings.model_disallowlist_list())
+        if disallowed:
+            for model_class in ("general", "vision", "embedding", "code"):
+                allowlist[model_class].difference_update(disallowed)
 
         return allowlist
 
     def get_available_models(self) -> list[str]:
-        return sorted(self._catalog.get_model_names())
+        available: set[str] = set()
+        for model_names in self._allowlist.values():
+            available.update(model_names)
+        return sorted(available)
+
+    def get_installed_models(self) -> list[str]:
+        return sorted(self._installed_models)
 
     def is_model_allowed(self, model_class: ModelClass, model_name: str) -> bool:
-        return model_name in self._dynamic_allowlist().get(model_class, set())
+        return model_name in self._allowlist.get(model_class, set())
 
     def select_model(
         self,
@@ -118,7 +101,7 @@ class ModelRouter:
         preference_override: str | None = None,
     ) -> ModelSelection:
         rejected_candidates: list[str] = []
-        allowlist = self._dynamic_allowlist().get(model_class, set())
+        allowlist = self._allowlist.get(model_class, set())
 
         if request_override:
             if request_override in allowlist:
@@ -142,12 +125,7 @@ class ModelRouter:
                 )
             rejected_candidates.append(f"preference_override_disallowed:{preference_override}")
 
-        defaults: dict[ModelClass, str | None] = {
-            "general": self._settings.model_general_default,
-            "vision": self._settings.model_vision_default,
-            "embedding": self._settings.model_embedding_default,
-            "code": self._settings.model_code_default,
-        }
+        defaults = self._defaults()
         default_model = defaults.get(model_class)
         if default_model and default_model in allowlist:
             return ModelSelection(
@@ -173,9 +151,8 @@ class ModelRouter:
         raise ValueError(f"No allowed model configured for class '{model_class}'")
 
     def get_allowlist(self) -> dict[ModelClass, list[str]]:
-        dynamic = self._dynamic_allowlist()
         return {
             key: sorted(value)
-            for key, value in dynamic.items()
+            for key, value in self._allowlist.items()
             if value
         }

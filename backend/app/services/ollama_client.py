@@ -38,6 +38,11 @@ class OllamaModelCatalog:
         return {str(model.get("name", "")).strip() for model in self.get_models() if model.get("name")}
 
 
+def fetch_installed_model_names(base_url: str, timeout_seconds: float = 4.0) -> list[str]:
+    catalog = OllamaModelCatalog(base_url=base_url, timeout_seconds=timeout_seconds, ttl_seconds=30.0)
+    return sorted(catalog.get_model_names())
+
+
 class OllamaClient:
     def __init__(self, base_url: str, timeout_seconds: float = 120.0):
         self._base_url = base_url.rstrip("/")

@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     model_vision_default: str = Field(alias="MODEL_VISION_DEFAULT")
     model_embedding_default: str = Field(alias="MODEL_EMBEDDING_DEFAULT")
     model_code_default: str | None = Field(default=None, alias="MODEL_CODE_DEFAULT")
+    model_allow_any_ollama: bool = Field(default=False, alias="MODEL_ALLOW_ANY_OLLAMA")
+    model_allowlist_extra_general: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_GENERAL")
+    model_allowlist_extra_vision: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_VISION")
+    model_allowlist_extra_embedding: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_EMBEDDING")
+    model_allowlist_extra_code: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_CODE")
+    model_disallowlist: str = Field(default="", alias="MODEL_DISALLOWLIST")
     allow_any_vision_models: bool = Field(default=False, alias="ALLOW_ANY_VISION_MODELS")
     qdrant_collection_name: str = Field(default="knowledge_multimodal", alias="QDRANT_COLLECTION_NAME")
     qdrant_embedding_dim: int = Field(default=768, alias="QDRANT_EMBEDDING_DIM")
@@ -168,6 +174,21 @@ class Settings(BaseSettings):
 
     def sandbox_allowed_commands_list(self) -> list[str]:
         return [command.strip() for command in self.sandbox_allowed_commands.split(",") if command.strip()]
+
+    def model_allowlist_extra_general_list(self) -> list[str]:
+        return [model.strip() for model in self.model_allowlist_extra_general.split(",") if model.strip()]
+
+    def model_allowlist_extra_vision_list(self) -> list[str]:
+        return [model.strip() for model in self.model_allowlist_extra_vision.split(",") if model.strip()]
+
+    def model_allowlist_extra_embedding_list(self) -> list[str]:
+        return [model.strip() for model in self.model_allowlist_extra_embedding.split(",") if model.strip()]
+
+    def model_allowlist_extra_code_list(self) -> list[str]:
+        return [model.strip() for model in self.model_allowlist_extra_code.split(",") if model.strip()]
+
+    def model_disallowlist_list(self) -> list[str]:
+        return [model.strip() for model in self.model_disallowlist.split(",") if model.strip()]
 
 
 @lru_cache(maxsize=1)
