@@ -20,12 +20,12 @@ Build the platform in vertical slices, starting with backend foundations and sec
 ## 3. Task Checklist (Ordered)
 
 ### A. Foundation and Repository Setup
-- [ ] Create root structure aligned to design doc paths (`backend/`, `frontend/`, `data/`, `knowledge/`, MCP folders).
+- [x] Create root structure aligned to design doc paths (`backend/`, `frontend/`, `data/`, `knowledge/`, MCP folders).
 - [x] Add `docker-compose.yml` with services: `frontend`, `backend`, `postgres`, `qdrant`, optional `searxng`.
 - [x] Add `.env.example` with all required variables (Ollama URL, Qdrant URL, Brave API key, vault/drop paths, MCP endpoints, auth secrets).
 - [x] Add backend Python dependency baseline (`FastAPI`, `LangGraph`, `LangChain`, `LlamaIndex`, `Qdrant client`, `structlog`, `Pydantic v2`).
 - [x] Add frontend dependency baseline (Next.js 16 App Router, Tailwind, shadcn/radix, TanStack Query, Zustand, RHF, Zod).
-- [ ] Add container networks/volumes and bind mounts exactly as required.
+- [x] Add container networks/volumes and bind mounts exactly as required.
 - [x] Pin MCP Python SDK to stable v1.x line for initial implementation.
 
 ### B. Backend Core (First Functional Vertical Slice)
@@ -103,11 +103,11 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Add swarm status panel (basic in Phase 1, richer in Phase 2).
 
 ### J. Deployment and Operations
-- [ ] Finalize compose services and environment wiring for homelab deployment path.
+- [x] Finalize compose services and environment wiring for homelab deployment path.
 - [x] Add startup dependency checks (Qdrant, Ollama, MCP endpoints, search providers).
 - [x] Add migration/init routines for vector collections and PostgreSQL metadata stores.
 - [x] Add backup hooks for Qdrant data and critical app state.
-- [ ] Add Watchtower update strategy with safe rollout notes.
+- [x] Add Watchtower update strategy with safe rollout notes.
 
 ### K. Phase 2 Extensions
 - [ ] Implement live multi-agent swarm visualization API and frontend view.

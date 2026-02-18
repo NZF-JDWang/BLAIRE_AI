@@ -40,6 +40,12 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
+      obsidian-mcp-server:
+        condition: service_started
+        required: false
+      ha-mcp-server:
+        condition: service_started
+        required: false
     networks:
       - containers_core
 
@@ -112,6 +118,44 @@ services:
       - ${SEARXNG_CONFIG_PATH:-./data/searxng}:/etc/searxng
     profiles:
       - search
+    networks:
+      - containers_core
+
+  obsidian-mcp-server:
+    build:
+      context: ./mcp-obsidian
+    container_name: blaire-obsidian-mcp
+    restart: unless-stopped
+    profiles:
+      - mcp
+    networks:
+      - containers_core
+
+  ha-mcp-server:
+    build:
+      context: ./mcp-ha
+    container_name: blaire-ha-mcp
+    restart: unless-stopped
+    profiles:
+      - mcp
+    networks:
+      - containers_core
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: blaire-watchtower
+    restart: unless-stopped
+    profiles:
+      - ops
+    command:
+      - --interval
+      - "86400"
+      - --cleanup
+      - --rolling-restart
+      - blaire-backend
+      - blaire-frontend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - containers_core
 
