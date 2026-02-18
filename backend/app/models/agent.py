@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -17,3 +20,31 @@ class ResearchResponse(BaseModel):
     supervisor_summary: str
     workers: list[WorkerResult]
 
+
+WorkerStatus = Literal["pending", "running", "completed", "failed"]
+SupervisorStatus = Literal["pending", "running", "completed", "failed"]
+
+
+class WorkerState(BaseModel):
+    worker_id: str
+    query: str
+    status: WorkerStatus = "pending"
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    summary: str | None = None
+    sources: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class SupervisorState(BaseModel):
+    status: SupervisorStatus = "pending"
+    summary: str | None = None
+
+
+class SwarmState(BaseModel):
+    query: str
+    search_mode: str | None = None
+    supervisor: SupervisorState
+    workers: list[WorkerState]
+    started_at: datetime
+    finished_at: datetime | None = None

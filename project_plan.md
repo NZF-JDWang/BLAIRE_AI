@@ -51,7 +51,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Expose retrieval API used by agent runtime.
 
 ### D. Agent Orchestration (LangGraph)
-- [ ] Define state schema for supervisor + worker agents.
+- [x] Define state schema for supervisor + worker agents.
 - [x] Implement supervisor node (task decomposition, delegation policy).
 - [x] Implement two parallel research worker nodes.
 - [ ] Implement merge/synthesis node with citation consolidation.
