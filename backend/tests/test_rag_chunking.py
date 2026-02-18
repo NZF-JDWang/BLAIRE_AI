@@ -16,3 +16,16 @@ def test_extract_text_markdown(tmp_path: Path) -> None:
     text = extract_text(file_path)
     assert "Title" in text
 
+
+def test_extract_text_pdf_returns_non_empty(tmp_path: Path) -> None:
+    file_path = tmp_path / "doc.pdf"
+    file_path.write_bytes(b"%PDF-1.4\n% fake")
+    text = extract_text(file_path)
+    assert text.strip() != ""
+
+
+def test_extract_text_image_returns_non_empty(tmp_path: Path) -> None:
+    file_path = tmp_path / "photo.png"
+    file_path.write_bytes(b"\x89PNG\r\n\x1a\n")
+    text = extract_text(file_path)
+    assert text.strip() != ""
