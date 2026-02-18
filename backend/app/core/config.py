@@ -31,6 +31,8 @@ class Settings(BaseSettings):
 
     mcp_obsidian_url: str = Field(alias="MCP_OBSIDIAN_URL")
     mcp_ha_url: str = Field(alias="MCP_HA_URL")
+    sensitive_actions_enabled: bool = Field(default=True, alias="SENSITIVE_ACTIONS_ENABLED")
+    approval_token_ttl_minutes: int = Field(default=10, alias="APPROVAL_TOKEN_TTL_MINUTES")
 
     model_general_default: str = Field(alias="MODEL_GENERAL_DEFAULT")
     model_vision_default: str = Field(alias="MODEL_VISION_DEFAULT")
@@ -60,6 +62,13 @@ class Settings(BaseSettings):
         allowed = {"brave_only", "searxng_only", "auto_fallback", "parallel"}
         if value not in allowed:
             raise ValueError(f"SEARCH_MODE_DEFAULT must be one of {sorted(allowed)}")
+        return value
+
+    @field_validator("approval_token_ttl_minutes")
+    @classmethod
+    def validate_approval_ttl(cls, value: int) -> int:
+        if value < 1 or value > 120:
+            raise ValueError("APPROVAL_TOKEN_TTL_MINUTES must be between 1 and 120")
         return value
 
     def allowed_hosts_list(self) -> list[str]:

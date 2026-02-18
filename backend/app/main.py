@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.api.routes.approvals import router as approvals_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.runtime_options import router as runtime_options_router
 from fastapi import FastAPI
@@ -12,6 +13,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.request_context import RequestContextMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
+from app.services.approval_service import ApprovalService
 
 
 @asynccontextmanager
@@ -25,6 +27,12 @@ async def lifespan(app: FastAPI):
         host=settings.api_host,
         port=settings.api_port,
     )
+    try:
+        await ApprovalService(settings.database_url.get_secret_value()).init_schema()
+        logger.info("approval_schema_ready")
+    except Exception:
+        logger.exception("approval_schema_init_failed")
+        raise
     yield
     logger.info("app_stopping")
 
@@ -48,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(chat_router)
     app.include_router(runtime_options_router)
+    app.include_router(approvals_router)
     return app
 
 

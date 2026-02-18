@@ -5,4 +5,5 @@ class RuntimeOptionsResponse(BaseModel):
     search_modes: list[str]
     default_search_mode: str
     model_allowlist: dict[str, list[str]]
-
+    sensitive_actions_enabled: bool
+    approval_token_ttl_minutes: int

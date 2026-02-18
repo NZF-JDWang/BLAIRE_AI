@@ -4,6 +4,7 @@ export default async function HomePage() {
   let backendStatus = "unreachable";
   let defaultSearchMode = "unknown";
   let generalModels = "unknown";
+  let sensitiveActions = "unknown";
   try {
     const health = (await getHealth()) as { status?: string };
     backendStatus = health.status ?? "unknown";
@@ -14,12 +15,15 @@ export default async function HomePage() {
     const options = (await getRuntimeOptions()) as {
       default_search_mode?: string;
       model_allowlist?: Record<string, string[]>;
+      sensitive_actions_enabled?: boolean;
     };
     defaultSearchMode = options.default_search_mode ?? "unknown";
     generalModels = options.model_allowlist?.general?.join(", ") ?? "none";
+    sensitiveActions = String(options.sensitive_actions_enabled ?? "unknown");
   } catch {
     defaultSearchMode = "unavailable";
     generalModels = "unavailable";
+    sensitiveActions = "unavailable";
   }
 
   return (
@@ -31,6 +35,10 @@ export default async function HomePage() {
       <p style={{ marginTop: "8px", fontFamily: "monospace" }}>backend: {backendStatus}</p>
       <p style={{ marginTop: "8px", fontFamily: "monospace" }}>search default: {defaultSearchMode}</p>
       <p style={{ marginTop: "8px", fontFamily: "monospace" }}>general models: {generalModels}</p>
+      <p style={{ marginTop: "8px", fontFamily: "monospace" }}>sensitive actions enabled: {sensitiveActions}</p>
+      <p style={{ marginTop: "16px" }}>
+        <a href="/approvals">Open approval queue</a>
+      </p>
     </main>
   );
 }
