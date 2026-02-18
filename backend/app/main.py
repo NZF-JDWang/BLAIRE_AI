@@ -19,6 +19,7 @@ from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 
 from app.api.routes.health import router as health_router
+from app.api.routes.integrations import router as integrations_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.request_context import RequestContextMiddleware
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(ops_router)
     app.include_router(voice_router)
     app.include_router(telegram_router)
+    app.include_router(integrations_router)
     return app
 
 

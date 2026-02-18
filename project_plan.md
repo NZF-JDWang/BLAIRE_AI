@@ -116,7 +116,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Implement production-ready CLI sandbox allowlist workflows.
 
 ### L. Phase 3+ Extensions
-- [ ] Add Google Calendar and Gmail/IMAP tool integrations (with HITL for sensitive actions).
+- [x] Add Google Calendar and Gmail/IMAP tool integrations (with HITL for sensitive actions).
 - [x] Add local TTS (Piper) integration.
 - [x] Add local STT (faster-whisper) integration.
 - [x] Add Telegram bot channel with shared orchestration backend.
