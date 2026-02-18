@@ -22,4 +22,3 @@ class SearchResponse(BaseModel):
     mode: SearchMode
     results: list[SearchResult]
     providers_used: list[str]
-

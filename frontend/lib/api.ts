@@ -231,6 +231,22 @@ export async function runResearch(query: string, searchMode?: string): Promise<R
   return response.json();
 }
 
+export async function runSearch(query: string, mode?: string): Promise<{
+  mode: string;
+  providers_used: string[];
+  results: Array<{ title: string; url: string; snippet: string; provider: string }>;
+}> {
+  const response = await apiFetch("/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, mode: mode ?? null, limit: 10 }),
+  });
+  if (!response.ok) {
+    throw new Error(`Search request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export type DependencyStatus = {
   dependencies: Array<{
     name: string;

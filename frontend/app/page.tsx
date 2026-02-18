@@ -60,6 +60,9 @@ export default async function HomePage() {
       <p style={{ marginTop: "8px" }}>
         <a href="/swarm">Open swarm panel</a>
       </p>
+      <p style={{ marginTop: "8px" }}>
+        <a href="/search">Open search</a>
+      </p>
     </main>
   );
 }
