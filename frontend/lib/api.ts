@@ -75,3 +75,28 @@ export async function getKnowledgeStatus(): Promise<KnowledgeStatus> {
   }
   return response.json();
 }
+
+export type ResearchResponse = {
+  query: string;
+  supervisor_summary: string;
+  workers: Array<{
+    worker_id: string;
+    summary: string;
+    sources: string[];
+  }>;
+};
+
+export async function runResearch(query: string, searchMode?: string): Promise<ResearchResponse> {
+  const response = await fetch(`${apiBaseUrl}/agents/research`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query,
+      search_mode: searchMode || null
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`Research request failed: ${response.status}`);
+  }
+  return response.json();
+}

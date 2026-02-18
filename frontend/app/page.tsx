@@ -48,6 +48,9 @@ export default async function HomePage() {
       <p style={{ marginTop: "8px" }}>
         <a href="/knowledge">Open knowledge status</a>
       </p>
+      <p style={{ marginTop: "8px" }}>
+        <a href="/swarm">Open swarm panel</a>
+      </p>
     </main>
   );
 }
