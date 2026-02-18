@@ -16,11 +16,15 @@ def _set_required_env() -> None:
     os.environ["REQUIRE_AUTH"] = "true"
     os.environ["USER_API_KEYS"] = "test-user-key"
     os.environ["ADMIN_API_KEYS"] = "test-admin-key"
+    os.environ["CLI_SANDBOX_ENABLED"] = "true"
+    os.environ["CLI_SANDBOX_BACKEND"] = "firejail"
+    os.environ["SANDBOX_ALLOWED_COMMANDS"] = "echo"
 
 
 _set_required_env()
 
 from app.main import create_app  # noqa: E402
+from app.services.cli_sandbox import CliSandboxRunner  # noqa: E402
 from app.services.init_service import InitService  # noqa: E402
 
 
@@ -41,3 +45,32 @@ def test_ops_init_route(monkeypatch) -> None:
     payload = response.json()
     assert payload["status"] == "completed"
     assert payload["steps"]["metadata_schema_ready"] is True
+
+
+def test_ops_cli_execute_route(monkeypatch) -> None:
+    def fake_run(self, *, command: str, args: list[str], timeout_seconds: int = 10):  # noqa: ANN001, ANN202
+        _ = (self, command, args, timeout_seconds)
+        from app.services.cli_sandbox import CliSandboxRecord
+
+        return CliSandboxRecord(
+            command="echo",
+            args=["hello"],
+            backend="firejail",
+            exit_code=0,
+            stdout="hello\n",
+            stderr="",
+            started_at="2026-02-18T00:00:00+00:00",
+            timeout_seconds=10,
+        )
+
+    monkeypatch.setattr(CliSandboxRunner, "run", fake_run)
+    client = TestClient(create_app())
+    response = client.post(
+        "/ops/cli/execute",
+        headers={"X-API-Key": "test-admin-key"},
+        json={"command": "echo", "args": ["hello"], "timeout_seconds": 10},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["record"]["backend"] == "firejail"

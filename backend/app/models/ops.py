@@ -28,3 +28,8 @@ class SandboxExecResponse(BaseModel):
 class InitResponse(BaseModel):
     status: str
     steps: dict[str, bool]
+
+
+class CliSandboxResponse(BaseModel):
+    status: str
+    record: dict

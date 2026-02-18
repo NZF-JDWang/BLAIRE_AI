@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     agent_worker_timeout_seconds: int = Field(default=12, alias="AGENT_WORKER_TIMEOUT_SECONDS")
     agent_overall_timeout_seconds: int = Field(default=20, alias="AGENT_OVERALL_TIMEOUT_SECONDS")
     sandbox_allowed_commands: str = Field(default="echo", alias="SANDBOX_ALLOWED_COMMANDS")
+    cli_sandbox_backend: str = Field(default="firejail", alias="CLI_SANDBOX_BACKEND")
+    cli_sandbox_enabled: bool = Field(default=False, alias="CLI_SANDBOX_ENABLED")
 
     @field_validator("app_env")
     @classmethod
@@ -109,6 +111,14 @@ class Settings(BaseSettings):
     def validate_agent_timeouts(cls, value: int) -> int:
         if value < 1 or value > 120:
             raise ValueError("Agent timeout values must be between 1 and 120 seconds")
+        return value
+
+    @field_validator("cli_sandbox_backend")
+    @classmethod
+    def validate_cli_sandbox_backend(cls, value: str) -> str:
+        allowed = {"firejail", "bubblewrap"}
+        if value not in allowed:
+            raise ValueError(f"CLI_SANDBOX_BACKEND must be one of {sorted(allowed)}")
         return value
 
     def allowed_hosts_list(self) -> list[str]:

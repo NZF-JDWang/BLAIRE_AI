@@ -2,8 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
-from app.models.ops import BackupRequest, BackupResponse, InitResponse, SandboxExecRequest, SandboxExecResponse
+from app.models.ops import (
+    BackupRequest,
+    BackupResponse,
+    CliSandboxResponse,
+    InitResponse,
+    SandboxExecRequest,
+    SandboxExecResponse,
+)
 from app.services.backup_service import BackupService
+from app.services.cli_sandbox import CliSandboxError, CliSandboxRunner
 from app.services.init_service import InitService
 from app.services.sandbox_runner import LocalSandboxRunner, SandboxRunnerError
 
@@ -52,3 +60,23 @@ async def run_init(
     settings = get_settings()
     steps = await InitService(settings).run()
     return InitResponse(status="completed", steps=steps)
+
+
+@router.post("/ops/cli/execute", response_model=CliSandboxResponse)
+async def cli_execute(
+    request: SandboxExecRequest,
+    _principal: Principal = Depends(require_roles("admin")),
+) -> CliSandboxResponse:
+    settings = get_settings()
+    if not settings.cli_sandbox_enabled:
+        raise HTTPException(status_code=503, detail="CLI sandbox is disabled")
+
+    runner = CliSandboxRunner(
+        backend=settings.cli_sandbox_backend,
+        allowed_commands=settings.sandbox_allowed_commands_list(),
+    )
+    try:
+        record = runner.run(command=request.command, args=request.args, timeout_seconds=request.timeout_seconds)
+    except CliSandboxError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CliSandboxResponse(status="completed", record=record.to_dict())

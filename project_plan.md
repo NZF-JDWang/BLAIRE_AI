@@ -90,7 +90,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Implement strict filesystem write tool with path allowlist and denylist.
 - [x] Add preflight checks to prevent path traversal and symlink escapes.
 - [x] Add sandbox runner abstraction for future CLI execution.
-- [ ] Implement CLI sandbox in Phase 2 using firejail/bubblewrap with command allowlist.
+- [x] Implement CLI sandbox in Phase 2 using firejail/bubblewrap with command allowlist.
 - [x] Ensure all sandboxed calls emit machine-readable execution audit records.
 
 ### I. Frontend Implementation (After Backend APIs Stabilize)
@@ -113,7 +113,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Implement live multi-agent swarm visualization API and frontend view.
 - [ ] Build custom homelab MCP server (Docker/Portainer/backup/media safe operations).
 - [ ] Route homelab MCP operations through same HITL approval system.
-- [ ] Implement production-ready CLI sandbox allowlist workflows.
+- [x] Implement production-ready CLI sandbox allowlist workflows.
 
 ### L. Phase 3+ Extensions
 - [ ] Add Google Calendar and Gmail/IMAP tool integrations (with HITL for sensitive actions).
