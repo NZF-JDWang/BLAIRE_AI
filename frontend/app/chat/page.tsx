@@ -16,6 +16,7 @@ type Citation = {
   chunk_index?: number;
   score?: number;
   text?: string;
+  ingested_at?: string;
 };
 
 const API_BASE = "/api";
@@ -221,7 +222,28 @@ export default function ChatPage() {
               <li key={`${citation.source_name}-${citation.chunk_index}-${idx}`}>
                 <strong>{citation.source_name}</strong> ({citation.file_type}) #{citation.chunk_index} score=
                 {typeof citation.score === "number" ? citation.score.toFixed(3) : "n/a"}
-                <div style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>{citation.source_path}</div>
+                <div style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
+                  {citation.source_path ? (
+                    <a
+                      href={
+                        citation.source_path.startsWith("http://") || citation.source_path.startsWith("https://")
+                          ? citation.source_path
+                          : `file://${citation.source_path}`
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {citation.source_path}
+                    </a>
+                  ) : (
+                    "(no source path)"
+                  )}
+                </div>
+                {citation.ingested_at ? (
+                  <div style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
+                    ingested: {new Date(citation.ingested_at).toLocaleString()}
+                  </div>
+                ) : null}
                 <div>{String(citation.text ?? "").slice(0, 220)}</div>
               </li>
             ))}

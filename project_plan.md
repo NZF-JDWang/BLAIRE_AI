@@ -95,8 +95,8 @@ Build the platform in vertical slices, starting with backend foundations and sec
 
 ### I. Frontend Implementation (After Backend APIs Stabilize)
 - [x] Scaffold chat page with streaming response rendering.
-- [ ] Add file upload UI for PDFs/images and ingestion status display.
-- [ ] Add citations panel with source linking from backend metadata.
+- [x] Add file upload UI for PDFs/images and ingestion status display.
+- [x] Add citations panel with source linking from backend metadata.
 - [x] Add settings page controls for search mode dropdown and model choices.
 - [x] Add approval queue UI for HITL actions (pending, approved, rejected, executed).
 - [x] Add knowledge page showing index status (drop folder + Obsidian).
