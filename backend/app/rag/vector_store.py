@@ -31,6 +31,7 @@ class QdrantVectorStore:
         if len(chunks) != len(embeddings):
             raise VectorStoreError("chunk and embedding lengths differ")
 
+        ingested_at = datetime.now(timezone.utc).isoformat()
         last_modified = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
         points = []
         for chunk, embedding in zip(chunks, embeddings):
@@ -45,6 +46,7 @@ class QdrantVectorStore:
                         "chunk_index": chunk.chunk_index,
                         "text": chunk.text,
                         "last_modified": last_modified,
+                        "ingested_at": ingested_at,
                     },
                 }
             )
@@ -139,6 +141,7 @@ class QdrantVectorStore:
                     "chunk_index": int(payload.get("chunk_index", 0)),
                     "text": str(payload.get("text", "")),
                     "last_modified": str(payload.get("last_modified", "")),
+                    "ingested_at": str(payload.get("ingested_at", "")),
                 }
             )
         return normalized

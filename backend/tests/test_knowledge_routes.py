@@ -43,6 +43,7 @@ def test_knowledge_retrieve_route(monkeypatch, tmp_path: Path) -> None:
                 score=0.87,
                 text="retrieved chunk",
                 last_modified="2026-02-18T00:00:00+00:00",
+                ingested_at="2026-02-18T00:05:00+00:00",
             )
         ]
 
@@ -59,6 +60,7 @@ def test_knowledge_retrieve_route(monkeypatch, tmp_path: Path) -> None:
     assert payload["query"] == "test question"
     assert len(payload["citations"]) == 1
     assert payload["citations"][0]["source_name"] == "note.md"
+    assert payload["citations"][0]["ingested_at"] == "2026-02-18T00:05:00+00:00"
 
 
 def test_knowledge_ingest_route(monkeypatch, tmp_path: Path) -> None:

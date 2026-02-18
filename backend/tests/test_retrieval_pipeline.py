@@ -32,6 +32,7 @@ class FakeVectorStore:
                 "chunk_index": 0,
                 "text": "chunk text",
                 "last_modified": "2026-01-01T00:00:00+00:00",
+                "ingested_at": "2026-01-02T00:00:00+00:00",
             }
         ][:limit]
 
@@ -53,4 +54,3 @@ async def test_retrieval_service_returns_results() -> None:
     rows = await service.retrieve("what is this", limit=3)
     assert len(rows) == 1
     assert rows[0].source_name == "a.md"
-

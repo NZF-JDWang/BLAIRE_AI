@@ -130,6 +130,7 @@ async def retrieve_knowledge(
                 score=item.score,
                 text=item.text,
                 last_modified=item.last_modified,
+                ingested_at=item.ingested_at,
             )
             for item in results
         ],

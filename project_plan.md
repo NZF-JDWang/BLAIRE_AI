@@ -47,7 +47,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Implement drop-folder watcher for `knowledge/drop` with debounce and retry handling.
 - [ ] Implement multimodal parsing pipeline for text/PDF/image ingestion via LlamaIndex components.
 - [ ] Implement Obsidian vault indexer with initial full index + delta updates.
-- [ ] Implement citation metadata model (source path, chunk id, timestamp).
+- [x] Implement citation metadata model (source path, chunk id, timestamp).
 - [x] Expose retrieval API used by agent runtime.
 
 ### D. Agent Orchestration (LangGraph)

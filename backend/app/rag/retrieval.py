@@ -15,6 +15,7 @@ class RetrievalItem:
     score: float
     text: str
     last_modified: str
+    ingested_at: str
 
 
 class RetrievalService:
@@ -41,6 +42,7 @@ class RetrievalService:
                 score=row["score"],
                 text=row["text"],
                 last_modified=row["last_modified"],
+                ingested_at=row.get("ingested_at", ""),
             )
             for row in rows
         ]
@@ -68,4 +70,3 @@ class IngestionPipeline:
             embedding = await self._ollama.embed(self._embedding_model, chunk.text)
             embeddings.append(embedding)
         return await self._vector.upsert_chunks(path, chunks, embeddings)
-

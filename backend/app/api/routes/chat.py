@@ -87,6 +87,7 @@ async def chat(
                         "chunk_index": item.chunk_index,
                         "score": item.score,
                         "text": item.text,
+                        "ingested_at": item.ingested_at,
                     }
                     for item in results
                 ]

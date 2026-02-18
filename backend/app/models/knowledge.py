@@ -44,6 +44,7 @@ class KnowledgeCitation(BaseModel):
     score: float
     text: str
     last_modified: str
+    ingested_at: str = ""
 
 
 class KnowledgeRetrieveResponse(BaseModel):
