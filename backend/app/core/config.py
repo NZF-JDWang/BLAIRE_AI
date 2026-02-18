@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     mcp_ha_url: str = Field(alias="MCP_HA_URL")
     sensitive_actions_enabled: bool = Field(default=True, alias="SENSITIVE_ACTIONS_ENABLED")
     approval_token_ttl_minutes: int = Field(default=10, alias="APPROVAL_TOKEN_TTL_MINUTES")
+    allowed_network_hosts: str = Field(default="", alias="ALLOWED_NETWORK_HOSTS")
+    allowed_network_tools: str = Field(default="", alias="ALLOWED_NETWORK_TOOLS")
 
     model_general_default: str = Field(alias="MODEL_GENERAL_DEFAULT")
     model_vision_default: str = Field(alias="MODEL_VISION_DEFAULT")
@@ -76,6 +78,12 @@ class Settings(BaseSettings):
         if not parsed:
             raise ValueError("API_ALLOWED_HOSTS cannot be empty")
         return parsed
+
+    def allowed_network_hosts_list(self) -> list[str]:
+        return [host.strip() for host in self.allowed_network_hosts.split(",") if host.strip()]
+
+    def allowed_network_tools_list(self) -> list[str]:
+        return [tool.strip() for tool in self.allowed_network_tools.split(",") if tool.strip()]
 
 
 @lru_cache(maxsize=1)

@@ -5,6 +5,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.api.routes.approvals import router as approvals_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.runtime_options import router as runtime_options_router
+from app.api.routes.tools import router as tools_router
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_router)
     app.include_router(runtime_options_router)
     app.include_router(approvals_router)
+    app.include_router(tools_router)
     return app
 
 
