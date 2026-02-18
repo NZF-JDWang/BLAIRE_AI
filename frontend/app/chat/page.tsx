@@ -224,17 +224,13 @@ export default function ChatPage() {
                 {typeof citation.score === "number" ? citation.score.toFixed(3) : "n/a"}
                 <div style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
                   {citation.source_path ? (
-                    <a
-                      href={
-                        citation.source_path.startsWith("http://") || citation.source_path.startsWith("https://")
-                          ? citation.source_path
-                          : `file://${citation.source_path}`
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {citation.source_path}
-                    </a>
+                    citation.source_path.startsWith("http://") || citation.source_path.startsWith("https://") ? (
+                      <a href={citation.source_path} target="_blank" rel="noreferrer">
+                        {citation.source_path}
+                      </a>
+                    ) : (
+                      <span title="Local path">{citation.source_path}</span>
+                    )
                   ) : (
                     "(no source path)"
                   )}
