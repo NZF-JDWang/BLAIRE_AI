@@ -10,12 +10,15 @@ from app.models.knowledge import (
     KnowledgeCitation,
     KnowledgeIngestRequest,
     KnowledgeIngestResponse,
+    ObsidianReindexRequest,
+    ObsidianReindexResponse,
     KnowledgeRetrieveRequest,
     KnowledgeRetrieveResponse,
     KnowledgeStatusResponse,
 )
 from app.rag.ingestion import DropFolderIngestionService
 from app.rag.ingestion import SUPPORTED_EXTENSIONS
+from app.rag.obsidian_indexer import ObsidianVaultIndexer
 from app.rag.qdrant_client import QdrantHealthClient
 from app.rag.retrieval import IngestionPipeline, RetrievalService
 from app.rag.vector_store import QdrantVectorStore
@@ -24,6 +27,7 @@ from app.services.ollama_client import OllamaClient
 router = APIRouter(tags=["knowledge"])
 
 _ingestion_service: DropFolderIngestionService | None = None
+_obsidian_indexer: ObsidianVaultIndexer | None = None
 
 
 def _get_ingestion_service() -> DropFolderIngestionService:
@@ -33,19 +37,31 @@ def _get_ingestion_service() -> DropFolderIngestionService:
     return _ingestion_service
 
 
+def _get_obsidian_indexer() -> ObsidianVaultIndexer:
+    global _obsidian_indexer
+    if _obsidian_indexer is None:
+        _obsidian_indexer = ObsidianVaultIndexer(get_settings().obsidian_vault_path)
+    return _obsidian_indexer
+
+
 @router.get("/knowledge/status", response_model=KnowledgeStatusResponse)
 async def knowledge_status(
     _principal: Principal = Depends(require_roles("admin", "user")),
 ) -> KnowledgeStatusResponse:
     settings = get_settings()
     ingestion = _get_ingestion_service()
+    obsidian = _get_obsidian_indexer()
     files, _ = ingestion.scan_files(limit=1000)
+    obsidian_files = obsidian.scan_markdown_files(limit=10000)
     reachable = await QdrantHealthClient(settings.qdrant_url).is_reachable()
     return KnowledgeStatusResponse(
         drop_folder=settings.drop_folder,
         files_detected=len(files),
         last_scan_at=ingestion.last_scan_at,
         qdrant_reachable=reachable,
+        obsidian_vault_path=settings.obsidian_vault_path,
+        obsidian_files_detected=len(obsidian_files),
+        obsidian_last_scan_at=obsidian.last_scan_at,
     )
 
 
@@ -127,3 +143,32 @@ async def upload_to_drop_folder(
     target = drop_dir / stamped_name
     target.write_bytes(content)
     return {"stored_filename": stamped_name, "bytes": len(content)}
+
+
+@router.post("/knowledge/obsidian/reindex", response_model=ObsidianReindexResponse)
+async def reindex_obsidian_vault(
+    request: ObsidianReindexRequest,
+    _principal: Principal = Depends(require_roles("admin", "user")),
+) -> ObsidianReindexResponse:
+    settings = get_settings()
+    vector_store = QdrantVectorStore(settings.qdrant_url, settings.qdrant_collection_name)
+    pipeline = IngestionPipeline(
+        ollama_client=OllamaClient(settings.ollama_base_url),
+        vector_store=vector_store,
+        embedding_model=settings.model_embedding_default,
+    )
+    result = await _get_obsidian_indexer().reindex(
+        pipeline=pipeline,
+        vector_store=vector_store,
+        full_rescan=request.full_rescan,
+        limit=request.limit,
+    )
+    return ObsidianReindexResponse(
+        scanned_files=result.scanned_files,
+        indexed_files=result.indexed_files,
+        unchanged_files=result.unchanged_files,
+        skipped_files=result.skipped_files,
+        failed_files=result.failed_files,
+        chunks_indexed=result.chunks_indexed,
+        started_at=result.started_at,
+    )

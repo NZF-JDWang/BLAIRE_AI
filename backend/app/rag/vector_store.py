@@ -49,6 +49,8 @@ class QdrantVectorStore:
                 }
             )
 
+        await self.delete_source(path)
+
         url = f"{self._base}/collections/{self._collection}/points?wait=true"
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
@@ -57,6 +59,57 @@ class QdrantVectorStore:
         except Exception as exc:  # noqa: BLE001
             raise VectorStoreError("Qdrant upsert failed") from exc
         return len(points)
+
+    async def delete_source(self, path: Path) -> None:
+        url = f"{self._base}/collections/{self._collection}/points/delete?wait=true"
+        payload = {
+            "filter": {
+                "must": [
+                    {
+                        "key": "source_path",
+                        "match": {"value": str(path)},
+                    }
+                ]
+            }
+        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+        except Exception as exc:  # noqa: BLE001
+            raise VectorStoreError("Qdrant delete failed") from exc
+
+    async def get_source_last_modified(self, path: Path) -> str | None:
+        url = f"{self._base}/collections/{self._collection}/points/scroll"
+        payload = {
+            "limit": 1,
+            "with_payload": True,
+            "with_vectors": False,
+            "filter": {
+                "must": [
+                    {
+                        "key": "source_path",
+                        "match": {"value": str(path)},
+                    }
+                ]
+            },
+        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                data = response.json()
+        except Exception as exc:  # noqa: BLE001
+            raise VectorStoreError("Qdrant source lookup failed") from exc
+
+        points = data.get("result", {}).get("points", [])
+        if not points:
+            return None
+        payload = points[0].get("payload", {}) or {}
+        value = payload.get("last_modified")
+        if not value:
+            return None
+        return str(value)
 
     async def search(self, vector: list[float], limit: int = 5) -> list[dict[str, Any]]:
         url = f"{self._base}/collections/{self._collection}/points/search"
@@ -89,4 +142,3 @@ class QdrantVectorStore:
                 }
             )
         return normalized
-

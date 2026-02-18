@@ -8,6 +8,9 @@ class KnowledgeStatusResponse(BaseModel):
     files_detected: int
     last_scan_at: datetime | None
     qdrant_reachable: bool
+    obsidian_vault_path: str
+    obsidian_files_detected: int
+    obsidian_last_scan_at: datetime | None
 
 
 class KnowledgeIngestRequest(BaseModel):
@@ -40,3 +43,18 @@ class KnowledgeCitation(BaseModel):
 class KnowledgeRetrieveResponse(BaseModel):
     query: str
     citations: list[KnowledgeCitation]
+
+
+class ObsidianReindexRequest(BaseModel):
+    full_rescan: bool = False
+    limit: int = 5000
+
+
+class ObsidianReindexResponse(BaseModel):
+    scanned_files: int
+    indexed_files: int
+    unchanged_files: int
+    skipped_files: int
+    failed_files: int
+    chunks_indexed: int
+    started_at: datetime

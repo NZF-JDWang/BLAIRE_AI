@@ -150,12 +150,32 @@ export type KnowledgeStatus = {
   files_detected: number;
   last_scan_at: string | null;
   qdrant_reachable: boolean;
+  obsidian_vault_path: string;
+  obsidian_files_detected: number;
+  obsidian_last_scan_at: string | null;
 };
 
 export async function getKnowledgeStatus(): Promise<KnowledgeStatus> {
   const response = await apiFetch("/knowledge/status", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Knowledge status request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function reindexObsidian(fullRescan = false): Promise<{
+  scanned_files: number;
+  indexed_files: number;
+  unchanged_files: number;
+  chunks_indexed: number;
+}> {
+  const response = await apiFetch("/knowledge/obsidian/reindex", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ full_rescan: fullRescan, limit: 5000 }),
+  });
+  if (!response.ok) {
+    throw new Error(`Obsidian reindex failed: ${response.status}`);
   }
   return response.json();
 }
