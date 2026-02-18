@@ -22,7 +22,7 @@ from app.rag.obsidian_indexer import ObsidianVaultIndexer
 from app.rag.qdrant_client import QdrantHealthClient
 from app.rag.retrieval import IngestionPipeline, RetrievalService
 from app.rag.vector_store import QdrantVectorStore
-from app.services.ollama_client import OllamaClient
+from app.services.inference_client import InferenceClient
 
 router = APIRouter(tags=["knowledge"])
 
@@ -73,7 +73,7 @@ async def trigger_ingestion(
     ingestion = _get_ingestion_service()
     settings = get_settings()
     pipeline = IngestionPipeline(
-        ollama_client=OllamaClient(settings.ollama_base_url),
+        inference_client=InferenceClient(settings.inference_base_url),
         vector_store=QdrantVectorStore(settings.qdrant_url, settings.qdrant_collection_name),
         embedding_model=settings.model_embedding_default,
     )
@@ -114,7 +114,7 @@ async def retrieve_knowledge(
 ) -> KnowledgeRetrieveResponse:
     settings = get_settings()
     service = RetrievalService(
-        ollama_client=OllamaClient(settings.ollama_base_url),
+        inference_client=InferenceClient(settings.inference_base_url),
         vector_store=QdrantVectorStore(settings.qdrant_url, settings.qdrant_collection_name),
         embedding_model=settings.model_embedding_default,
     )
@@ -171,7 +171,7 @@ async def reindex_obsidian_vault(
     settings = get_settings()
     vector_store = QdrantVectorStore(settings.qdrant_url, settings.qdrant_collection_name)
     pipeline = IngestionPipeline(
-        ollama_client=OllamaClient(settings.ollama_base_url),
+        inference_client=InferenceClient(settings.inference_base_url),
         vector_store=vector_store,
         embedding_model=settings.model_embedding_default,
     )

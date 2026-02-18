@@ -10,7 +10,8 @@ BLAIRE reads settings from `.env` (see `.env.example`).
 ## Data and services
 - `DATABASE_URL`
 - `QDRANT_URL`, `QDRANT_COLLECTION_NAME`, `QDRANT_EMBEDDING_DIM`
-- `OLLAMA_BASE_URL`
+- `INFERENCE_BASE_URL` (LocalAI OpenAI-compatible endpoint)
+- `VLLM_BASE_URL` (used for dependency checks and direct vLLM ops)
 - `SEARCH_MODE_DEFAULT`, `BRAVE_API_KEY`, `SEARXNG_URL`
 
 ## Knowledge and storage
@@ -24,7 +25,7 @@ BLAIRE reads settings from `.env` (see `.env.example`).
 - `MODEL_VISION_DEFAULT`
 - `MODEL_EMBEDDING_DEFAULT`
 - `MODEL_CODE_DEFAULT`
-- `MODEL_ALLOW_ANY_OLLAMA`
+- `MODEL_ALLOW_ANY_INFERENCE`
 - `MODEL_ALLOWLIST_EXTRA_GENERAL`
 - `MODEL_ALLOWLIST_EXTRA_VISION`
 - `MODEL_ALLOWLIST_EXTRA_EMBEDDING`

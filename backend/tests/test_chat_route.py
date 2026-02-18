@@ -24,7 +24,7 @@ def _set_required_env() -> None:
 _set_required_env()
 
 from app.main import create_app  # noqa: E402
-from app.services.ollama_client import OllamaClient  # noqa: E402
+from app.services.inference_client import InferenceClient  # noqa: E402
 from app.services.preferences_service import PreferencesService  # noqa: E402
 
 
@@ -49,7 +49,7 @@ def test_chat_streaming_response(monkeypatch) -> None:
         yield " world"
 
     monkeypatch.setattr(PreferencesService, "get_or_default", fake_get_or_default)
-    monkeypatch.setattr(OllamaClient, "stream_chat", fake_stream_chat)
+    monkeypatch.setattr(InferenceClient, "stream_chat", fake_stream_chat)
 
     client = TestClient(create_app())
     response = client.post(
@@ -81,7 +81,7 @@ def test_chat_non_streaming_response(monkeypatch) -> None:
         yield " world"
 
     monkeypatch.setattr(PreferencesService, "get_or_default", fake_get_or_default)
-    monkeypatch.setattr(OllamaClient, "stream_chat", fake_stream_chat)
+    monkeypatch.setattr(InferenceClient, "stream_chat", fake_stream_chat)
 
     client = TestClient(create_app())
     response = client.post(
@@ -112,7 +112,7 @@ def test_chat_invalid_session_override_falls_back(monkeypatch) -> None:
         yield "fallback ok"
 
     monkeypatch.setattr(PreferencesService, "get_or_default", fake_get_or_default)
-    monkeypatch.setattr(OllamaClient, "stream_chat", fake_stream_chat)
+    monkeypatch.setattr(InferenceClient, "stream_chat", fake_stream_chat)
 
     client = TestClient(create_app())
     response = client.post(

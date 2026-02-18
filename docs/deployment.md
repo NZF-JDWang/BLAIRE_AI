@@ -6,10 +6,12 @@ Default services:
 - `frontend`
 - `postgres`
 - `qdrant`
+- `localai`
 
 Optional profiles:
 - `search`: `searxng`
 - `mcp`: `obsidian-mcp-server`, `ha-mcp-server`, `homelab-mcp`
+- `gpu`: `vllm`
 - `ops`: `watchtower`
 
 All services share `containers_core` network.
@@ -23,6 +25,9 @@ All services share `containers_core` network.
 
 ## First deploy
 1. `docker compose up -d`
+   - with accelerated inference: `docker compose --profile gpu up -d`
+   - configure LocalAI model definitions under `${LOCALAI_MODELS_PATH}` before first chat request
+   - for hybrid mode, define LocalAI models that proxy to `http://vllm:8000`
 2. Run `POST /ops/init`
 3. Validate routes and approvals flow
 4. Upload test knowledge file and run ingestion

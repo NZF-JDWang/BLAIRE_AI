@@ -5,7 +5,7 @@ import pytest
 from app.rag.retrieval import IngestionPipeline, RetrievalService
 
 
-class FakeOllama:
+class FakeInference:
     async def embed(self, model: str, text: str):  # noqa: ANN001, ANN202
         _ = model
         return [float(len(text)), 1.0, 2.0]
@@ -42,7 +42,7 @@ async def test_ingestion_pipeline_indexes_chunks(tmp_path: Path) -> None:
     doc = tmp_path / "a.md"
     doc.write_text("hello " * 300, encoding="utf-8")
     vector = FakeVectorStore()
-    pipeline = IngestionPipeline(ollama_client=FakeOllama(), vector_store=vector, embedding_model="embed")
+    pipeline = IngestionPipeline(inference_client=FakeInference(), vector_store=vector, embedding_model="embed")
     indexed = await pipeline.ingest_file(doc)
     assert indexed > 0
     assert vector.upserted == indexed
@@ -50,7 +50,7 @@ async def test_ingestion_pipeline_indexes_chunks(tmp_path: Path) -> None:
 
 @pytest.mark.anyio
 async def test_retrieval_service_returns_results() -> None:
-    service = RetrievalService(ollama_client=FakeOllama(), vector_store=FakeVectorStore(), embedding_model="embed")
+    service = RetrievalService(inference_client=FakeInference(), vector_store=FakeVectorStore(), embedding_model="embed")
     rows = await service.retrieve("what is this", limit=3)
     assert len(rows) == 1
     assert rows[0].source_name == "a.md"

@@ -11,8 +11,8 @@ from app.core.logging import get_logger
 from app.models.chat import ChatRequest, ChatResponse
 from app.rag.retrieval import RetrievalService
 from app.rag.vector_store import QdrantVectorStore
+from app.services.inference_client import InferenceClient
 from app.services.model_router import ModelRouter
-from app.services.ollama_client import OllamaClient
 from app.services.preferences_service import PreferencesService
 
 router = APIRouter(tags=["chat"])
@@ -64,7 +64,7 @@ async def chat(
         }
         for message in request.messages
     ]
-    client = OllamaClient(settings.ollama_base_url)
+    client = InferenceClient(settings.inference_base_url)
     citations: list[dict] = []
     rag_status = "disabled"
     rag_error: str | None = None
@@ -74,7 +74,7 @@ async def chat(
             latest_user = next((msg.content for msg in reversed(request.messages) if msg.role == "user"), "")
             if latest_user:
                 retrieval = RetrievalService(
-                    ollama_client=client,
+                    inference_client=client,
                     vector_store=QdrantVectorStore(settings.qdrant_url, settings.qdrant_collection_name),
                     embedding_model=settings.model_embedding_default,
                 )
