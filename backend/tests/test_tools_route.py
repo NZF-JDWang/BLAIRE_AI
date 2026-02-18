@@ -93,5 +93,17 @@ def test_network_sensitive_returns_approval_required(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "approval_required"
+    assert payload["action_class"] == "network_sensitive"
     assert payload["approval_id"] is not None
     assert payload["payload_hash"] is not None
+
+
+def test_tools_list_exposes_all_action_classes() -> None:
+    client = TestClient(create_app())
+    response = client.get("/tools", headers={"X-API-Key": "test-user-key"})
+    assert response.status_code == 200
+    payload = response.json()
+    classes = {item["name"]: item["action_class"] for item in payload}
+    assert classes["echo_text"] == "local_safe"
+    assert classes["filesystem_write"] == "local_sensitive"
+    assert classes["network_probe"] == "network_sensitive"

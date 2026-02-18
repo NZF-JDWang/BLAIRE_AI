@@ -74,8 +74,8 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Implement unified tool-call envelope for MCP tools (request, result, audit metadata).
 
 ### G. Human-in-the-Loop Safety for Network Touch
-- [ ] Define action classes: `local_safe`, `local_sensitive`, `network_sensitive`.
-- [ ] Mark any machine/network-affecting operation as `network_sensitive`.
+- [x] Define action classes: `local_safe`, `local_sensitive`, `network_sensitive`.
+- [x] Mark any machine/network-affecting operation as `network_sensitive`.
 - [x] Build approval workflow service:
 - [x] Create pending action record with full preview (target host, command, tool, expected effect).
 - [x] Require explicit human approval before execution (approve/reject endpoint).
