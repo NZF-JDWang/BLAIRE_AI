@@ -32,6 +32,13 @@ All services share `containers_core` network.
 - For safer automatic updates, use `watchtower` in `ops` profile only.
 - Keep rolling restart enabled and monitor startup dependency checks.
 
+## Building Docker images via GitHub
+- Workflow: `.github/workflows/docker-images.yml`
+- Trigger: push to `main` (backend/frontend changes) or manual `workflow_dispatch`
+- Publishes to GHCR:
+  - `ghcr.io/<owner>/<repo>-backend:latest`
+  - `ghcr.io/<owner>/<repo>-frontend:latest`
+
 ## Rollback
 1. Stop current stack.
 2. Deploy previous image/tag.
