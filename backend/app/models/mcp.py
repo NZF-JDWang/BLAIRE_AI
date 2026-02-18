@@ -34,4 +34,4 @@ class McpActionResponse(BaseModel):
     payload_hash: str | None = None
     approval_id: UUID | None = None
     data: dict[str, Any] | None = None
-
+    envelope: dict[str, Any] | None = None

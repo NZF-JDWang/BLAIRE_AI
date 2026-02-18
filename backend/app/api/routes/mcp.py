@@ -45,6 +45,31 @@ def _enforce_obsidian_scope(path: str) -> str:
     raise HTTPException(status_code=403, detail="Obsidian path is not allowlisted")
 
 
+def _mcp_envelope(
+    *,
+    source: str,
+    operation: str,
+    request_payload: dict,
+    status: str,
+    result: dict | None = None,
+    approval_id: str | None = None,
+    payload_hash: str | None = None,
+) -> dict:
+    return {
+        "request": {
+            "source": source,
+            "operation": operation,
+            "payload": request_payload,
+        },
+        "result": result or {},
+        "audit": {
+            "status": status,
+            "approval_id": approval_id,
+            "payload_hash": payload_hash,
+        },
+    }
+
+
 @router.post("/mcp/obsidian/read", response_model=McpActionResponse)
 async def obsidian_read(
     request: ObsidianReadRequest,
@@ -57,7 +82,18 @@ async def obsidian_read(
         data = await client.call(settings.mcp_obsidian_url, "vault.read", {"path": scoped_path})
     except McpClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return McpActionResponse(status="completed", source="obsidian", data=data)
+    return McpActionResponse(
+        status="completed",
+        source="obsidian",
+        data=data,
+        envelope=_mcp_envelope(
+            source="obsidian",
+            operation="vault.read",
+            request_payload={"path": scoped_path},
+            status="completed",
+            result=data,
+        ),
+    )
 
 
 @router.post("/mcp/obsidian/write", response_model=McpActionResponse)
@@ -92,6 +128,14 @@ async def obsidian_write(
             source="obsidian",
             approval_id=record.id,
             payload_hash=record.payload_hash,
+            envelope=_mcp_envelope(
+                source="obsidian",
+                operation="vault.write",
+                request_payload=payload,
+                status="approval_required",
+                approval_id=str(record.id),
+                payload_hash=record.payload_hash,
+            ),
         )
 
     if request.expected_payload_hash != payload_hash:
@@ -112,7 +156,18 @@ async def obsidian_write(
         data = await client.call(settings.mcp_obsidian_url, "vault.write", payload)
     except McpClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return McpActionResponse(status="completed", source="obsidian", data=data)
+    return McpActionResponse(
+        status="completed",
+        source="obsidian",
+        data=data,
+        envelope=_mcp_envelope(
+            source="obsidian",
+            operation="vault.write",
+            request_payload=payload,
+            status="completed",
+            result=data,
+        ),
+    )
 
 
 @router.post("/mcp/ha/call", response_model=McpActionResponse)
@@ -150,6 +205,14 @@ async def home_assistant_call(
             source="home_assistant",
             approval_id=record.id,
             payload_hash=record.payload_hash,
+            envelope=_mcp_envelope(
+                source="home_assistant",
+                operation=request.operation,
+                request_payload=payload,
+                status="approval_required",
+                approval_id=str(record.id),
+                payload_hash=record.payload_hash,
+            ),
         )
 
     if request.expected_payload_hash != payload_hash:
@@ -174,4 +237,15 @@ async def home_assistant_call(
         )
     except McpClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return McpActionResponse(status="completed", source="home_assistant", data=data)
+    return McpActionResponse(
+        status="completed",
+        source="home_assistant",
+        data=data,
+        envelope=_mcp_envelope(
+            source="home_assistant",
+            operation=request.operation,
+            request_payload={"operation": request.operation, "payload": request.payload},
+            status="completed",
+            result=data,
+        ),
+    )

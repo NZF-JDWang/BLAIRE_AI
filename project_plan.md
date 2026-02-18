@@ -71,7 +71,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Implement MCP client wrapper with connection management and retries.
 - [x] Integrate Obsidian MCP read/write actions with scoped path permissions.
 - [x] Integrate Home Assistant MCP read/write actions with explicit allowlisted operations.
-- [ ] Implement unified tool-call envelope for MCP tools (request, result, audit metadata).
+- [x] Implement unified tool-call envelope for MCP tools (request, result, audit metadata).
 
 ### G. Human-in-the-Loop Safety for Network Touch
 - [ ] Define action classes: `local_safe`, `local_sensitive`, `network_sensitive`.

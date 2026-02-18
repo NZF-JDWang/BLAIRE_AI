@@ -43,6 +43,7 @@ def test_obsidian_read_works(monkeypatch) -> None:
     payload = response.json()
     assert payload["status"] == "completed"
     assert payload["source"] == "obsidian"
+    assert payload["envelope"]["request"]["operation"] == "vault.read"
 
 
 def test_obsidian_write_requires_approval(monkeypatch) -> None:
@@ -76,6 +77,7 @@ def test_obsidian_write_requires_approval(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "approval_required"
+    assert payload["envelope"]["audit"]["status"] == "approval_required"
 
 
 def test_home_assistant_allowlist_enforced() -> None:
