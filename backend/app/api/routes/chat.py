@@ -1,9 +1,10 @@
 import json
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import ORJSONResponse, StreamingResponse
 
+from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.chat import ChatRequest, ChatResponse
@@ -18,7 +19,10 @@ def _sse_event(event: str, data: dict) -> str:
 
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    _principal: Principal = Depends(require_roles("admin", "user")),
+):
     settings = get_settings()
     logger = get_logger(component="chat")
     model_router = ModelRouter(settings)
@@ -81,4 +85,3 @@ async def chat(request: ChatRequest):
             text="".join(chunks),
         ).model_dump()
     )
-

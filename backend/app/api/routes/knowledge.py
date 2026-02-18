@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.models.knowledge import KnowledgeIngestRequest, KnowledgeIngestResponse, KnowledgeStatusResponse
 from app.rag.ingestion import DropFolderIngestionService
@@ -18,7 +19,9 @@ def _get_ingestion_service() -> DropFolderIngestionService:
 
 
 @router.get("/knowledge/status", response_model=KnowledgeStatusResponse)
-async def knowledge_status() -> KnowledgeStatusResponse:
+async def knowledge_status(
+    _principal: Principal = Depends(require_roles("admin", "user")),
+) -> KnowledgeStatusResponse:
     settings = get_settings()
     ingestion = _get_ingestion_service()
     files, _ = ingestion.scan_files(limit=1000)
@@ -32,7 +35,10 @@ async def knowledge_status() -> KnowledgeStatusResponse:
 
 
 @router.post("/knowledge/ingest", response_model=KnowledgeIngestResponse)
-async def trigger_ingestion(request: KnowledgeIngestRequest) -> KnowledgeIngestResponse:
+async def trigger_ingestion(
+    request: KnowledgeIngestRequest,
+    _principal: Principal = Depends(require_roles("admin", "user")),
+) -> KnowledgeIngestResponse:
     ingestion = _get_ingestion_service()
     result = ingestion.ingest(full_rescan=request.full_rescan, limit=request.limit)
     return KnowledgeIngestResponse(
@@ -40,4 +46,3 @@ async def trigger_ingestion(request: KnowledgeIngestRequest) -> KnowledgeIngestR
         skipped_files=result.skipped_files,
         started_at=result.started_at,
     )
-

@@ -1,8 +1,10 @@
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
+from app.core.rate_limit import RateLimitRule, rate_limiter
 from app.models.tool_execution import ToolExecutionRequest, ToolExecutionResult
 from app.services.approval_service import ApprovalService, canonical_payload_hash
 from app.services.tool_policy import ToolPolicy, ToolPolicyError
@@ -12,7 +14,7 @@ router = APIRouter(tags=["tools"])
 
 
 @router.get("/tools")
-async def list_tools() -> list[dict[str, str | bool]]:
+async def list_tools(_: Principal = Depends(require_roles("admin", "user"))) -> list[dict[str, str | bool]]:
     registry = ToolRegistry()
     return [
         {
@@ -26,7 +28,11 @@ async def list_tools() -> list[dict[str, str | bool]]:
 
 
 @router.post("/tools/execute", response_model=ToolExecutionResult)
-async def execute_tool(request: ToolExecutionRequest) -> ToolExecutionResult:
+async def execute_tool(
+    request: ToolExecutionRequest,
+    raw_request: Request,
+    principal: Principal = Depends(require_roles("admin", "user")),
+) -> ToolExecutionResult:
     settings = get_settings()
     registry = ToolRegistry()
     approval_service = ApprovalService(settings.database_url.get_secret_value())
@@ -52,6 +58,11 @@ async def execute_tool(request: ToolExecutionRequest) -> ToolExecutionResult:
     }
     payload_hash = canonical_payload_hash(payload)
 
+    rate_limiter.check(
+        f"tool:{principal.subject}:{raw_request.client.host if raw_request.client else 'unknown'}",
+        RateLimitRule(60, 60),
+    )
+
     if spec.action_class == "network_sensitive":
         if not request.approval_id or not request.execution_token or not request.expected_payload_hash:
             record = await approval_service.create_pending(
@@ -60,7 +71,7 @@ async def execute_tool(request: ToolExecutionRequest) -> ToolExecutionResult:
                 target_host=request.target_host or "",
                 tool_name=spec.name,
                 action_payload=payload,
-                requested_by=request.requested_by,
+                requested_by=principal.subject,
             )
             return ToolExecutionResult(
                 tool_name=spec.name,
@@ -76,7 +87,7 @@ async def execute_tool(request: ToolExecutionRequest) -> ToolExecutionResult:
         try:
             await approval_service.execute(
                 approval_id=request.approval_id,
-                actor=request.requested_by,
+                actor=principal.subject,
                 execution_token=request.execution_token,
                 expected_payload_hash=request.expected_payload_hash,
             )

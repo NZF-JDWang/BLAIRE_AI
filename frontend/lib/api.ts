@@ -30,10 +30,34 @@ export type RuntimeOptions = {
   }>;
 };
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://backend:8000";
+function apiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return process.env.INTERNAL_API_BASE_URL ?? "http://backend:8000";
+  }
+  return "/api";
+}
+
+function apiKeyHeader(): Record<string, string> {
+  if (typeof window === "undefined") {
+    const key = process.env.FRONTEND_PROXY_API_KEY ?? "";
+    return key ? { "X-API-Key": key } : {};
+  }
+  return {};
+}
+
+async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers ?? {});
+  for (const [key, value] of Object.entries(apiKeyHeader())) {
+    headers.set(key, value);
+  }
+  return fetch(`${apiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+  });
+}
 
 export async function getHealth(): Promise<unknown> {
-  const response = await fetch(`${apiBaseUrl}/health`, { cache: "no-store" });
+  const response = await apiFetch("/health", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Health check failed: ${response.status}`);
   }
@@ -41,7 +65,7 @@ export async function getHealth(): Promise<unknown> {
 }
 
 export async function getRuntimeOptions(): Promise<unknown> {
-  const response = await fetch(`${apiBaseUrl}/runtime/options`, { cache: "no-store" });
+  const response = await apiFetch("/runtime/options", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Runtime options request failed: ${response.status}`);
   }
@@ -54,9 +78,37 @@ export async function getRuntimeOptionsTyped(): Promise<RuntimeOptions> {
 }
 
 export async function getPendingApprovals(limit = 50): Promise<ApprovalRecord[]> {
-  const response = await fetch(`${apiBaseUrl}/approvals/pending?limit=${limit}`, { cache: "no-store" });
+  const response = await apiFetch(`/approvals/pending?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Pending approvals request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function approveApproval(approvalId: string): Promise<{
+  approval: ApprovalRecord;
+  execution_token: string;
+  expires_at: string;
+}> {
+  const response = await apiFetch(`/approvals/${approvalId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actor: "ui-admin" })
+  });
+  if (!response.ok) {
+    throw new Error(`Approve request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function rejectApproval(approvalId: string, reason: string): Promise<ApprovalRecord> {
+  const response = await apiFetch(`/approvals/${approvalId}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actor: "ui-admin", reason })
+  });
+  if (!response.ok) {
+    throw new Error(`Reject request failed: ${response.status}`);
   }
   return response.json();
 }
@@ -69,7 +121,7 @@ export type KnowledgeStatus = {
 };
 
 export async function getKnowledgeStatus(): Promise<KnowledgeStatus> {
-  const response = await fetch(`${apiBaseUrl}/knowledge/status`, { cache: "no-store" });
+  const response = await apiFetch("/knowledge/status", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Knowledge status request failed: ${response.status}`);
   }
@@ -87,7 +139,7 @@ export type ResearchResponse = {
 };
 
 export async function runResearch(query: string, searchMode?: string): Promise<ResearchResponse> {
-  const response = await fetch(`${apiBaseUrl}/agents/research`, {
+  const response = await apiFetch("/agents/research", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -110,7 +162,7 @@ export type DependencyStatus = {
 };
 
 export async function getDependencyStatus(): Promise<DependencyStatus> {
-  const response = await fetch(`${apiBaseUrl}/health/dependencies`, { cache: "no-store" });
+  const response = await apiFetch("/health/dependencies", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Dependency status request failed: ${response.status}`);
   }

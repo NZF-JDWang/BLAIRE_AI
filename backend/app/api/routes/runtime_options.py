@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.models.runtime_options import RuntimeOptionsResponse
 from app.services.model_router import ModelRouter
@@ -9,7 +10,9 @@ router = APIRouter(tags=["runtime"])
 
 
 @router.get("/runtime/options", response_model=RuntimeOptionsResponse)
-async def runtime_options() -> RuntimeOptionsResponse:
+async def runtime_options(
+    _principal: Principal = Depends(require_roles("admin", "user")),
+) -> RuntimeOptionsResponse:
     settings = get_settings()
     router_service = ModelRouter(settings)
     registry = ToolRegistry()

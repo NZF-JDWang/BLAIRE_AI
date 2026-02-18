@@ -9,7 +9,7 @@ type ChatMessage = {
   content: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://backend:8000";
+const API_BASE = "/api";
 
 async function streamChat(params: {
   messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;
@@ -178,4 +178,3 @@ export default function ChatPage() {
     </main>
   );
 }
-

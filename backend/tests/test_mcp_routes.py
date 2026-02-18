@@ -16,6 +16,9 @@ def _set_required_env() -> None:
     os.environ["MODEL_GENERAL_DEFAULT"] = "qwen2.5:7b-instruct"
     os.environ["MODEL_VISION_DEFAULT"] = "qwen2.5vl:7b"
     os.environ["MODEL_EMBEDDING_DEFAULT"] = "nomic-embed-text:v1.5"
+    os.environ["REQUIRE_AUTH"] = "true"
+    os.environ["USER_API_KEYS"] = "test-user-key"
+    os.environ["ADMIN_API_KEYS"] = "test-admin-key"
     os.environ["ALLOWED_HA_OPERATIONS"] = "light.turn_on"
 
 
@@ -34,7 +37,7 @@ def test_obsidian_read_works(monkeypatch) -> None:
 
     monkeypatch.setattr(McpClient, "call", fake_call)
     client = TestClient(create_app())
-    response = client.post("/mcp/obsidian/read", json={"path": "notes/a.md"})
+    response = client.post("/mcp/obsidian/read", json={"path": "notes/a.md"}, headers={"X-API-Key": "test-user-key"})
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "completed"
@@ -64,7 +67,11 @@ def test_obsidian_write_requires_approval(monkeypatch) -> None:
 
     monkeypatch.setattr(ApprovalService, "create_pending", fake_create_pending)
     client = TestClient(create_app())
-    response = client.post("/mcp/obsidian/write", json={"path": "notes/a.md", "content": "x"})
+    response = client.post(
+        "/mcp/obsidian/write",
+        json={"path": "notes/a.md", "content": "x"},
+        headers={"X-API-Key": "test-user-key"},
+    )
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "approval_required"
@@ -73,5 +80,9 @@ def test_obsidian_write_requires_approval(monkeypatch) -> None:
 def test_home_assistant_allowlist_enforced() -> None:
     get_settings.cache_clear()
     client = TestClient(create_app())
-    response = client.post("/mcp/ha/call", json={"operation": "switch.turn_off", "payload": {}})
+    response = client.post(
+        "/mcp/ha/call",
+        json={"operation": "switch.turn_off", "payload": {}},
+        headers={"X-API-Key": "test-user-key"},
+    )
     assert response.status_code == 403

@@ -26,6 +26,9 @@ services:
       MODEL_VISION_DEFAULT: ${MODEL_VISION_DEFAULT:-qwen2.5vl:7b}
       MODEL_EMBEDDING_DEFAULT: ${MODEL_EMBEDDING_DEFAULT:-nomic-embed-text:v1.5}
       MODEL_CODE_DEFAULT: ${MODEL_CODE_DEFAULT:-}
+      REQUIRE_AUTH: ${REQUIRE_AUTH:-true}
+      ADMIN_API_KEYS: ${ADMIN_API_KEYS}
+      USER_API_KEYS: ${USER_API_KEYS}
     volumes:
       - ${DROP_FOLDER:-/srv/ai-knowledge/drop}:/app/knowledge/drop
       - ${OBSIDIAN_VAULT_PATH:-/srv/obsidian/BlacksiteLabVault}:/vault:rw
@@ -50,7 +53,9 @@ services:
       - .env
     environment:
       NODE_ENV: ${NODE_ENV:-production}
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://backend:8000}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://backend:8000}
+      FRONTEND_PROXY_API_KEY: ${FRONTEND_PROXY_API_KEY}
     command: npm run start
     depends_on:
       backend:

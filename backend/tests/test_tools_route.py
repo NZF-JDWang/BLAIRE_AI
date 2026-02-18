@@ -17,6 +17,9 @@ def _set_required_env() -> None:
     os.environ.setdefault("MODEL_GENERAL_DEFAULT", "qwen2.5:7b-instruct")
     os.environ.setdefault("MODEL_VISION_DEFAULT", "qwen2.5vl:7b")
     os.environ.setdefault("MODEL_EMBEDDING_DEFAULT", "nomic-embed-text:v1.5")
+    os.environ.setdefault("REQUIRE_AUTH", "true")
+    os.environ.setdefault("USER_API_KEYS", "test-user-key")
+    os.environ.setdefault("ADMIN_API_KEYS", "test-admin-key")
     os.environ.setdefault("ALLOWED_NETWORK_HOSTS", "host-a")
     os.environ.setdefault("ALLOWED_NETWORK_TOOLS", "network_probe")
 
@@ -36,11 +39,21 @@ def test_local_safe_tool_executes() -> None:
             "arguments": {"text": "hello"},
             "requested_by": "tester",
         },
+        headers={"X-API-Key": "test-user-key"},
     )
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "completed"
     assert payload["output"]["echo"] == "hello"
+
+
+def test_tools_execute_requires_api_key() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/tools/execute",
+        json={"tool_name": "echo_text", "arguments": {"text": "hello"}},
+    )
+    assert response.status_code == 401
 
 
 def test_network_sensitive_returns_approval_required(monkeypatch) -> None:
@@ -75,6 +88,7 @@ def test_network_sensitive_returns_approval_required(monkeypatch) -> None:
             "target_host": "host-a",
             "requested_by": "tester",
         },
+        headers={"X-API-Key": "test-user-key"},
     )
     assert response.status_code == 200
     payload = response.json()
