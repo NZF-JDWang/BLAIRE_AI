@@ -100,3 +100,19 @@ export async function runResearch(query: string, searchMode?: string): Promise<R
   }
   return response.json();
 }
+
+export type DependencyStatus = {
+  dependencies: Array<{
+    name: string;
+    ok: boolean;
+    detail: string;
+  }>;
+};
+
+export async function getDependencyStatus(): Promise<DependencyStatus> {
+  const response = await fetch(`${apiBaseUrl}/health/dependencies`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Dependency status request failed: ${response.status}`);
+  }
+  return response.json();
+}

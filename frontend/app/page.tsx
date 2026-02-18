@@ -1,10 +1,11 @@
-import { getHealth, getRuntimeOptions } from "@/lib/api";
+import { getDependencyStatus, getHealth, getRuntimeOptions } from "@/lib/api";
 
 export default async function HomePage() {
   let backendStatus = "unreachable";
   let defaultSearchMode = "unknown";
   let generalModels = "unknown";
   let sensitiveActions = "unknown";
+  let dependencySummary = "unknown";
   try {
     const health = (await getHealth()) as { status?: string };
     backendStatus = health.status ?? "unknown";
@@ -25,6 +26,13 @@ export default async function HomePage() {
     generalModels = "unavailable";
     sensitiveActions = "unavailable";
   }
+  try {
+    const deps = await getDependencyStatus();
+    const ok = deps.dependencies.filter((d) => d.ok).length;
+    dependencySummary = `${ok}/${deps.dependencies.length} healthy`;
+  } catch {
+    dependencySummary = "unavailable";
+  }
 
   return (
     <main style={{ maxWidth: "900px", margin: "48px auto", padding: "0 16px" }}>
@@ -36,6 +44,7 @@ export default async function HomePage() {
       <p style={{ marginTop: "8px", fontFamily: "monospace" }}>search default: {defaultSearchMode}</p>
       <p style={{ marginTop: "8px", fontFamily: "monospace" }}>general models: {generalModels}</p>
       <p style={{ marginTop: "8px", fontFamily: "monospace" }}>sensitive actions enabled: {sensitiveActions}</p>
+      <p style={{ marginTop: "8px", fontFamily: "monospace" }}>dependencies: {dependencySummary}</p>
       <p style={{ marginTop: "16px" }}>
         <a href="/chat">Open chat</a>
       </p>

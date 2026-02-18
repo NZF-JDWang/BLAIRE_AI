@@ -5,6 +5,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.api.routes.agents import router as agents_router
 from app.api.routes.approvals import router as approvals_router
 from app.api.routes.chat import router as chat_router
+from app.api.routes.dependencies import router as dependencies_router
 from app.api.routes.knowledge import router as knowledge_router
 from app.api.routes.runtime_options import router as runtime_options_router
 from app.api.routes.search import router as search_router
@@ -17,6 +18,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.request_context import RequestContextMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
+from app.services.dependency_checks import collect_dependency_status
 from app.services.approval_service import ApprovalService
 
 
@@ -37,6 +39,14 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("approval_schema_init_failed")
         raise
+    try:
+        status = await collect_dependency_status(settings)
+        logger.info(
+            "dependency_status",
+            dependencies=[item.model_dump() for item in status.dependencies],
+        )
+    except Exception:
+        logger.exception("dependency_check_failed")
     yield
     logger.info("app_stopping")
 
@@ -65,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(search_router)
     app.include_router(knowledge_router)
     app.include_router(agents_router)
+    app.include_router(dependencies_router)
     return app
 
 
