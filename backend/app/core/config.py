@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     agent_max_recursion_depth: int = Field(default=2, alias="AGENT_MAX_RECURSION_DEPTH")
     agent_worker_timeout_seconds: int = Field(default=12, alias="AGENT_WORKER_TIMEOUT_SECONDS")
     agent_overall_timeout_seconds: int = Field(default=20, alias="AGENT_OVERALL_TIMEOUT_SECONDS")
+    sandbox_allowed_commands: str = Field(default="echo", alias="SANDBOX_ALLOWED_COMMANDS")
 
     @field_validator("app_env")
     @classmethod
@@ -136,6 +137,9 @@ class Settings(BaseSettings):
 
     def user_api_keys_list(self) -> list[str]:
         return [key.strip() for key in self.user_api_keys.split(",") if key.strip()]
+
+    def sandbox_allowed_commands_list(self) -> list[str]:
+        return [command.strip() for command in self.sandbox_allowed_commands.split(",") if command.strip()]
 
 
 @lru_cache(maxsize=1)

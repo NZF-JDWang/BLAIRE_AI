@@ -89,9 +89,9 @@ Build the platform in vertical slices, starting with backend foundations and sec
 ### H. Filesystem and CLI Sandboxing
 - [x] Implement strict filesystem write tool with path allowlist and denylist.
 - [x] Add preflight checks to prevent path traversal and symlink escapes.
-- [ ] Add sandbox runner abstraction for future CLI execution.
+- [x] Add sandbox runner abstraction for future CLI execution.
 - [ ] Implement CLI sandbox in Phase 2 using firejail/bubblewrap with command allowlist.
-- [ ] Ensure all sandboxed calls emit machine-readable execution audit records.
+- [x] Ensure all sandboxed calls emit machine-readable execution audit records.
 
 ### I. Frontend Implementation (After Backend APIs Stabilize)
 - [x] Scaffold chat page with streaming response rendering.
