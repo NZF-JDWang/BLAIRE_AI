@@ -22,8 +22,16 @@ async def run_research(
     )
     mode = request.search_mode or prefs.search_mode
     search = SearchService(settings)
-    swarm = AgentSwarmService(search)
+    swarm = AgentSwarmService(
+        search,
+        max_tool_calls=settings.agent_max_tool_calls,
+        max_recursion_depth=settings.agent_max_recursion_depth,
+        worker_timeout_seconds=settings.agent_worker_timeout_seconds,
+        overall_timeout_seconds=settings.agent_overall_timeout_seconds,
+    )
     try:
         return await swarm.run_research(query=request.query, search_mode=mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except SearchError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     qdrant_embedding_dim: int = Field(default=768, alias="QDRANT_EMBEDDING_DIM")
     max_upload_mb: int = Field(default=25, alias="MAX_UPLOAD_MB")
     backup_path: str = Field(default="/backups", alias="BACKUP_PATH")
+    agent_max_tool_calls: int = Field(default=4, alias="AGENT_MAX_TOOL_CALLS")
+    agent_max_recursion_depth: int = Field(default=2, alias="AGENT_MAX_RECURSION_DEPTH")
+    agent_worker_timeout_seconds: int = Field(default=12, alias="AGENT_WORKER_TIMEOUT_SECONDS")
+    agent_overall_timeout_seconds: int = Field(default=20, alias="AGENT_OVERALL_TIMEOUT_SECONDS")
 
     @field_validator("app_env")
     @classmethod
@@ -82,6 +86,27 @@ class Settings(BaseSettings):
     def validate_approval_ttl(cls, value: int) -> int:
         if value < 1 or value > 120:
             raise ValueError("APPROVAL_TOKEN_TTL_MINUTES must be between 1 and 120")
+        return value
+
+    @field_validator("agent_max_tool_calls")
+    @classmethod
+    def validate_agent_max_tool_calls(cls, value: int) -> int:
+        if value < 1 or value > 20:
+            raise ValueError("AGENT_MAX_TOOL_CALLS must be between 1 and 20")
+        return value
+
+    @field_validator("agent_max_recursion_depth")
+    @classmethod
+    def validate_agent_max_recursion_depth(cls, value: int) -> int:
+        if value < 0 or value > 10:
+            raise ValueError("AGENT_MAX_RECURSION_DEPTH must be between 0 and 10")
+        return value
+
+    @field_validator("agent_worker_timeout_seconds", "agent_overall_timeout_seconds")
+    @classmethod
+    def validate_agent_timeouts(cls, value: int) -> int:
+        if value < 1 or value > 120:
+            raise ValueError("Agent timeout values must be between 1 and 120 seconds")
         return value
 
     def allowed_hosts_list(self) -> list[str]:

@@ -15,10 +15,18 @@ class WorkerResult(BaseModel):
     sources: list[str]
 
 
+class SwarmTraceStep(BaseModel):
+    step: str
+    status: Literal["started", "completed", "failed", "skipped"]
+    timestamp: datetime
+    details: dict[str, str | int | float | bool] = Field(default_factory=dict)
+
+
 class ResearchResponse(BaseModel):
     query: str
     supervisor_summary: str
     workers: list[WorkerResult]
+    trace: list[SwarmTraceStep] = Field(default_factory=list)
 
 
 WorkerStatus = Literal["pending", "running", "completed", "failed"]

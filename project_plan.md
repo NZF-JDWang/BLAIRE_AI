@@ -55,8 +55,8 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Implement supervisor node (task decomposition, delegation policy).
 - [x] Implement two parallel research worker nodes.
 - [ ] Implement merge/synthesis node with citation consolidation.
-- [ ] Add guardrails for max tool calls, recursion depth, and timeout ceilings.
-- [ ] Add per-step trace logging for swarm debugging and later UI visualization.
+- [x] Add guardrails for max tool calls, recursion depth, and timeout ceilings.
+- [x] Add per-step trace logging for swarm debugging and later UI visualization.
 
 ### E. Tool Registry and Search Providers
 - [x] Implement tool registry abstraction (`backend/app/tools/`) with typed tool contracts.

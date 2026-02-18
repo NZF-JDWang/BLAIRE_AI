@@ -205,6 +205,12 @@ export type ResearchResponse = {
     summary: string;
     sources: string[];
   }>;
+  trace?: Array<{
+    step: string;
+    status: "started" | "completed" | "failed" | "skipped";
+    timestamp: string;
+    details: Record<string, string | number | boolean>;
+  }>;
 };
 
 export async function runResearch(query: string, searchMode?: string): Promise<ResearchResponse> {
