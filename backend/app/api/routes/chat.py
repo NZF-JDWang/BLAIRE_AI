@@ -8,6 +8,8 @@ from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.chat import ChatRequest, ChatResponse
+from app.rag.retrieval import RetrievalService
+from app.rag.vector_store import QdrantVectorStore
 from app.services.model_router import ModelRouter
 from app.services.ollama_client import OllamaClient
 
@@ -48,6 +50,45 @@ async def chat(
         for message in request.messages
     ]
     client = OllamaClient(settings.ollama_base_url)
+    citations: list[dict] = []
+    if request.use_rag:
+        try:
+            latest_user = next((msg.content for msg in reversed(request.messages) if msg.role == "user"), "")
+            if latest_user:
+                retrieval = RetrievalService(
+                    ollama_client=client,
+                    vector_store=QdrantVectorStore(settings.qdrant_url, settings.qdrant_collection_name),
+                    embedding_model=settings.model_embedding_default,
+                )
+                results = await retrieval.retrieve(query=latest_user, limit=request.retrieval_k)
+                citations = [
+                    {
+                        "source_path": item.source_path,
+                        "source_name": item.source_name,
+                        "file_type": item.file_type,
+                        "chunk_index": item.chunk_index,
+                        "score": item.score,
+                        "text": item.text,
+                    }
+                    for item in results
+                ]
+                if citations:
+                    context_text = "\n\n".join(
+                        [f"[{c['source_name']}#{c['chunk_index']}] {c['text']}" for c in citations]
+                    )
+                    formatted_messages.insert(
+                        0,
+                        {
+                            "role": "system",
+                            "content": (
+                                "Use the following retrieved knowledge when relevant. "
+                                "If unsure, say you are unsure.\n\n"
+                                f"{context_text}"
+                            ),
+                        },
+                    )
+        except Exception:
+            logger.exception("rag_retrieval_failed")
 
     if request.stream:
         async def event_stream() -> AsyncIterator[str]:
@@ -59,6 +100,7 @@ async def chat(
                         "model": selection.model_name,
                         "model_class": selection.model_class,
                         "selection_reason": selection.reason,
+                        "citations": citations,
                     },
                 )
                 async for token in client.stream_chat(selection.model_name, formatted_messages):
@@ -83,5 +125,6 @@ async def chat(
         ChatResponse(
             model=selection.model_name,
             text="".join(chunks),
+            citations=citations,
         ).model_dump()
     )

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.rag.retrieval import IngestionPipeline
 
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".pdf", ".png", ".jpg", ".jpeg", ".webp"}
 
@@ -11,6 +12,7 @@ class IngestionResult:
     accepted_files: int
     skipped_files: int
     started_at: datetime
+    chunks_indexed: int = 0
 
 
 class DropFolderIngestionService:
@@ -45,7 +47,25 @@ class DropFolderIngestionService:
             started_at=datetime.now(timezone.utc),
         )
 
+    async def ingest_with_pipeline(
+        self,
+        *,
+        pipeline: IngestionPipeline,
+        full_rescan: bool = False,
+        limit: int = 100,
+    ) -> IngestionResult:
+        _ = full_rescan  # Reserved for delta/full strategy in later implementation.
+        files, skipped = self.scan_files(limit=limit)
+        indexed_chunks = 0
+        for file_path in files:
+            indexed_chunks += await pipeline.ingest_file(file_path)
+        return IngestionResult(
+            accepted_files=len(files),
+            skipped_files=skipped,
+            started_at=datetime.now(timezone.utc),
+            chunks_indexed=indexed_chunks,
+        )
+
     @property
     def last_scan_at(self) -> datetime | None:
         return self._last_scan_at
-

@@ -17,6 +17,8 @@ class ChatRequest(BaseModel):
     model_class: ModelClass = "general"
     model_override: str | None = Field(default=None, max_length=128)
     stream: bool = True
+    use_rag: bool = True
+    retrieval_k: int = Field(default=4, ge=1, le=12)
 
     @field_validator("messages")
     @classmethod
@@ -29,4 +31,4 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     model: str
     text: str
-
+    citations: list[dict] = Field(default_factory=list)

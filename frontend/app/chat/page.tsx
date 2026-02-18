@@ -16,6 +16,7 @@ async function streamChat(params: {
   modelClass: string;
   modelOverride?: string;
   onToken: (token: string) => void;
+  onMeta: (meta: { citations?: Array<{ source_name?: string; chunk_index?: number; text?: string }> }) => void;
   onDone: () => void;
 }): Promise<void> {
   const response = await fetch(`${API_BASE}/chat`, {
@@ -47,11 +48,14 @@ async function streamChat(params: {
       const event = lines.find((line) => line.startsWith("event:"))?.replace("event:", "").trim();
       const dataLine = lines.find((line) => line.startsWith("data:"))?.replace("data:", "").trim();
       if (!dataLine) continue;
-      let payload: { text?: string; message?: string } = {};
+      let payload: { text?: string; message?: string; citations?: Array<{ source_name?: string; chunk_index?: number; text?: string }> } = {};
       try {
         payload = JSON.parse(dataLine);
       } catch {
         continue;
+      }
+      if (event === "meta") {
+        params.onMeta(payload);
       }
       if (event === "token" && payload.text) {
         params.onToken(payload.text);
@@ -74,6 +78,7 @@ export default function ChatPage() {
   const [runtimeOptions, setRuntimeOptions] = useState<RuntimeOptions | null>(null);
   const [modelClass, setModelClass] = useState("general");
   const [modelOverride, setModelOverride] = useState("");
+  const [citations, setCitations] = useState<Array<{ source_name?: string; chunk_index?: number; text?: string }>>([]);
 
   useEffect(() => {
     getRuntimeOptionsTyped()
@@ -90,6 +95,7 @@ export default function ChatPage() {
     event.preventDefault();
     if (!input.trim() || loading) return;
     setError("");
+    setCitations([]);
 
     const userMessage: ChatMessage = { role: "user", content: input.trim() };
     const nextMessages = [...messages, userMessage];
@@ -105,6 +111,7 @@ export default function ChatPage() {
         messages: nextMessages.map((message) => ({ role: message.role, content: message.content })),
         modelClass,
         modelOverride: modelOverride || undefined,
+        onMeta: (meta) => setCitations(meta.citations ?? []),
         onToken: (token) => {
           assistantBuffer += token;
           setMessages((prev) => {
@@ -175,6 +182,19 @@ export default function ChatPage() {
         </button>
       </form>
       {error ? <p style={{ color: "#b91c1c", marginTop: "8px" }}>{error}</p> : null}
+      {citations.length > 0 ? (
+        <section style={{ marginTop: "16px" }}>
+          <h2 style={{ fontSize: "1.1rem", marginBottom: "8px" }}>Citations</h2>
+          <ul>
+            {citations.map((citation, idx) => (
+              <li key={`${citation.source_name}-${citation.chunk_index}-${idx}`}>
+                <strong>{citation.source_name}</strong> #{citation.chunk_index}:{" "}
+                {String(citation.text ?? "").slice(0, 180)}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </main>
   );
 }

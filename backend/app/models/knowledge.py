@@ -19,4 +19,24 @@ class KnowledgeIngestResponse(BaseModel):
     accepted_files: int
     skipped_files: int
     started_at: datetime
+    chunks_indexed: int = 0
 
+
+class KnowledgeRetrieveRequest(BaseModel):
+    query: str
+    limit: int = 5
+
+
+class KnowledgeCitation(BaseModel):
+    source_path: str
+    source_name: str
+    file_type: str
+    chunk_index: int
+    score: float
+    text: str
+    last_modified: str
+
+
+class KnowledgeRetrieveResponse(BaseModel):
+    query: str
+    citations: list[KnowledgeCitation]
