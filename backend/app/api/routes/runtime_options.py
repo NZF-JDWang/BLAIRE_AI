@@ -16,10 +16,13 @@ async def runtime_options(
     settings = get_settings()
     router_service = ModelRouter(settings)
     registry = ToolRegistry()
+    model_allowlist = router_service.get_allowlist()
     return RuntimeOptionsResponse(
         search_modes=["brave_only", "searxng_only", "auto_fallback", "parallel"],
         default_search_mode=settings.search_mode_default,
-        model_allowlist=router_service.get_allowlist(),
+        model_allowlist=model_allowlist,
+        available_models=router_service.get_available_models(),
+        available_models_by_class=model_allowlist,
         sensitive_actions_enabled=settings.sensitive_actions_enabled,
         approval_token_ttl_minutes=settings.approval_token_ttl_minutes,
         allowed_network_hosts=settings.allowed_network_hosts_list(),

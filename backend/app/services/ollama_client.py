@@ -1,7 +1,41 @@
 from collections.abc import AsyncIterator
 import json
+from time import monotonic
+from typing import Any
 
 import httpx
+
+
+class OllamaModelCatalog:
+    _cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+
+    def __init__(self, base_url: str, timeout_seconds: float = 4.0, ttl_seconds: float = 30.0):
+        self._base_url = base_url.rstrip("/")
+        self._timeout = timeout_seconds
+        self._ttl = ttl_seconds
+
+    def get_models(self) -> list[dict[str, Any]]:
+        now = monotonic()
+        cached = self._cache.get(self._base_url)
+        if cached and now - cached[0] <= self._ttl:
+            return cached[1]
+
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.get(f"{self._base_url}/api/tags")
+                response.raise_for_status()
+                data = response.json()
+            rows = data.get("models", [])
+            models: list[dict[str, Any]] = [row for row in rows if isinstance(row, dict) and row.get("name")]
+            self._cache[self._base_url] = (now, models)
+            return models
+        except Exception:  # noqa: BLE001
+            if cached:
+                return cached[1]
+            return []
+
+    def get_model_names(self) -> set[str]:
+        return {str(model.get("name", "")).strip() for model in self.get_models() if model.get("name")}
 
 
 class OllamaClient:

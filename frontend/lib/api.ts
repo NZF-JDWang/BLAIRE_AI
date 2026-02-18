@@ -27,6 +27,8 @@ export type RuntimeOptions = {
   search_modes: string[];
   default_search_mode: string;
   model_allowlist: Record<string, string[]>;
+  available_models?: string[];
+  available_models_by_class?: Record<string, string[]>;
   sensitive_actions_enabled: boolean;
   approval_token_ttl_minutes: number;
   allowed_network_hosts: string[];

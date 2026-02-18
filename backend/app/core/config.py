@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     model_vision_default: str = Field(alias="MODEL_VISION_DEFAULT")
     model_embedding_default: str = Field(alias="MODEL_EMBEDDING_DEFAULT")
     model_code_default: str | None = Field(default=None, alias="MODEL_CODE_DEFAULT")
+    allow_any_vision_models: bool = Field(default=False, alias="ALLOW_ANY_VISION_MODELS")
     qdrant_collection_name: str = Field(default="knowledge_multimodal", alias="QDRANT_COLLECTION_NAME")
     qdrant_embedding_dim: int = Field(default=768, alias="QDRANT_EMBEDDING_DIM")
     max_upload_mb: int = Field(default=25, alias="MAX_UPLOAD_MB")

@@ -2,6 +2,7 @@ import os
 
 from app.core.config import Settings
 from app.services.model_router import ModelRouter
+from app.services.ollama_client import OllamaModelCatalog
 
 
 def _settings() -> Settings:
@@ -55,3 +56,32 @@ def test_select_model_falls_back_to_class_default() -> None:
         "session_override_disallowed:bad-session-override",
         "preference_override_disallowed:bad-preference-override",
     ]
+
+
+def test_select_model_allows_any_installed_general_model(monkeypatch) -> None:
+    def fake_models(self):  # noqa: ANN001, ANN202
+        _ = self
+        return [
+            {"name": "gpt-oss:20b"},
+            {"name": "dolphin-llama3:8b-v2.9-q4_K_M"},
+        ]
+
+    monkeypatch.setattr(OllamaModelCatalog, "get_models", fake_models)
+    router = ModelRouter(_settings())
+    selection = router.select_model("general", request_override="gpt-oss:20b")
+    assert selection.model_name == "gpt-oss:20b"
+    assert selection.reason == "session_override"
+
+
+def test_select_model_vision_filters_non_vision_models(monkeypatch) -> None:
+    def fake_models(self):  # noqa: ANN001, ANN202
+        _ = self
+        return [
+            {"name": "gpt-oss:20b"},
+            {"name": "qwen2.5vl:7b"},
+        ]
+
+    monkeypatch.setattr(OllamaModelCatalog, "get_models", fake_models)
+    router = ModelRouter(_settings())
+    assert router.is_model_allowed("vision", "qwen2.5vl:7b") is True
+    assert router.is_model_allowed("vision", "gpt-oss:20b") is False

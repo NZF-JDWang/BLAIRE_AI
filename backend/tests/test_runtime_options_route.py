@@ -22,9 +22,20 @@ def _set_required_env() -> None:
 _set_required_env()
 
 from app.main import create_app  # noqa: E402
+from app.services.ollama_client import OllamaModelCatalog  # noqa: E402
 
 
-def test_runtime_options_exposes_search_modes_and_default() -> None:
+def test_runtime_options_exposes_search_modes_and_default(monkeypatch) -> None:
+    def fake_models(self):  # noqa: ANN001, ANN202
+        _ = self
+        return [
+            {"name": "gpt-oss:20b"},
+            {"name": "dolphin-llama3:8b-v2.9-q4_K_M"},
+            {"name": "nomic-embed-text:v1.5"},
+            {"name": "qwen2.5vl:7b"},
+        ]
+
+    monkeypatch.setattr(OllamaModelCatalog, "get_models", fake_models)
     client = TestClient(create_app())
     response = client.get("/runtime/options", headers={"X-API-Key": "test-user-key"})
     assert response.status_code == 200
@@ -32,3 +43,5 @@ def test_runtime_options_exposes_search_modes_and_default() -> None:
     assert payload["default_search_mode"] == "searxng_only"
     assert "searxng_only" in payload["search_modes"]
     assert "brave_only" in payload["search_modes"]
+    assert "gpt-oss:20b" in payload["available_models"]
+    assert "dolphin-llama3:8b-v2.9-q4_K_M" in payload["available_models"]
