@@ -144,8 +144,7 @@ export async function approveApproval(approvalId: string): Promise<{
 }> {
   const response = await apiFetch(`/approvals/${approvalId}/approve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ actor: "ui-admin" })
+    headers: { "Content-Type": "application/json" }
   });
   if (!response.ok) {
     throw new Error(`Approve request failed: ${response.status}`);
@@ -157,7 +156,7 @@ export async function rejectApproval(approvalId: string, reason: string): Promis
   const response = await apiFetch(`/approvals/${approvalId}/reject`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ actor: "ui-admin", reason })
+    body: JSON.stringify({ reason })
   });
   if (!response.ok) {
     throw new Error(`Reject request failed: ${response.status}`);
@@ -170,7 +169,6 @@ export async function executeApproval(approvalId: string, executionToken: string
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      actor: "ui-admin",
       execution_token: executionToken,
       expected_payload_hash: expectedPayloadHash
     })

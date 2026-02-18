@@ -37,11 +37,7 @@ class ApprovalCreateResponse(BaseModel):
     approval: ApprovalRecord
 
 
-class ApprovalActionRequest(BaseModel):
-    actor: str = Field(min_length=1, max_length=128)
-
-
-class ApprovalRejectRequest(ApprovalActionRequest):
+class ApprovalRejectRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
@@ -51,7 +47,7 @@ class ApprovalApproveResponse(BaseModel):
     expires_at: datetime
 
 
-class ApprovalExecuteRequest(ApprovalActionRequest):
+class ApprovalExecuteRequest(BaseModel):
     execution_token: str = Field(min_length=20, max_length=256)
     expected_payload_hash: str = Field(min_length=64, max_length=64)
 
