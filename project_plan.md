@@ -37,9 +37,9 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Implement model registry + runtime model selection policy (supervisor/research/embedding/vision selectable via config/API).
 - [x] Define model classes and preferences (`general`, `vision`, `embedding`, optional `code`) with admin-configurable defaults.
 - [x] Implement router policy that selects within an allowlisted pool per model class.
-- [ ] Add per-session/user override support with policy checks and safe fallback chain.
-- [ ] Log router decisions (selected model, reason, fallback usage, latency/error outcome) for tuning/debugging.
-- [ ] Add backend integration test scaffold for health and chat streaming.
+- [x] Add per-session/user override support with policy checks and safe fallback chain.
+- [x] Log router decisions (selected model, reason, fallback usage, latency/error outcome) for tuning/debugging.
+- [x] Add backend integration test scaffold for health and chat streaming.
 
 ### C. RAG Engine and Knowledge Pipeline
 - [x] Implement ingestion service skeleton under `backend/app/rag/`.

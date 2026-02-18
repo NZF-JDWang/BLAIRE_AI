@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncIterator
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import ORJSONResponse, StreamingResponse
@@ -34,18 +35,25 @@ async def chat(
         default_search_mode=settings.search_mode_default,
     )
     effective_model_class = request.model_class or prefs.model_class
-    effective_override = request.model_override or prefs.model_override
 
     try:
-        selection = model_router.select_model(effective_model_class, effective_override)
+        selection = model_router.select_model(
+            effective_model_class,
+            request_override=request.model_override,
+            preference_override=prefs.model_override,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     logger.info(
-        "chat_request_received",
+        "model_router_decision",
         model_class=effective_model_class,
+        request_override=request.model_override,
+        preference_override=prefs.model_override,
         model_name=selection.model_name,
-        selection_reason=selection.reason,
+        selected_reason=selection.reason,
+        fallback_used=selection.fallback_used,
+        rejected_candidates=selection.rejected_candidates,
         message_count=len(request.messages),
     )
 
@@ -106,6 +114,7 @@ async def chat(
     if request.stream:
         async def event_stream() -> AsyncIterator[str]:
             combined = []
+            stream_started = perf_counter()
             try:
                 yield _sse_event(
                     "meta",
@@ -113,6 +122,7 @@ async def chat(
                         "model": selection.model_name,
                         "model_class": selection.model_class,
                         "selection_reason": selection.reason,
+                        "fallback_used": selection.fallback_used,
                         "rag_status": rag_status,
                         "rag_error": rag_error,
                         "citations": citations,
@@ -121,18 +131,59 @@ async def chat(
                 async for token in client.stream_chat(selection.model_name, formatted_messages):
                     combined.append(token)
                     yield _sse_event("token", {"text": token})
+                total_ms = round((perf_counter() - stream_started) * 1000, 2)
+                logger.info(
+                    "model_router_outcome",
+                    outcome="success",
+                    model_class=effective_model_class,
+                    model_name=selection.model_name,
+                    selected_reason=selection.reason,
+                    fallback_used=selection.fallback_used,
+                    latency_ms=total_ms,
+                )
                 yield _sse_event("done", {"text": "".join(combined)})
             except Exception:
+                total_ms = round((perf_counter() - stream_started) * 1000, 2)
+                logger.exception(
+                    "model_router_outcome",
+                    outcome="error",
+                    model_class=effective_model_class,
+                    model_name=selection.model_name,
+                    selected_reason=selection.reason,
+                    fallback_used=selection.fallback_used,
+                    latency_ms=total_ms,
+                )
                 logger.exception("chat_stream_failed")
                 yield _sse_event("error", {"message": "Model stream failed"})
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
     try:
+        started = perf_counter()
         chunks = []
         async for token in client.stream_chat(selection.model_name, formatted_messages):
             chunks.append(token)
+        total_ms = round((perf_counter() - started) * 1000, 2)
+        logger.info(
+            "model_router_outcome",
+            outcome="success",
+            model_class=effective_model_class,
+            model_name=selection.model_name,
+            selected_reason=selection.reason,
+            fallback_used=selection.fallback_used,
+            latency_ms=total_ms,
+        )
     except Exception as exc:
+        total_ms = round((perf_counter() - started) * 1000, 2)
+        logger.exception(
+            "model_router_outcome",
+            outcome="error",
+            model_class=effective_model_class,
+            model_name=selection.model_name,
+            selected_reason=selection.reason,
+            fallback_used=selection.fallback_used,
+            latency_ms=total_ms,
+        )
         logger.exception("chat_request_failed")
         raise HTTPException(status_code=502, detail="Model request failed") from exc
 

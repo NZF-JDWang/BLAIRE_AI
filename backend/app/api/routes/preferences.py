@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.models.preferences import PreferenceResponse, PreferenceUpdateRequest
+from app.services.model_router import ModelRouter
 from app.services.preferences_service import PreferencesService
 
 router = APIRouter(tags=["preferences"])
@@ -29,8 +30,14 @@ async def update_my_preferences(
     request: PreferenceUpdateRequest,
     principal: Principal = Depends(require_roles("admin", "user")),
 ) -> PreferenceResponse:
+    settings = get_settings()
+    if request.model_override:
+        if not ModelRouter(settings).is_model_allowed(request.model_class, request.model_override):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Requested model '{request.model_override}' is not allowed for class '{request.model_class}'",
+            )
     try:
         return await _service().upsert(subject=principal.subject, request=request)
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-

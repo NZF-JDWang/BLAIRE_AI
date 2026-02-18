@@ -70,3 +70,22 @@ def test_update_preferences(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["search_mode"] == "parallel"
 
+
+def test_update_preferences_rejects_disallowed_override(monkeypatch) -> None:
+    async def fail_if_called(self, *, subject: str, request):  # noqa: ANN001, ANN202
+        _ = (self, subject, request)
+        raise AssertionError("upsert should not be called for disallowed overrides")
+
+    monkeypatch.setattr(PreferencesService, "upsert", fail_if_called)
+    client = TestClient(create_app())
+    response = client.put(
+        "/preferences/me",
+        headers={"X-API-Key": "test-user-key"},
+        json={
+            "search_mode": "parallel",
+            "model_class": "general",
+            "model_override": "not-allowed-model",
+        },
+    )
+    assert response.status_code == 400
+    assert "not allowed" in response.json()["detail"]

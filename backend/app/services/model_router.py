@@ -11,6 +11,8 @@ class ModelSelection:
     model_class: ModelClass
     model_name: str
     reason: str
+    fallback_used: bool
+    rejected_candidates: list[str]
 
 
 class ModelRouter:
@@ -38,11 +40,39 @@ class ModelRouter:
             },
         }
 
-    def select_model(self, model_class: ModelClass, override: str | None = None) -> ModelSelection:
-        if override:
-            if override not in self._allowlist.get(model_class, set()):
-                raise ValueError(f"Requested model '{override}' is not allowed for class '{model_class}'")
-            return ModelSelection(model_class=model_class, model_name=override, reason="user_override")
+    def is_model_allowed(self, model_class: ModelClass, model_name: str) -> bool:
+        return model_name in self._allowlist.get(model_class, set())
+
+    def select_model(
+        self,
+        model_class: ModelClass,
+        request_override: str | None = None,
+        preference_override: str | None = None,
+    ) -> ModelSelection:
+        rejected_candidates: list[str] = []
+        allowlist = self._allowlist.get(model_class, set())
+
+        if request_override:
+            if request_override in allowlist:
+                return ModelSelection(
+                    model_class=model_class,
+                    model_name=request_override,
+                    reason="session_override",
+                    fallback_used=False,
+                    rejected_candidates=rejected_candidates,
+                )
+            rejected_candidates.append(f"session_override_disallowed:{request_override}")
+
+        if preference_override:
+            if preference_override in allowlist:
+                return ModelSelection(
+                    model_class=model_class,
+                    model_name=preference_override,
+                    reason="user_preference_override",
+                    fallback_used=bool(rejected_candidates),
+                    rejected_candidates=rejected_candidates,
+                )
+            rejected_candidates.append(f"preference_override_disallowed:{preference_override}")
 
         defaults: dict[ModelClass, str | None] = {
             "general": self._settings.model_general_default,
@@ -51,9 +81,28 @@ class ModelRouter:
             "code": self._settings.model_code_default,
         }
         default_model = defaults.get(model_class)
-        if not default_model:
-            raise ValueError(f"No default model configured for class '{model_class}'")
-        return ModelSelection(model_class=model_class, model_name=default_model, reason="class_default")
+        if default_model and default_model in allowlist:
+            return ModelSelection(
+                model_class=model_class,
+                model_name=default_model,
+                reason="class_default",
+                fallback_used=bool(rejected_candidates),
+                rejected_candidates=rejected_candidates,
+            )
+        if default_model:
+            rejected_candidates.append(f"class_default_disallowed:{default_model}")
+
+        if allowlist:
+            fallback_model = sorted(allowlist)[0]
+            return ModelSelection(
+                model_class=model_class,
+                model_name=fallback_model,
+                reason="allowlist_fallback",
+                fallback_used=True,
+                rejected_candidates=rejected_candidates,
+            )
+
+        raise ValueError(f"No allowed model configured for class '{model_class}'")
 
     def get_allowlist(self) -> dict[ModelClass, list[str]]:
         return {
