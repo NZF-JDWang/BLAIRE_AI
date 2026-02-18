@@ -23,10 +23,10 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [ ] Create root structure aligned to design doc paths (`backend/`, `frontend/`, `data/`, `knowledge/`, MCP folders).
 - [x] Add `docker-compose.yml` with services: `frontend`, `backend`, `postgres`, `qdrant`, optional `searxng`.
 - [x] Add `.env.example` with all required variables (Ollama URL, Qdrant URL, Brave API key, vault/drop paths, MCP endpoints, auth secrets).
-- [ ] Add backend Python dependency baseline (`FastAPI`, `LangGraph`, `LangChain`, `LlamaIndex`, `Qdrant client`, `structlog`, `Pydantic v2`).
-- [ ] Add frontend dependency baseline (Next.js 16 App Router, Tailwind, shadcn/radix, TanStack Query, Zustand, RHF, Zod).
+- [x] Add backend Python dependency baseline (`FastAPI`, `LangGraph`, `LangChain`, `LlamaIndex`, `Qdrant client`, `structlog`, `Pydantic v2`).
+- [x] Add frontend dependency baseline (Next.js 16 App Router, Tailwind, shadcn/radix, TanStack Query, Zustand, RHF, Zod).
 - [ ] Add container networks/volumes and bind mounts exactly as required.
-- [ ] Pin MCP Python SDK to stable v1.x line for initial implementation.
+- [x] Pin MCP Python SDK to stable v1.x line for initial implementation.
 
 ### B. Backend Core (First Functional Vertical Slice)
 - [x] Scaffold `backend/app/main.py` with health endpoint and startup wiring.
