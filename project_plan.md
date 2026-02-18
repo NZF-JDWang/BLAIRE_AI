@@ -120,7 +120,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [ ] Add local TTS (Piper) integration.
 - [ ] Add local STT (faster-whisper) integration.
 - [ ] Add Telegram bot channel with shared orchestration backend.
-- [ ] Add responsive PWA shell around existing frontend routes.
+- [x] Add responsive PWA shell around existing frontend routes.
 
 ## 4. Dependency Order (Critical Path)
 1. Foundation setup (A)
