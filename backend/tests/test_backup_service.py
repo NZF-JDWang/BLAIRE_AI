@@ -8,4 +8,5 @@ def test_backup_service_writes_manifest(tmp_path: Path) -> None:
     result = service.run_backup(include_postgres=False, include_qdrant=True)
     assert Path(result.backup_dir).exists()
     assert any(name.endswith("manifest.json") for name in result.files)
-
+    assert any(name.endswith("qdrant_hook.json") for name in result.files)
+    assert any(name.endswith("app_state_hook.json") for name in result.files)

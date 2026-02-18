@@ -3,6 +3,9 @@ from pathlib import Path
 import json
 import subprocess
 
+import httpx
+import psycopg
+
 from app.models.ops import BackupResponse
 
 
@@ -42,6 +45,14 @@ class BackupService:
             )
             created.append(str(qdrant_meta))
 
+        qdrant_hook = target_dir / "qdrant_hook.json"
+        qdrant_hook.write_text(json.dumps(self._collect_qdrant_hook(), indent=2), encoding="utf-8")
+        created.append(str(qdrant_hook))
+
+        app_state_hook = target_dir / "app_state_hook.json"
+        app_state_hook.write_text(json.dumps(self._collect_app_state_hook(), indent=2), encoding="utf-8")
+        created.append(str(app_state_hook))
+
         manifest = target_dir / "manifest.json"
         manifest.write_text(
             json.dumps(
@@ -67,3 +78,34 @@ class BackupService:
         except Exception:
             return False
 
+    def _collect_qdrant_hook(self) -> dict:
+        url = self._qdrant_url.rstrip("/") + "/collections"
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                response = client.get(url)
+                response.raise_for_status()
+                data = response.json()
+            return {"status": "ok", "collections": data.get("result", {}).get("collections", [])}
+        except Exception as exc:  # noqa: BLE001
+            return {"status": "error", "error": str(exc), "collections": []}
+
+    def _collect_app_state_hook(self) -> dict:
+        db_url = self._database_url.replace("postgresql+psycopg://", "postgresql://")
+        tables = ["approvals", "approval_audit_events", "user_preferences", "ingestion_file_state"]
+        counts: dict[str, int | None] = {}
+        errors: dict[str, str] = {}
+        try:
+            with psycopg.connect(db_url, autocommit=True, connect_timeout=3) as conn:
+                with conn.cursor() as cur:
+                    for table in tables:
+                        try:
+                            cur.execute(f"SELECT COUNT(*) FROM {table};")
+                            row = cur.fetchone()
+                            counts[table] = int(row[0]) if row else 0
+                        except Exception as exc:  # noqa: BLE001
+                            counts[table] = None
+                            errors[table] = str(exc)
+        except Exception as exc:  # noqa: BLE001
+            return {"status": "error", "error": str(exc), "table_counts": counts, "table_errors": errors}
+
+        return {"status": "ok", "table_counts": counts, "table_errors": errors}
