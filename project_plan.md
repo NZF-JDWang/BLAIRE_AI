@@ -21,28 +21,28 @@ Build the platform in vertical slices, starting with backend foundations and sec
 
 ### A. Foundation and Repository Setup
 - [ ] Create root structure aligned to design doc paths (`backend/`, `frontend/`, `data/`, `knowledge/`, MCP folders).
-- [ ] Add `docker-compose.yml` with services: `frontend`, `backend`, `postgres`, `qdrant`, optional `searxng`.
-- [ ] Add `.env.example` with all required variables (Ollama URL, Qdrant URL, Brave API key, vault/drop paths, MCP endpoints, auth secrets).
+- [x] Add `docker-compose.yml` with services: `frontend`, `backend`, `postgres`, `qdrant`, optional `searxng`.
+- [x] Add `.env.example` with all required variables (Ollama URL, Qdrant URL, Brave API key, vault/drop paths, MCP endpoints, auth secrets).
 - [ ] Add backend Python dependency baseline (`FastAPI`, `LangGraph`, `LangChain`, `LlamaIndex`, `Qdrant client`, `structlog`, `Pydantic v2`).
 - [ ] Add frontend dependency baseline (Next.js 16 App Router, Tailwind, shadcn/radix, TanStack Query, Zustand, RHF, Zod).
 - [ ] Add container networks/volumes and bind mounts exactly as required.
 - [ ] Pin MCP Python SDK to stable v1.x line for initial implementation.
 
 ### B. Backend Core (First Functional Vertical Slice)
-- [ ] Scaffold `backend/app/main.py` with health endpoint and startup wiring.
-- [ ] Implement config system (`app/config.py`) loading environment variables with typed validation.
-- [ ] Implement structured logging and request correlation IDs.
-- [ ] Implement chat API endpoint with token-streaming response contract.
-- [ ] Implement Ollama client wrapper (model routing hooks, streaming support).
-- [ ] Implement model registry + runtime model selection policy (supervisor/research/embedding/vision selectable via config/API).
-- [ ] Define model classes and preferences (`general`, `vision`, `embedding`, optional `code`) with admin-configurable defaults.
-- [ ] Implement router policy that selects within an allowlisted pool per model class.
+- [x] Scaffold `backend/app/main.py` with health endpoint and startup wiring.
+- [x] Implement config system (`app/config.py`) loading environment variables with typed validation.
+- [x] Implement structured logging and request correlation IDs.
+- [x] Implement chat API endpoint with token-streaming response contract.
+- [x] Implement Ollama client wrapper (model routing hooks, streaming support).
+- [x] Implement model registry + runtime model selection policy (supervisor/research/embedding/vision selectable via config/API).
+- [x] Define model classes and preferences (`general`, `vision`, `embedding`, optional `code`) with admin-configurable defaults.
+- [x] Implement router policy that selects within an allowlisted pool per model class.
 - [ ] Add per-session/user override support with policy checks and safe fallback chain.
 - [ ] Log router decisions (selected model, reason, fallback usage, latency/error outcome) for tuning/debugging.
 - [ ] Add backend integration test scaffold for health and chat streaming.
 
 ### C. RAG Engine and Knowledge Pipeline
-- [ ] Implement ingestion service skeleton under `backend/app/rag/`.
+- [x] Implement ingestion service skeleton under `backend/app/rag/`.
 - [ ] Configure Qdrant collection creation and embedding pipeline.
 - [ ] Implement drop-folder watcher for `knowledge/drop` with debounce and retry handling.
 - [ ] Implement multimodal parsing pipeline for text/PDF/image ingestion via LlamaIndex components.
@@ -52,18 +52,18 @@ Build the platform in vertical slices, starting with backend foundations and sec
 
 ### D. Agent Orchestration (LangGraph)
 - [ ] Define state schema for supervisor + worker agents.
-- [ ] Implement supervisor node (task decomposition, delegation policy).
-- [ ] Implement two parallel research worker nodes.
+- [x] Implement supervisor node (task decomposition, delegation policy).
+- [x] Implement two parallel research worker nodes.
 - [ ] Implement merge/synthesis node with citation consolidation.
 - [ ] Add guardrails for max tool calls, recursion depth, and timeout ceilings.
 - [ ] Add per-step trace logging for swarm debugging and later UI visualization.
 
 ### E. Tool Registry and Search Providers
-- [ ] Implement tool registry abstraction (`backend/app/tools/`) with typed tool contracts.
-- [ ] Integrate Brave Search provider.
-- [ ] Integrate SearxNG adapter and add per-request provider selection mode:
-- [ ] Add modes: `Brave only`, `SearxNG only`, `Auto fallback`, `Parallel`.
-- [ ] Implement provider failover policy and normalized result schema.
+- [x] Implement tool registry abstraction (`backend/app/tools/`) with typed tool contracts.
+- [x] Integrate Brave Search provider.
+- [x] Integrate SearxNG adapter and add per-request provider selection mode:
+- [x] Add modes: `Brave only`, `SearxNG only`, `Auto fallback`, `Parallel`.
+- [x] Implement provider failover policy and normalized result schema.
 - [ ] Add API surface for frontend settings to control search mode.
 - [ ] Set system default search mode to `SearxNG only` with explicit user override.
 
@@ -76,35 +76,35 @@ Build the platform in vertical slices, starting with backend foundations and sec
 ### G. Human-in-the-Loop Safety for Network Touch
 - [ ] Define action classes: `local_safe`, `local_sensitive`, `network_sensitive`.
 - [ ] Mark any machine/network-affecting operation as `network_sensitive`.
-- [ ] Build approval workflow service:
-- [ ] Create pending action record with full preview (target host, command, tool, expected effect).
-- [ ] Require explicit human approval before execution (approve/reject endpoint).
-- [ ] Issue short-lived approval token tied to exact action payload hash.
-- [ ] Enforce single-use token validation in execution path.
-- [ ] Build allowlist policy model (allowed hosts, allowed operation types, blocked operations).
-- [ ] Implement immutable audit log for all sensitive requests, approvals, and executions.
-- [ ] Add emergency kill switch to disable all sensitive tool execution globally.
-- [ ] Persist approvals and interrupt state durably in PostgreSQL (no in-memory-only approval state).
+- [x] Build approval workflow service:
+- [x] Create pending action record with full preview (target host, command, tool, expected effect).
+- [x] Require explicit human approval before execution (approve/reject endpoint).
+- [x] Issue short-lived approval token tied to exact action payload hash.
+- [x] Enforce single-use token validation in execution path.
+- [x] Build allowlist policy model (allowed hosts, allowed operation types, blocked operations).
+- [x] Implement immutable audit log for all sensitive requests, approvals, and executions.
+- [x] Add emergency kill switch to disable all sensitive tool execution globally.
+- [x] Persist approvals and interrupt state durably in PostgreSQL (no in-memory-only approval state).
 
 ### H. Filesystem and CLI Sandboxing
-- [ ] Implement strict filesystem write tool with path allowlist and denylist.
-- [ ] Add preflight checks to prevent path traversal and symlink escapes.
+- [x] Implement strict filesystem write tool with path allowlist and denylist.
+- [x] Add preflight checks to prevent path traversal and symlink escapes.
 - [ ] Add sandbox runner abstraction for future CLI execution.
 - [ ] Implement CLI sandbox in Phase 2 using firejail/bubblewrap with command allowlist.
 - [ ] Ensure all sandboxed calls emit machine-readable execution audit records.
 
 ### I. Frontend Implementation (After Backend APIs Stabilize)
-- [ ] Scaffold chat page with streaming response rendering.
+- [x] Scaffold chat page with streaming response rendering.
 - [ ] Add file upload UI for PDFs/images and ingestion status display.
 - [ ] Add citations panel with source linking from backend metadata.
-- [ ] Add settings page controls for search mode dropdown and model choices.
-- [ ] Add approval queue UI for HITL actions (pending, approved, rejected, executed).
-- [ ] Add knowledge page showing index status (drop folder + Obsidian).
-- [ ] Add swarm status panel (basic in Phase 1, richer in Phase 2).
+- [x] Add settings page controls for search mode dropdown and model choices.
+- [x] Add approval queue UI for HITL actions (pending, approved, rejected, executed).
+- [x] Add knowledge page showing index status (drop folder + Obsidian).
+- [x] Add swarm status panel (basic in Phase 1, richer in Phase 2).
 
 ### J. Deployment and Operations
 - [ ] Finalize compose services and environment wiring for homelab deployment path.
-- [ ] Add startup dependency checks (Qdrant, Ollama, MCP endpoints, search providers).
+- [x] Add startup dependency checks (Qdrant, Ollama, MCP endpoints, search providers).
 - [ ] Add migration/init routines for vector collections and PostgreSQL metadata stores.
 - [ ] Add backup hooks for Qdrant data and critical app state.
 - [ ] Add Watchtower update strategy with safe rollout notes.
