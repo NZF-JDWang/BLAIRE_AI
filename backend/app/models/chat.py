@@ -1,0 +1,32 @@
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator
+
+
+Role = Literal["system", "user", "assistant"]
+ModelClass = Literal["general", "vision", "embedding", "code"]
+
+
+class ChatMessage(BaseModel):
+    role: Role
+    content: str = Field(min_length=1, max_length=20000)
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1, max_length=100)
+    model_class: ModelClass = "general"
+    model_override: str | None = Field(default=None, max_length=128)
+    stream: bool = True
+
+    @field_validator("messages")
+    @classmethod
+    def require_user_message(cls, messages: list[ChatMessage]) -> list[ChatMessage]:
+        if not any(message.role == "user" for message in messages):
+            raise ValueError("At least one user message is required")
+        return messages
+
+
+class ChatResponse(BaseModel):
+    model: str
+    text: str
+
