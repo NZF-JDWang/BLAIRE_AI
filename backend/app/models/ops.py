@@ -23,3 +23,8 @@ class SandboxExecRequest(BaseModel):
 class SandboxExecResponse(BaseModel):
     status: str
     record: dict
+
+
+class InitResponse(BaseModel):
+    status: str
+    steps: dict[str, bool]

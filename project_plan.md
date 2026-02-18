@@ -105,7 +105,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 ### J. Deployment and Operations
 - [ ] Finalize compose services and environment wiring for homelab deployment path.
 - [x] Add startup dependency checks (Qdrant, Ollama, MCP endpoints, search providers).
-- [ ] Add migration/init routines for vector collections and PostgreSQL metadata stores.
+- [x] Add migration/init routines for vector collections and PostgreSQL metadata stores.
 - [ ] Add backup hooks for Qdrant data and critical app state.
 - [ ] Add Watchtower update strategy with safe rollout notes.
 

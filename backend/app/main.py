@@ -21,10 +21,8 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.request_context import RequestContextMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
-from app.rag.qdrant_bootstrap import QdrantBootstrapService
-from app.services.approval_service import ApprovalService
 from app.services.dependency_checks import collect_dependency_status
-from app.services.preferences_service import PreferencesService
+from app.services.init_service import InitService
 
 
 @asynccontextmanager
@@ -39,30 +37,10 @@ async def lifespan(app: FastAPI):
         port=settings.api_port,
     )
     try:
-        await ApprovalService(settings.database_url.get_secret_value()).init_schema()
-        logger.info("approval_schema_ready")
+        steps = await InitService(settings).run()
+        logger.info("init_routines_completed", steps=steps)
     except Exception:
-        logger.exception("approval_schema_init_failed")
-        raise
-    try:
-        await PreferencesService(settings.database_url.get_secret_value()).init_schema()
-        logger.info("preferences_schema_ready")
-    except Exception:
-        logger.exception("preferences_schema_init_failed")
-        raise
-    try:
-        await QdrantBootstrapService(
-            qdrant_url=settings.qdrant_url,
-            collection_name=settings.qdrant_collection_name,
-            embedding_dim=settings.qdrant_embedding_dim,
-        ).ensure_collection()
-        logger.info(
-            "qdrant_collection_ready",
-            collection=settings.qdrant_collection_name,
-            embedding_dim=settings.qdrant_embedding_dim,
-        )
-    except Exception:
-        logger.exception("qdrant_collection_init_failed")
+        logger.exception("init_routines_failed")
         raise
     try:
         status = await collect_dependency_status(settings)

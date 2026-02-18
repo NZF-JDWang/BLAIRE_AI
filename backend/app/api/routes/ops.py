@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
-from app.models.ops import BackupRequest, BackupResponse, SandboxExecRequest, SandboxExecResponse
+from app.models.ops import BackupRequest, BackupResponse, InitResponse, SandboxExecRequest, SandboxExecResponse
 from app.services.backup_service import BackupService
+from app.services.init_service import InitService
 from app.services.sandbox_runner import LocalSandboxRunner, SandboxRunnerError
 
 router = APIRouter(tags=["ops"])
@@ -42,3 +43,12 @@ async def sandbox_execute(
     except SandboxRunnerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return SandboxExecResponse(status="completed", record=record.to_dict())
+
+
+@router.post("/ops/init", response_model=InitResponse)
+async def run_init(
+    _principal: Principal = Depends(require_roles("admin")),
+) -> InitResponse:
+    settings = get_settings()
+    steps = await InitService(settings).run()
+    return InitResponse(status="completed", steps=steps)
