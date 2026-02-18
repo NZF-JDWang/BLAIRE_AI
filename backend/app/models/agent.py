@@ -15,6 +15,12 @@ class WorkerResult(BaseModel):
     sources: list[str]
 
 
+class ConsolidatedCitation(BaseModel):
+    url: str
+    worker_ids: list[str]
+    occurrences: int
+
+
 class SwarmTraceStep(BaseModel):
     step: str
     status: Literal["started", "completed", "failed", "skipped"]
@@ -26,6 +32,7 @@ class ResearchResponse(BaseModel):
     query: str
     supervisor_summary: str
     workers: list[WorkerResult]
+    citations: list[ConsolidatedCitation] = Field(default_factory=list)
     trace: list[SwarmTraceStep] = Field(default_factory=list)
 
 

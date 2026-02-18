@@ -37,6 +37,8 @@ async def test_swarm_returns_two_workers_and_summary() -> None:
     assert response.query == "docker backups"
     assert len(response.workers) == 2
     assert "docker backups overview A" in response.supervisor_summary
+    assert len(response.citations) == 2
+    assert response.citations[0].occurrences == 2
     assert any(step.step == "supervisor_synthesis" for step in response.trace)
 
 
@@ -53,6 +55,7 @@ async def test_swarm_respects_tool_call_budget() -> None:
     service = AgentSwarmService(FakeSearchService(), max_tool_calls=1)
     response = await service.run_research("docker backups", "searxng_only")
     assert len(response.workers) == 1
+    assert all(citation.occurrences == 1 for citation in response.citations)
     assert any(step.step == "guardrail_tool_call_budget" for step in response.trace)
 
 

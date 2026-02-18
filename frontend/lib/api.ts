@@ -205,6 +205,11 @@ export type ResearchResponse = {
     summary: string;
     sources: string[];
   }>;
+  citations?: Array<{
+    url: string;
+    worker_ids: string[];
+    occurrences: number;
+  }>;
   trace?: Array<{
     step: string;
     status: "started" | "completed" | "failed" | "skipped";

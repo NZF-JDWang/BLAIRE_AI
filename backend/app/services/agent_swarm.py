@@ -3,7 +3,15 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.logging import get_logger
-from app.models.agent import ResearchResponse, SupervisorState, SwarmState, SwarmTraceStep, WorkerResult, WorkerState
+from app.models.agent import (
+    ConsolidatedCitation,
+    ResearchResponse,
+    SupervisorState,
+    SwarmState,
+    SwarmTraceStep,
+    WorkerResult,
+    WorkerState,
+)
 from app.services.search_service import SearchService
 
 
@@ -119,7 +127,13 @@ class AgentSwarmService:
         supervisor_summary = combined_summaries or "No findings."
         state.supervisor.status = "completed"
         state.supervisor.summary = supervisor_summary
-        self._trace(trace_steps, step="supervisor_synthesis", status="completed", details={"worker_results": len(worker_results)})
+        citations = self._merge_citations(worker_results)
+        self._trace(
+            trace_steps,
+            step="supervisor_synthesis",
+            status="completed",
+            details={"worker_results": len(worker_results), "citation_count": len(citations)},
+        )
         return ResearchResponse(
             query=state.query,
             supervisor_summary=supervisor_summary,
@@ -131,8 +145,23 @@ class AgentSwarmService:
                 )
                 for worker in worker_results
             ],
+            citations=citations,
             trace=trace_steps,
         )
+
+    def _merge_citations(self, workers: list[WorkerState]) -> list[ConsolidatedCitation]:
+        by_url: dict[str, set[str]] = {}
+        for worker in workers:
+            for source in worker.sources:
+                by_url.setdefault(source, set()).add(worker.worker_id)
+        return [
+            ConsolidatedCitation(
+                url=url,
+                worker_ids=sorted(worker_ids),
+                occurrences=len(worker_ids),
+            )
+            for url, worker_ids in sorted(by_url.items(), key=lambda item: item[0])
+        ]
 
     async def _run_worker(
         self,
