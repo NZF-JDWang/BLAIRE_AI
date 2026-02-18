@@ -68,7 +68,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Set system default search mode to `SearxNG only` with explicit user override.
 
 ### F. MCP Integration Layer
-- [ ] Implement MCP client wrapper with connection management and retries.
+- [x] Implement MCP client wrapper with connection management and retries.
 - [ ] Integrate Obsidian MCP read/write actions with scoped path permissions.
 - [ ] Integrate Home Assistant MCP read/write actions with explicit allowlisted operations.
 - [ ] Implement unified tool-call envelope for MCP tools (request, result, audit metadata).
