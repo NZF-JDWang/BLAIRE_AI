@@ -40,6 +40,51 @@ ensure_env_value "ADMIN_API_KEYS" "$(generate_secret)"
 ensure_env_value "USER_API_KEYS" "$(generate_secret)"
 ensure_env_value "FRONTEND_PROXY_API_KEY" "$(generate_secret)"
 
+sync_database_url_password() {
+  local postgres_password
+  postgres_password="$(grep -E '^POSTGRES_PASSWORD=' .env | head -n 1 | cut -d= -f2-)"
+  if [[ -z "${postgres_password}" ]]; then
+    return
+  fi
+
+  python - "$postgres_password" <<'PY'
+import re
+import sys
+from pathlib import Path
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
+
+env_path = Path(".env")
+text = env_path.read_text(encoding="utf-8")
+match = re.search(r"^DATABASE_URL=(.+)$", text, re.MULTILINE)
+if not match:
+    sys.exit(0)
+
+database_url = match.group(1).strip()
+parsed = urlsplit(database_url)
+if not parsed.scheme.startswith("postgresql"):
+    sys.exit(0)
+if parsed.username is None or parsed.hostname is None:
+    sys.exit(0)
+
+existing_password = unquote(parsed.password or "")
+if existing_password not in ("", "change_me"):
+    sys.exit(0)
+
+new_password = sys.argv[1]
+username = quote(unquote(parsed.username), safe="")
+host = parsed.hostname
+port = f":{parsed.port}" if parsed.port is not None else ""
+netloc = f"{username}:{quote(new_password, safe='')}@{host}{port}"
+updated_url = urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+
+updated = text[: match.start(1)] + updated_url + text[match.end(1) :]
+env_path.write_text(updated, encoding="utf-8")
+print("Updated DATABASE_URL password to match POSTGRES_PASSWORD")
+PY
+}
+
+sync_database_url_password
+
 if command -v ss >/dev/null 2>&1; then
   frontend_port="$(grep -E '^FRONTEND_HOST_PORT=' .env | head -n 1 | cut -d= -f2-)"
   backend_port="$(grep -E '^BACKEND_HOST_PORT=' .env | head -n 1 | cut -d= -f2-)"
@@ -62,6 +107,26 @@ if [[ -z "${admin_key}" ]]; then
   exit 1
 fi
 
-docker compose exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/ops/init', method='POST', headers={'X-API-Key':'${admin_key}'}); urllib.request.urlopen(req, timeout=30).read(); print('ops/init completed')"
+for attempt in {1..30}; do
+  if docker compose exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/health', headers={'X-API-Key':'${admin_key}'}); urllib.request.urlopen(req, timeout=5).read()"; then
+    break
+  fi
+  if [[ "$attempt" -eq 30 ]]; then
+    echo "Backend did not become ready in time." >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+for attempt in {1..10}; do
+  if docker compose exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/ops/init', method='POST', headers={'X-API-Key':'${admin_key}'}); urllib.request.urlopen(req, timeout=30).read(); print('ops/init completed')"; then
+    break
+  fi
+  if [[ "$attempt" -eq 10 ]]; then
+    echo "Failed to call /ops/init after retries." >&2
+    exit 1
+  fi
+  sleep 2
+done
 
 echo "Bootstrap completed successfully."

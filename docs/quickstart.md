@@ -73,9 +73,12 @@ Before chat requests, make sure `${LOCALAI_MODELS_PATH}` contains your LocalAI m
 - Frontend build: `cd frontend && npm run build`
 
 ## Optional one-command bootstrap
-- `bash ops/bootstrap.sh`
+- Linux/macOS: `bash ops/bootstrap.sh`
+- Windows PowerShell: `./ops/bootstrap.ps1`
 - Script actions:
   - create `.env` if missing
   - generate required secrets if empty
+  - keep `DATABASE_URL` password in sync with `POSTGRES_PASSWORD` when placeholder/default is used
   - start compose stack
-  - run `POST /ops/init` automatically
+  - wait for backend readiness
+  - run `POST /ops/init` automatically (with retry)

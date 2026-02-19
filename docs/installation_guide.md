@@ -202,12 +202,20 @@ docker compose up -d --build --remove-orphans
 bash ops/bootstrap.sh
 ```
 
+On Windows PowerShell:
+
+```powershell
+./ops/bootstrap.ps1
+```
+
 This script:
 - creates `.env` from `.env.example` if missing
 - generates required secrets when empty
+- syncs `DATABASE_URL` password with `POSTGRES_PASSWORD` when default placeholders are present
 - warns if configured host ports are already in use
 - starts compose
-- runs `/ops/init` automatically
+- waits for backend readiness
+- runs `/ops/init` automatically (with retry)
 
 ## 13) Optional Automated Deployment
 
