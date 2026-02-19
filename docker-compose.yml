@@ -189,6 +189,8 @@ services:
       context: ./mcp-homelab
     container_name: blaire-homelab-mcp
     restart: unless-stopped
+    environment:
+      HOMELAB_ALLOWED_HTTP_HOSTS: ${HOMELAB_ALLOWED_HTTP_HOSTS:-}
     profiles:
       - mcp
     networks:

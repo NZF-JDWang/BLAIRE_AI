@@ -69,6 +69,7 @@ BLAIRE reads settings from `.env` (see `.env.example`).
 - `GOOGLE_OAUTH_TOKEN`
 - `IMAP_HOST`, `IMAP_USER`, `IMAP_PASSWORD`
 - `HOME_ASSISTANT_URL`, `HOME_ASSISTANT_TOKEN`, `HOME_ASSISTANT_VERIFY_TLS`
+- `HOMELAB_ALLOWED_HTTP_HOSTS` (comma-separated allowlist for `http.check` operation)
 
 ## Frontend proxy
 - `INTERNAL_API_BASE_URL`
