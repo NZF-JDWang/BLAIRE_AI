@@ -23,6 +23,12 @@ async function streamChat(params: {
   messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;
   modelClass: string;
   modelOverride?: string;
+  temperature: number;
+  topP: number;
+  maxTokens: number | null;
+  contextWindowTokens: number | null;
+  useRag: boolean;
+  retrievalK: number;
   onToken: (token: string) => void;
   onMeta: (meta: { citations?: Citation[]; rag_status?: string; rag_error?: string | null }) => void;
   onDone: () => void;
@@ -35,6 +41,12 @@ async function streamChat(params: {
       model_class: params.modelClass,
       model_override: params.modelOverride || null,
       stream: true,
+      temperature: params.temperature,
+      top_p: params.topP,
+      max_tokens: params.maxTokens,
+      context_window_tokens: params.contextWindowTokens,
+      use_rag: params.useRag,
+      retrieval_k: params.retrievalK,
     }),
   });
   if (!response.ok || !response.body) {
@@ -92,6 +104,12 @@ export default function ChatPage() {
   const [runtimeOptions, setRuntimeOptions] = useState<RuntimeOptions | null>(null);
   const [modelClass, setModelClass] = useState("general");
   const [modelOverride, setModelOverride] = useState("");
+  const [temperature, setTemperature] = useState(0.7);
+  const [topP, setTopP] = useState(1.0);
+  const [maxTokens, setMaxTokens] = useState("");
+  const [contextWindowTokens, setContextWindowTokens] = useState("");
+  const [useRag, setUseRag] = useState(true);
+  const [retrievalK, setRetrievalK] = useState(4);
   const [citations, setCitations] = useState<Citation[]>([]);
   const [ragStatus, setRagStatus] = useState<string>("disabled");
   const [ragError, setRagError] = useState<string | null>(null);
@@ -102,6 +120,12 @@ export default function ChatPage() {
         setRuntimeOptions(runtime);
         setModelClass(prefs.model_class ?? "general");
         setModelOverride(prefs.model_override ?? "");
+        setTemperature(prefs.temperature ?? 0.7);
+        setTopP(prefs.top_p ?? 1.0);
+        setMaxTokens(prefs.max_tokens ? String(prefs.max_tokens) : "");
+        setContextWindowTokens(prefs.context_window_tokens ? String(prefs.context_window_tokens) : "");
+        setUseRag(prefs.use_rag ?? true);
+        setRetrievalK(prefs.retrieval_k ?? 4);
       })
       .catch(() => setRuntimeOptions(null));
   }, []);
@@ -134,6 +158,12 @@ export default function ChatPage() {
         messages: nextMessages.map((message) => ({ role: message.role, content: message.content })),
         modelClass,
         modelOverride: modelOverride || undefined,
+        temperature,
+        topP,
+        maxTokens: maxTokens.trim() ? Number(maxTokens) : null,
+        contextWindowTokens: contextWindowTokens.trim() ? Number(contextWindowTokens) : null,
+        useRag,
+        retrievalK,
         onMeta: (meta) => {
           setCitations(meta.citations ?? []);
           setRagStatus(meta.rag_status ?? "disabled");
@@ -188,9 +218,77 @@ export default function ChatPage() {
               ))}
             </select>
           </label>
-          <span className={ragError ? "pill error" : ragStatus === "ready" ? "pill success" : "pill"}>
+          <label className="field-label" style={{ minWidth: "130px" }}>
+            RAG
+            <select className="select" value={useRag ? "enabled" : "disabled"} onChange={(e) => setUseRag(e.target.value === "enabled")}>
+              <option value="enabled">enabled</option>
+              <option value="disabled">disabled</option>
+            </select>
+          </label>
+          <span className={ragError ? "pill error" : ragStatus === "used" ? "pill success" : "pill"}>
             RAG {ragStatus}
           </span>
+        </div>
+        <div className="row">
+          <label className="field-label" style={{ minWidth: "120px" }}>
+            Retrieval K
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={12}
+              value={retrievalK}
+              onChange={(e) => setRetrievalK(Number(e.target.value))}
+            />
+          </label>
+          <label className="field-label" style={{ minWidth: "120px" }}>
+            Temp
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={2}
+              step={0.1}
+              value={temperature}
+              onChange={(e) => setTemperature(Number(e.target.value))}
+            />
+          </label>
+          <label className="field-label" style={{ minWidth: "120px" }}>
+            Top P
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={topP}
+              onChange={(e) => setTopP(Number(e.target.value))}
+            />
+          </label>
+          <label className="field-label" style={{ minWidth: "140px" }}>
+            Max tokens
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={8192}
+              value={maxTokens}
+              onChange={(e) => setMaxTokens(e.target.value)}
+              placeholder="default"
+            />
+          </label>
+          <label className="field-label" style={{ minWidth: "160px" }}>
+            Context tokens
+            <input
+              className="input"
+              type="number"
+              min={256}
+              max={262144}
+              value={contextWindowTokens}
+              onChange={(e) => setContextWindowTokens(e.target.value)}
+              placeholder="default"
+            />
+          </label>
         </div>
         {ragError ? <p className="error-text">{ragError}</p> : null}
       </section>
