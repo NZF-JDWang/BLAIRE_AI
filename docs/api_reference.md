@@ -10,6 +10,7 @@ Auth: `X-API-Key` when `REQUIRE_AUTH=true`.
 ## Chat and runtime
 - `POST /chat`
 - `GET /runtime/options`
+- `GET /runtime/diagnostics`
 - `GET /runtime/config` (admin)
 - `PUT /runtime/config` (admin)
 - `GET /runtime/config/audit` (admin)

@@ -9,8 +9,10 @@ import {
   formatApiError,
   getBrowserApiKey,
   getDependencyStatus,
+  getRuntimeDiagnostics,
   getRuntimeConfig,
   getRuntimeOptionsTyped,
+  RuntimeDiagnostics,
   setBrowserApiKey,
 } from "@/lib/api";
 
@@ -26,6 +28,7 @@ export default function SetupPage() {
   const [access, setAccess] = useState<AccessState>("unknown");
   const [runtimeStatus, setRuntimeStatus] = useState("");
   const [deps, setDeps] = useState<DependencyStatus | null>(null);
+  const [diagnostics, setDiagnostics] = useState<RuntimeDiagnostics | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +41,7 @@ export default function SetupPage() {
     setError("");
     setRuntimeStatus("");
     setDeps(null);
+    setDiagnostics(null);
 
     try {
       setBrowserApiKey(apiKey);
@@ -63,6 +67,7 @@ export default function SetupPage() {
 
       const dependencyStatus = await getDependencyStatus();
       setDeps(dependencyStatus);
+      setDiagnostics(await getRuntimeDiagnostics());
     } catch (err) {
       setAccess("invalid");
       setError(formatApiError(err, "Setup verification failed"));
@@ -146,8 +151,52 @@ export default function SetupPage() {
         )}
       </section>
 
+      <section className="surface stack" aria-label="Runtime diagnostics">
+        <h2>4. Runtime diagnostics</h2>
+        {!diagnostics ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>Run verification to load runtime diagnostics.</p>
+          </div>
+        ) : (
+          <div className="stats-grid">
+            <article className="stat-card">
+              <p className="stat-label">Role</p>
+              <p className="stat-value">{diagnostics.role}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">MCP Services Enabled</p>
+              <p className="stat-value">{String(diagnostics.enable_mcp_services)}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Obsidian MCP Configured</p>
+              <p className="stat-value">{String(diagnostics.mcp_obsidian_configured)}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">HA MCP Configured</p>
+              <p className="stat-value">{String(diagnostics.mcp_ha_configured)}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Homelab MCP Configured</p>
+              <p className="stat-value">{String(diagnostics.mcp_homelab_configured)}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Drop folder exists</p>
+              <p className="stat-value mono">{String(diagnostics.drop_folder_exists)} ({diagnostics.drop_folder_path})</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Vault path exists</p>
+              <p className="stat-value mono">{String(diagnostics.obsidian_vault_exists)} ({diagnostics.obsidian_vault_path})</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Effective search mode</p>
+              <p className="stat-value mono">{diagnostics.effective_search_mode_default}</p>
+            </article>
+          </div>
+        )}
+      </section>
+
       <section className="surface stack" aria-label="Next steps">
-        <h2>4. Continue</h2>
+        <h2>5. Continue</h2>
         <div className="quick-links">
           <Link href="/settings" className="quick-link">
             <p className="quick-link-title">Settings</p>

@@ -95,3 +95,28 @@ def test_runtime_options_uses_runtime_config_override(monkeypatch) -> None:
     assert payload["default_search_mode"] == "parallel"
     assert payload["sensitive_actions_enabled"] is False
     assert payload["approval_token_ttl_minutes"] == 22
+
+
+def test_runtime_diagnostics_returns_effective_config(monkeypatch) -> None:
+    async def fake_effective(self, settings):  # noqa: ANN001, ANN202
+        _ = (self, settings)
+        return RuntimeConfigEffective(
+            search_mode_default="parallel",
+            sensitive_actions_enabled=False,
+            approval_token_ttl_minutes=19,
+            allowed_network_hosts=["example.local"],
+            allowed_network_tools=["network_probe"],
+            allowed_obsidian_paths=["notes"],
+            allowed_ha_operations=["light.turn_on"],
+            allowed_homelab_operations=["dns.resolve"],
+        )
+
+    monkeypatch.setattr("app.services.runtime_config_service.RuntimeConfigService.get_effective", fake_effective)
+    client = _client()
+    response = client.get("/runtime/diagnostics", headers={"X-API-Key": "test-user-key"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["role"] == "user"
+    assert payload["effective_search_mode_default"] == "parallel"
+    assert payload["effective_sensitive_actions_enabled"] is False
+    assert payload["effective_approval_token_ttl_minutes"] == 19

@@ -1,7 +1,10 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends
 
 from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
+from app.models.runtime_diagnostics import RuntimeDiagnosticsResponse
 from app.models.runtime_options import ModelsResponse, RuntimeOptionsResponse
 from app.services.model_router import ModelRouter
 from app.services.runtime_config_service import RuntimeConfigService
@@ -58,4 +61,27 @@ async def models(
             "code": settings.model_code_default,
         },
         model_allow_any_inference=settings.model_allow_any_inference,
+    )
+
+
+@router.get("/runtime/diagnostics", response_model=RuntimeDiagnosticsResponse)
+async def runtime_diagnostics(
+    principal: Principal = Depends(require_roles("admin", "user")),
+) -> RuntimeDiagnosticsResponse:
+    settings = get_settings()
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
+    return RuntimeDiagnosticsResponse(
+        role=principal.role,
+        require_auth=settings.require_auth,
+        enable_mcp_services=settings.enable_mcp_services,
+        mcp_obsidian_configured=bool(settings.mcp_obsidian_url.strip()),
+        mcp_ha_configured=bool(settings.mcp_ha_url.strip()),
+        mcp_homelab_configured=bool(settings.mcp_homelab_url.strip()),
+        drop_folder_path=settings.drop_folder,
+        drop_folder_exists=Path(settings.drop_folder).exists(),
+        obsidian_vault_path=settings.obsidian_vault_path,
+        obsidian_vault_exists=Path(settings.obsidian_vault_path).exists(),
+        effective_search_mode_default=runtime_config.search_mode_default,
+        effective_sensitive_actions_enabled=runtime_config.sensitive_actions_enabled,
+        effective_approval_token_ttl_minutes=runtime_config.approval_token_ttl_minutes,
     )

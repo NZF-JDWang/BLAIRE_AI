@@ -41,6 +41,22 @@ export type RuntimeOptions = {
   }>;
 };
 
+export type RuntimeDiagnostics = {
+  role: string;
+  require_auth: boolean;
+  enable_mcp_services: boolean;
+  mcp_obsidian_configured: boolean;
+  mcp_ha_configured: boolean;
+  mcp_homelab_configured: boolean;
+  drop_folder_path: string;
+  drop_folder_exists: boolean;
+  obsidian_vault_path: string;
+  obsidian_vault_exists: boolean;
+  effective_search_mode_default: string;
+  effective_sensitive_actions_enabled: boolean;
+  effective_approval_token_ttl_minutes: number;
+};
+
 export type UserPreferences = {
   subject: string;
   search_mode: string;
@@ -200,6 +216,14 @@ export async function getRuntimeOptions(): Promise<unknown> {
 export async function getRuntimeOptionsTyped(): Promise<RuntimeOptions> {
   const data = await getRuntimeOptions();
   return data as RuntimeOptions;
+}
+
+export async function getRuntimeDiagnostics(): Promise<RuntimeDiagnostics> {
+  const response = await apiFetch("/runtime/diagnostics", { cache: "no-store" });
+  if (!response.ok) {
+    throw await buildApiError(response, "Runtime diagnostics request failed");
+  }
+  return response.json();
 }
 
 export async function getRecentApprovals(limit = 100): Promise<ApprovalRecord[]> {
