@@ -2,7 +2,8 @@
 
 ## Login/auth model
 - BLAIRE uses API keys.
-- Set your user API key in `Settings` page (`API key` field).
+- Use `/setup` for first-run key setup and verification.
+- You can also set/update key in `Settings` page (`API key` field).
 - This key is sent on frontend API calls and required by backend routes when auth is enabled.
 
 ## Chat
@@ -47,3 +48,16 @@ Open `/approvals` (admin key required) to:
   - API key
   - search mode preference
   - model class/override preference
+  - generation defaults (`temperature`, `top_p`, `max_tokens`, `context_window_tokens`)
+  - default retrieval controls (`use_rag`, `retrieval_k`)
+- Admin keys can also configure live runtime policy overrides:
+  - search default
+  - sensitive actions toggle
+  - approval TTL
+  - network/obsidian/HA/homelab allowlists
+
+## Capabilities
+- Open `/capabilities` to view:
+  - tool registry and action class
+  - dependency and MCP readiness
+  - policy-related availability context

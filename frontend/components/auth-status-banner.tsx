@@ -60,8 +60,8 @@ export function AuthStatusBanner() {
   }
 
   const settingsLink = (
-    <Link href="/settings" className="button button-primary">
-      Open Settings
+    <Link href="/setup" className="button button-primary">
+      Open Setup
     </Link>
   );
 
@@ -74,7 +74,7 @@ export function AuthStatusBanner() {
         <button type="button" className="button button-muted" onClick={() => void check()}>
           Retry
         </button>
-        {pathname !== "/settings" ? <span className="pill warn">Most pages will fail until auth is fixed</span> : null}
+        {pathname !== "/setup" ? <span className="pill warn">Most pages will fail until setup is fixed</span> : null}
       </div>
     </section>
   );

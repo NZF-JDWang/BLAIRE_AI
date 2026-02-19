@@ -168,6 +168,23 @@ export default function SettingsPage() {
         </p>
       </section>
 
+      <section className="surface stack" aria-label="Settings sections">
+        <div className="toolbar">
+          <a className="button button-muted" href="#identity">
+            Identity
+          </a>
+          <a className="button button-muted" href="#model-controls">
+            Model controls
+          </a>
+          <a className="button button-muted" href="#runtime-policy">
+            Runtime policy
+          </a>
+          <a className="button button-muted" href="#readiness">
+            MCP readiness
+          </a>
+        </div>
+      </section>
+
       {loadError ? (
         <section className="surface stack auth-banner" aria-label="Runtime load warning">
           <h2>Setup issue detected</h2>
@@ -176,7 +193,8 @@ export default function SettingsPage() {
         </section>
       ) : null}
 
-      <section className="surface stack" aria-label="Preferences form">
+      <section className="surface stack" id="identity" aria-label="Identity and access">
+        <h2>Identity and access</h2>
         <label className="field-label">
           API key
           <input
@@ -186,6 +204,13 @@ export default function SettingsPage() {
             placeholder="Paste your user API key"
           />
         </label>
+        <p className="help-text">
+          Use `Connection test` to confirm key validity before changing other settings.
+        </p>
+      </section>
+
+      <section className="surface stack" id="model-controls" aria-label="Model and retrieval controls">
+        <h2>Model and retrieval controls</h2>
 
         <label className="field-label">
           Search mode
@@ -313,7 +338,10 @@ export default function SettingsPage() {
             <option value="disabled">disabled</option>
           </select>
         </label>
+      </section>
 
+      <section className="surface stack" aria-label="Save user preferences">
+        <h2>Save user preferences</h2>
         <div className="toolbar">
           <button className="button button-primary" onClick={() => void save()} disabled={saving}>
             {saving ? "Saving..." : "Save preferences"}
@@ -330,7 +358,7 @@ export default function SettingsPage() {
         </p>
       </section>
 
-      <section className="surface stack" aria-label="MCP and tool readiness">
+      <section className="surface stack" id="readiness" aria-label="MCP and tool readiness">
         <h2>MCP and tool readiness</h2>
         {!dependencies ? (
           <div className="empty-state">
@@ -373,7 +401,7 @@ export default function SettingsPage() {
         </p>
       </section>
 
-      <section className="surface stack" aria-label="Runtime policy overrides">
+      <section className="surface stack" id="runtime-policy" aria-label="Runtime policy overrides">
         <h2>Admin runtime policy overrides</h2>
         {!runtimeConfig ? (
           <div className="empty-state">

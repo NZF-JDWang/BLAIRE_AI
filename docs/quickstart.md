@@ -58,7 +58,14 @@ Before chat requests, make sure `${LOCALAI_MODELS_PATH}` contains your LocalAI m
 - Runtime options: `GET /runtime/options`
 - Frontend: open `/` in browser
 
-## 6) Smoke tests
+## 6) Run guided setup in UI
+1. Open `/setup`.
+2. Paste API key and click `Save and verify`.
+3. Confirm detected access level (`user` or `admin`).
+4. Review dependency readiness and fix any required failures.
+5. Continue to `/settings` and `/chat`.
+
+## 7) Smoke tests
 - Backend tests: `cd backend && python -m pytest -q`
 - Frontend build: `cd frontend && npm run build`
 

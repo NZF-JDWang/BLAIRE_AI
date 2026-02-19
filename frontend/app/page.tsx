@@ -77,6 +77,10 @@ export default async function HomePage() {
         <h2>Primary workspaces</h2>
         <p className="help-text">Each route is production-connected to existing backend contracts.</p>
         <div className="quick-links">
+          <Link href="/setup" className="quick-link">
+            <p className="quick-link-title">Setup</p>
+            <p className="quick-link-copy">Validate auth, confirm role, and check dependency readiness.</p>
+          </Link>
           <Link href="/chat" className="quick-link">
             <p className="quick-link-title">Chat</p>
             <p className="quick-link-copy">Streaming responses, model class selection, and citations.</p>
