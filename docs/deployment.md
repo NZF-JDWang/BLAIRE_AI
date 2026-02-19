@@ -44,6 +44,32 @@ All services share `containers_core` network.
   - `ghcr.io/<owner>/<repo>-backend:latest`
   - `ghcr.io/<owner>/<repo>-frontend:latest`
 
+## Automated Compose deploy (GitHub Actions)
+- Workflow: `.github/workflows/deploy-compose.yml`
+- Script executed on target host: `ops/deploy-compose.sh`
+- Trigger: push to `main` or manual `workflow_dispatch`
+- Deploy behavior:
+  1. fetch and reset target repo to `origin/main`
+  2. `docker compose pull --ignore-pull-failures`
+  3. `docker compose up -d --remove-orphans` (and `--build` when enabled)
+  4. health-check endpoints (defaults: `/health`, `/health/dependencies`)
+  5. rollback to previous git SHA + compose up if any step fails
+- Required GitHub secrets:
+  - `DEPLOY_HOST`
+  - `DEPLOY_USER`
+  - `DEPLOY_SSH_KEY`
+  - `DEPLOY_PATH` (absolute path to repo on target host)
+- Optional GitHub secrets:
+  - `DEPLOY_PORT` (default SSH port `22`)
+  - `DEPLOY_COMPOSE_FILE` (default `docker-compose.yml`)
+  - `DEPLOY_COMPOSE_PROFILES` (comma-separated, e.g. `search,mcp,gpu`)
+  - `DEPLOY_BUILD_IMAGES` (`true` or `false`, default `true`)
+  - `DEPLOY_HEALTH_URL` (default `http://127.0.0.1:8000`)
+  - `DEPLOY_HEALTH_PATHS` (default `/health,/health/dependencies`)
+  - `DEPLOY_HEALTH_RETRIES` (default `30`)
+  - `DEPLOY_HEALTH_INTERVAL_SECONDS` (default `5`)
+  - `DEPLOY_API_KEY` (used as `X-API-Key` for health requests)
+
 ## Rollback
 1. Stop current stack.
 2. Deploy previous image/tag.

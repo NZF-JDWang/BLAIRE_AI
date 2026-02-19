@@ -1,0 +1,37 @@
+name: Deploy Compose Stack
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-compose-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            chmod +x ./ops/deploy-compose.sh
+            DEPLOY_GIT_REMOTE=origin \
+            DEPLOY_GIT_BRANCH=main \
+            DEPLOY_COMPOSE_FILE="${{ secrets.DEPLOY_COMPOSE_FILE }}" \
+            DEPLOY_COMPOSE_PROFILES="${{ secrets.DEPLOY_COMPOSE_PROFILES }}" \
+            DEPLOY_BUILD_IMAGES="${{ secrets.DEPLOY_BUILD_IMAGES }}" \
+            DEPLOY_HEALTH_URL="${{ secrets.DEPLOY_HEALTH_URL }}" \
+            DEPLOY_HEALTH_PATHS="${{ secrets.DEPLOY_HEALTH_PATHS }}" \
+            DEPLOY_HEALTH_RETRIES="${{ secrets.DEPLOY_HEALTH_RETRIES }}" \
+            DEPLOY_HEALTH_INTERVAL_SECONDS="${{ secrets.DEPLOY_HEALTH_INTERVAL_SECONDS }}" \
+            DEPLOY_API_KEY="${{ secrets.DEPLOY_API_KEY }}" \
+            ./ops/deploy-compose.sh
