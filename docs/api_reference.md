@@ -10,6 +10,8 @@ Auth: `X-API-Key` when `REQUIRE_AUTH=true`.
 ## Chat and runtime
 - `POST /chat`
 - `GET /runtime/options`
+- `GET /runtime/config` (admin)
+- `PUT /runtime/config` (admin)
 
 ## Search
 - `POST /search`
@@ -17,6 +19,9 @@ Auth: `X-API-Key` when `REQUIRE_AUTH=true`.
 ## Preferences
 - `GET /preferences/me`
 - `PUT /preferences/me`
+- Preference payload includes model/search defaults plus generation controls:
+  - `temperature`, `top_p`, `max_tokens`, `context_window_tokens`
+  - `use_rag`, `retrieval_k`
 
 ## Agents
 - `POST /agents/research`

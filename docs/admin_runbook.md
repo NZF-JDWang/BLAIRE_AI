@@ -26,6 +26,18 @@
   - Obsidian paths
   - HA operations
   - Homelab operations
+- Prefer live runtime overrides for fast response:
+  - `GET /runtime/config`
+  - `PUT /runtime/config`
+  - requires admin key
+  - writes are audited with `updated_by` and `updated_at`
+
+## Runtime policy override flow
+1. Verify admin API key in Settings.
+2. Open Settings or call `PUT /runtime/config`.
+3. Set temporary overrides (for example disable sensitive actions or tighten allowlists).
+4. Validate with `GET /runtime/options` and `GET /health/dependencies`.
+5. Revert overrides back to `null` to return control to `.env`.
 
 ## Sandboxed execution
 - Local sandbox: `POST /ops/sandbox/execute`

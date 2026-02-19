@@ -2,6 +2,21 @@
 
 BLAIRE reads settings from `.env` (see `.env.example`).
 
+## Config layers
+- System config (`.env`): loaded at process start.
+- Runtime overrides (DB-backed): editable via `GET/PUT /runtime/config` (admin), applied live for selected policy fields.
+- User preferences (DB-backed): editable via `GET/PUT /preferences/me`, applied per user.
+
+Runtime overrides currently cover:
+- `SEARCH_MODE_DEFAULT`
+- `SENSITIVE_ACTIONS_ENABLED`
+- `APPROVAL_TOKEN_TTL_MINUTES`
+- `ALLOWED_NETWORK_HOSTS`
+- `ALLOWED_NETWORK_TOOLS`
+- `ALLOWED_OBSIDIAN_PATHS`
+- `ALLOWED_HA_OPERATIONS`
+- `ALLOWED_HOMELAB_OPERATIONS`
+
 ## Core
 - `APP_ENV`, `LOG_LEVEL`
 - `API_HOST`, `API_PORT`, `API_ALLOWED_HOSTS`, `API_DOCS_ENABLED`
@@ -85,3 +100,12 @@ Portable defaults in `.env.example` use `./data/...` paths so installs work on m
 - `INTERNAL_API_BASE_URL`
 - `NEXT_PUBLIC_API_BASE_URL`
 - `FRONTEND_PROXY_API_KEY` (server-side fallback only; browser should use user API key in settings)
+
+## User preference controls
+`PUT /preferences/me` also supports:
+- `temperature` (`0.0` - `2.0`)
+- `top_p` (`0.0` - `1.0`)
+- `max_tokens` (`null` or `1` - `8192`)
+- `context_window_tokens` (`null` or `256` - `262144`)
+- `use_rag` (`true` / `false`)
+- `retrieval_k` (`1` - `12`)
