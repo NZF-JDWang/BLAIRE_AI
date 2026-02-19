@@ -23,6 +23,8 @@ services:
       SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
       MCP_OBSIDIAN_URL: ${MCP_OBSIDIAN_URL}
       MCP_HA_URL: ${MCP_HA_URL}
+      ENABLE_MCP_SERVICES: ${ENABLE_MCP_SERVICES:-false}
+      ENABLE_VLLM: ${ENABLE_VLLM:-false}
       MODEL_GENERAL_DEFAULT: ${MODEL_GENERAL_DEFAULT:-qwen3-vl:14b-q4_K_M}
       MODEL_VISION_DEFAULT: ${MODEL_VISION_DEFAULT:-qwen3-vl:14b-q4_K_M}
       MODEL_EMBEDDING_DEFAULT: ${MODEL_EMBEDDING_DEFAULT:-nomic-embed-text:v1.5}
@@ -31,9 +33,9 @@ services:
       ADMIN_API_KEYS: ${ADMIN_API_KEYS}
       USER_API_KEYS: ${USER_API_KEYS}
     volumes:
-      - ${DROP_FOLDER:-/srv/ai-knowledge/drop}:/app/knowledge/drop
-      - ${OBSIDIAN_VAULT_PATH:-/srv/obsidian/BlacksiteLabVault}:/vault:rw
-      - ${BACKUP_PATH:-/mnt/backups/blaire}:/backups
+      - ${DROP_FOLDER:-./data/knowledge/drop}:/app/knowledge/drop
+      - ${OBSIDIAN_VAULT_PATH:-./data/obsidian/vault}:/vault:rw
+      - ${BACKUP_PATH:-./data/backups}:/backups
       - ${LOG_PATH:-./data/logs}:/app/logs
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     depends_on:
@@ -100,6 +102,8 @@ services:
       INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://backend:8000}
       FRONTEND_PROXY_API_KEY: ${FRONTEND_PROXY_API_KEY}
     command: npm run start
+    ports:
+      - "${FRONTEND_HOST_PORT:-3000}:3000"
     depends_on:
       backend:
         condition: service_started
@@ -137,7 +141,7 @@ services:
       QDRANT__SERVICE__HTTP_PORT: 6333
       QDRANT__LOG_LEVEL: ${QDRANT_LOG_LEVEL:-INFO}
     volumes:
-      - ${QDRANT_STORAGE_PATH:-/srv/blacksitelab/blaire/qdrant}:/qdrant/storage
+      - ${QDRANT_STORAGE_PATH:-./data/qdrant}:/qdrant/storage
     networks:
       - containers_core
 
@@ -193,6 +197,21 @@ services:
       HOMELAB_ALLOWED_HTTP_HOSTS: ${HOMELAB_ALLOWED_HTTP_HOSTS:-}
     profiles:
       - mcp
+    networks:
+      - containers_core
+
+  backend-dev:
+    image: alpine/socat
+    container_name: blaire-backend-dev-proxy
+    restart: unless-stopped
+    command: ["tcp-listen:8000,fork,reuseaddr", "tcp-connect:backend:8000"]
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${BACKEND_HOST_PORT:-8001}:8000"
+    profiles:
+      - dev
     networks:
       - containers_core
 

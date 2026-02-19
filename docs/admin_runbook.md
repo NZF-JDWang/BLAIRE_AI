@@ -3,6 +3,7 @@
 ## Daily checks
 - `GET /health`
 - `GET /health/dependencies`
+- `GET /ops/status` (single readiness snapshot)
 - Review recent approvals and audit events
 
 ## Initialization and migrations

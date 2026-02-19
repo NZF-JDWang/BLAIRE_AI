@@ -26,9 +26,15 @@ Recommended security values:
 - `ALLOWED_HA_OPERATIONS`
 - `ALLOWED_HOMELAB_OPERATIONS`
 
+Developer convenience:
+- set `API_DOCS_ENABLED=true` during first setup if you want `/docs`
+- use `FRONTEND_HOST_PORT` and `BACKEND_HOST_PORT` to avoid host port collisions
+
 ## 3) Start services
 - Base stack:
   - `docker compose up -d`
+- Dev stack (also exposes backend on host via proxy):
+  - `docker compose --profile dev up -d`
 - Optional services:
   - Search sidecar: `docker compose --profile search up -d`
   - MCP sidecars: `docker compose --profile mcp up -d`
@@ -48,9 +54,18 @@ Before chat requests, make sure `${LOCALAI_MODELS_PATH}` contains your LocalAI m
 ## 5) Verify
 - Health: `GET /health`
 - Dependencies: `GET /health/dependencies`
+- Readiness: `GET /ops/status` (admin)
 - Runtime options: `GET /runtime/options`
 - Frontend: open `/` in browser
 
 ## 6) Smoke tests
 - Backend tests: `cd backend && python -m pytest -q`
 - Frontend build: `cd frontend && npm run build`
+
+## Optional one-command bootstrap
+- `bash ops/bootstrap.sh`
+- Script actions:
+  - create `.env` if missing
+  - generate required secrets if empty
+  - start compose stack
+  - run `POST /ops/init` automatically

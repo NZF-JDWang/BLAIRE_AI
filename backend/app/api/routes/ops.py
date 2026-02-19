@@ -1,12 +1,18 @@
+import platform
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
+from app.services.dependency_checks import collect_dependency_status
 from app.models.ops import (
     BackupRequest,
     BackupResponse,
     CliSandboxResponse,
     InitResponse,
+    OpsStatusConfigResponse,
+    OpsStatusResponse,
+    OpsStatusVersionResponse,
     SandboxExecRequest,
     SandboxExecResponse,
 )
@@ -60,6 +66,42 @@ async def run_init(
     settings = get_settings()
     steps = await InitService(settings).run()
     return InitResponse(status="completed", steps=steps)
+
+
+@router.get("/ops/status", response_model=OpsStatusResponse)
+async def ops_status(
+    _principal: Principal = Depends(require_roles("admin")),
+) -> OpsStatusResponse:
+    settings = get_settings()
+    init_steps = await InitService(settings).run()
+    deps = await collect_dependency_status(settings)
+
+    config = OpsStatusConfigResponse(
+        api_docs_enabled=settings.api_docs_enabled,
+        require_auth=settings.require_auth,
+        search_mode_default=settings.search_mode_default,
+        sensitive_actions_enabled=settings.sensitive_actions_enabled,
+        enable_mcp_services=settings.enable_mcp_services,
+        enable_vllm=settings.enable_vllm,
+        brave_api_key_configured=bool(settings.brave_api_key and settings.brave_api_key.get_secret_value()),
+        telegram_configured=bool(settings.telegram_bot_token and settings.telegram_bot_token.get_secret_value()),
+        google_oauth_configured=bool(settings.google_oauth_token and settings.google_oauth_token.get_secret_value()),
+        imap_configured=bool(settings.imap_host and settings.imap_user and settings.imap_password),
+    )
+    version = OpsStatusVersionResponse(
+        app_version="0.1.0",
+        python_version=platform.python_version(),
+        environment=settings.app_env,
+    )
+    required_deps_ok = all(item.ok for item in deps.dependencies if item.required and item.enabled)
+    status = "ready" if all(init_steps.values()) and required_deps_ok else "degraded"
+    return OpsStatusResponse(
+        status=status,
+        init_steps=init_steps,
+        dependencies=deps.dependencies,
+        config=config,
+        version=version,
+    )
 
 
 @router.post("/ops/cli/execute", response_model=CliSandboxResponse)

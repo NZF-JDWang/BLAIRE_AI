@@ -6,6 +6,12 @@ BLAIRE reads settings from `.env` (see `.env.example`).
 - `APP_ENV`, `LOG_LEVEL`
 - `API_HOST`, `API_PORT`, `API_ALLOWED_HOSTS`, `API_DOCS_ENABLED`
 - `REQUIRE_AUTH`, `ADMIN_API_KEYS`, `USER_API_KEYS`
+- `FRONTEND_HOST_PORT`, `BACKEND_HOST_PORT`
+
+`API_ALLOWED_HOSTS` common patterns:
+- Local testing: `localhost,127.0.0.1,backend`
+- Reverse proxy + local: `your-domain.com,localhost,127.0.0.1,backend`
+- Internal Docker-only backend: include `backend`
 
 ## Data and services
 - `DATABASE_URL`
@@ -15,12 +21,16 @@ BLAIRE reads settings from `.env` (see `.env.example`).
 - `VLLM_MODEL` (default `Qwen/Qwen3-VL-14B` in `.env.example`)
 - `VLLM_QUANTIZATION` (default `nvfp4` in `.env.example`)
 - `SEARCH_MODE_DEFAULT`, `BRAVE_API_KEY`, `SEARXNG_URL`
+- `ENABLE_MCP_SERVICES` (`true` when running `--profile mcp`)
+- `ENABLE_VLLM` (`true` when running `--profile gpu`)
 
 ## Knowledge and storage
 - `DROP_FOLDER`
 - `OBSIDIAN_VAULT_PATH`
 - `BACKUP_PATH`
 - `MAX_UPLOAD_MB`
+
+Portable defaults in `.env.example` use `./data/...` paths so installs work on most hosts without `/srv` bind mounts.
 
 ## Model routing
 - `MODEL_GENERAL_DEFAULT`

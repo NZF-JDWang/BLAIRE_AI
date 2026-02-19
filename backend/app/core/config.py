@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     mcp_obsidian_url: str = Field(alias="MCP_OBSIDIAN_URL")
     mcp_ha_url: str = Field(alias="MCP_HA_URL")
     mcp_homelab_url: str = Field(default="http://homelab-mcp:3000", alias="MCP_HOMELAB_URL")
+    enable_mcp_services: bool = Field(default=False, alias="ENABLE_MCP_SERVICES")
+    enable_vllm: bool = Field(default=False, alias="ENABLE_VLLM")
     drop_folder: str = Field(default="/app/knowledge/drop", alias="DROP_FOLDER")
     obsidian_vault_path: str = Field(default="/vault", alias="OBSIDIAN_VAULT_PATH")
     sensitive_actions_enabled: bool = Field(default=True, alias="SENSITIVE_ACTIONS_ENABLED")

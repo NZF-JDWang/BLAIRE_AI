@@ -51,6 +51,7 @@ Auth: `X-API-Key` when `REQUIRE_AUTH=true`.
 
 ## Ops
 - `POST /ops/init`
+- `GET /ops/status`
 - `POST /ops/backup`
 - `POST /ops/sandbox/execute`
 - `POST /ops/cli/execute`

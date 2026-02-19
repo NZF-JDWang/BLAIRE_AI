@@ -25,6 +25,7 @@ _set_required_env()
 
 from app.main import create_app  # noqa: E402
 from app.services.cli_sandbox import CliSandboxRunner  # noqa: E402
+from app.services.dependency_checks import collect_dependency_status  # noqa: E402
 from app.services.init_service import InitService  # noqa: E402
 
 
@@ -74,4 +75,40 @@ def test_ops_cli_execute_route(monkeypatch) -> None:
     payload = response.json()
     assert payload["status"] == "completed"
     assert payload["record"]["backend"] == "firejail"
+
+
+def test_ops_status_route(monkeypatch) -> None:
+    async def fake_init(self):  # noqa: ANN001, ANN202
+        _ = self
+        return {
+            "approval_schema_ready": True,
+            "preferences_schema_ready": True,
+            "metadata_schema_ready": True,
+            "qdrant_collection_ready": True,
+        }
+
+    async def fake_deps(_settings):  # noqa: ANN001, ANN202
+        from app.models.dependencies import DependencyItem, DependencyStatusResponse
+
+        return DependencyStatusResponse(
+            dependencies=[
+                DependencyItem(
+                    name="qdrant",
+                    ok=True,
+                    detail="reachable",
+                    required=True,
+                    enabled=True,
+                )
+            ]
+        )
+
+    monkeypatch.setattr(InitService, "run", fake_init)
+    monkeypatch.setattr("app.api.routes.ops.collect_dependency_status", fake_deps)
+    client = TestClient(create_app())
+    response = client.get("/ops/status", headers={"X-API-Key": "test-admin-key"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ready"
+    assert payload["config"]["require_auth"] is True
+    assert payload["version"]["app_version"] == "0.1.0"
 

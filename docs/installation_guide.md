@@ -78,12 +78,29 @@ Useful hardening values before production:
 - `ALLOWED_HA_OPERATIONS`
 - `ALLOWED_HOMELAB_OPERATIONS`
 
+Helpful install toggles:
+- `API_DOCS_ENABLED=true` (temporary for setup/discovery)
+- `FRONTEND_HOST_PORT` / `BACKEND_HOST_PORT` (avoid host collisions)
+- `ENABLE_MCP_SERVICES=true` when using `--profile mcp`
+- `ENABLE_VLLM=true` when using `--profile gpu`
+
+`API_ALLOWED_HOSTS` common setups:
+- Local-only: `localhost,127.0.0.1,backend`
+- Reverse proxy: `your-domain.com,backend`
+- Hybrid (proxy + local test): `your-domain.com,localhost,127.0.0.1,backend`
+
 ## 6) Start the Stack
 
 Base stack:
 
 ```bash
 docker compose up -d
+```
+
+Dev stack (publishes backend through `backend-dev` proxy):
+
+```bash
+docker compose --profile dev up -d
 ```
 
 With optional services:
@@ -96,35 +113,20 @@ Notes:
 - `gpu` profile requires a host/GPU runtime that supports your `vllm` container.
 - Keep `mcp` disabled if you have not configured MCP-related env values yet.
 
-## 7) Optional: Expose Services to Host Browser
+## 7) Host Access Defaults
 
-By default, the current compose file does not publish host ports.
-If you want to access frontend/backend directly from your host, create `docker-compose.override.yml`:
-
-```yaml
-services:
-  frontend:
-    ports:
-      - "3000:3000"
-  backend:
-    ports:
-      - "8000:8000"
-```
-
-Then restart:
-
-```bash
-docker compose up -d
-```
+- Frontend is published by default on `FRONTEND_HOST_PORT` (default `3000`).
+- Backend is internal by default for safety.
+- Backend is published only when you run `--profile dev` on `BACKEND_HOST_PORT` (default `8001`).
 
 ## 8) Initialize BLAIRE Metadata
 
 Run one-time init after startup.
 
-If backend port is exposed:
+If backend is exposed (for example with `--profile dev`):
 
 ```bash
-curl -X POST http://localhost:8000/ops/init -H "X-API-Key: <ADMIN_API_KEY>"
+curl -X POST http://localhost:${BACKEND_HOST_PORT:-8001}/ops/init -H "X-API-Key: <ADMIN_API_KEY>"
 ```
 
 If backend is not exposed, run from inside backend container:
@@ -135,12 +137,12 @@ docker compose exec backend sh -lc 'curl -X POST http://localhost:8000/ops/init 
 
 ## 9) Verify Health
 
-If backend port is exposed:
+If backend is exposed (for example with `--profile dev`):
 
 ```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/health/dependencies -H "X-API-Key: <USER_API_KEY>"
-curl http://localhost:8000/runtime/options -H "X-API-Key: <USER_API_KEY>"
+curl http://localhost:${BACKEND_HOST_PORT:-8001}/health
+curl http://localhost:${BACKEND_HOST_PORT:-8001}/health/dependencies -H "X-API-Key: <USER_API_KEY>"
+curl http://localhost:${BACKEND_HOST_PORT:-8001}/runtime/options -H "X-API-Key: <USER_API_KEY>"
 ```
 
 If not exposed:
@@ -153,7 +155,7 @@ docker compose exec backend sh -lc 'curl -s http://localhost:8000/runtime/option
 
 ## 10) First-Use Checklist
 
-1. Open frontend (`http://localhost:3000` if published through override).
+1. Open frontend (`http://localhost:${FRONTEND_HOST_PORT:-3000}`).
 2. Go to Settings and set your user API key.
 3. Send a test chat message.
 4. Upload one knowledge file in Knowledge page.
@@ -194,6 +196,19 @@ If local Dockerfiles changed and you build locally:
 docker compose up -d --build --remove-orphans
 ```
 
+## Optional one-command bootstrap
+
+```bash
+bash ops/bootstrap.sh
+```
+
+This script:
+- creates `.env` from `.env.example` if missing
+- generates required secrets when empty
+- warns if configured host ports are already in use
+- starts compose
+- runs `/ops/init` automatically
+
 ## 13) Optional Automated Deployment
 
 For SSH-based automated deploys:
@@ -208,4 +223,3 @@ For SSH-based automated deploys:
 3. Missing API key in frontend settings.
 4. Starting `mcp` profile without configuring related env vars.
 5. Assuming Ollama is required. Current stack uses LocalAI (`INFERENCE_BASE_URL`) and optional vLLM.
-

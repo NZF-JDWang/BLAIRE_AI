@@ -12,7 +12,7 @@ DEPLOY_BUILD_IMAGES="${DEPLOY_BUILD_IMAGES:-true}"
 DEPLOY_HEALTH_PATHS="${DEPLOY_HEALTH_PATHS:-/health,/health/dependencies}"
 DEPLOY_HEALTH_RETRIES="${DEPLOY_HEALTH_RETRIES:-30}"
 DEPLOY_HEALTH_INTERVAL_SECONDS="${DEPLOY_HEALTH_INTERVAL_SECONDS:-5}"
-DEPLOY_HEALTH_URL="${DEPLOY_HEALTH_URL:-http://127.0.0.1:8000}"
+DEPLOY_HEALTH_URL="${DEPLOY_HEALTH_URL:-}"
 DEPLOY_API_KEY="${DEPLOY_API_KEY:-}"
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -79,6 +79,18 @@ if [[ -n "$DEPLOY_API_KEY" ]]; then
   headers=(-H "X-API-Key: ${DEPLOY_API_KEY}")
 fi
 
+health_check() {
+  local path="$1"
+  if [[ -n "$DEPLOY_HEALTH_URL" ]]; then
+    local endpoint="${DEPLOY_HEALTH_URL%/}${path}"
+    curl -fsS "${headers[@]}" "$endpoint" >/dev/null
+    return
+  fi
+
+  local header_key="${DEPLOY_API_KEY}"
+  "${compose_cmd[@]}" exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000${path}', headers={'X-API-Key':'${header_key}'} if '${header_key}' else {}); urllib.request.urlopen(req, timeout=10).read()"
+}
+
 IFS=',' read -r -a health_paths <<< "$DEPLOY_HEALTH_PATHS"
 for path in "${health_paths[@]}"; do
   trimmed="${path#"${path%%[![:space:]]*}"}"
@@ -87,11 +99,14 @@ for path in "${health_paths[@]}"; do
     continue
   fi
 
-  endpoint="${DEPLOY_HEALTH_URL%/}${trimmed}"
-  echo "Health checking ${endpoint}..."
+  if [[ -n "$DEPLOY_HEALTH_URL" ]]; then
+    echo "Health checking ${DEPLOY_HEALTH_URL%/}${trimmed}..."
+  else
+    echo "Health checking backend container ${trimmed}..."
+  fi
   ok="false"
   for ((i = 1; i <= DEPLOY_HEALTH_RETRIES; i++)); do
-    if curl -fsS "${headers[@]}" "$endpoint" >/dev/null; then
+    if health_check "$trimmed"; then
       ok="true"
       break
     fi
@@ -99,7 +114,7 @@ for path in "${health_paths[@]}"; do
   done
 
   if [[ "$ok" != "true" ]]; then
-    echo "Health check failed for ${endpoint}" >&2
+    echo "Health check failed for ${trimmed}" >&2
     exit 1
   fi
 done

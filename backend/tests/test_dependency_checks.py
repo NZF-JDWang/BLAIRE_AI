@@ -22,15 +22,17 @@ def _settings() -> Settings:
 
 @pytest.mark.anyio
 async def test_dependency_status_includes_brave_config(monkeypatch) -> None:
-    async def fake_check_http(name: str, url: str, timeout: float = 3.0):  # noqa: ARG001, ANN001, ANN202
+    async def fake_check_http(name: str, url: str, *, required: bool, enabled: bool, timeout: float = 3.0):  # noqa: ARG001, ANN001, ANN202
         from app.models.dependencies import DependencyItem
 
-        return DependencyItem(name=name, ok=True, detail="reachable")
+        return DependencyItem(name=name, ok=True, detail="reachable", required=required, enabled=enabled)
 
     monkeypatch.setattr(dependency_checks, "_check_http", fake_check_http)
     status = await collect_dependency_status(_settings())
     brave = [dep for dep in status.dependencies if dep.name == "brave_api_key"][0]
-    assert brave.ok is False
-    assert brave.detail == "missing"
+    assert brave.ok is True
+    assert brave.detail == "disabled"
+    assert brave.required is False
+    assert brave.enabled is False
 
 

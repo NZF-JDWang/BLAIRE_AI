@@ -12,6 +12,7 @@ Optional profiles:
 - `search`: `searxng`
 - `mcp`: `obsidian-mcp-server`, `ha-mcp-server`, `homelab-mcp`
 - `gpu`: `vllm`
+- `dev`: `backend-dev` port proxy for host access to backend
 - `ops`: `watchtower`
 
 All services share `containers_core` network.
@@ -25,12 +26,20 @@ All services share `containers_core` network.
 
 ## First deploy
 1. `docker compose up -d`
+   - for local development with backend exposed: `docker compose --profile dev up -d`
    - with accelerated inference: `docker compose --profile gpu up -d`
    - configure LocalAI model definitions under `${LOCALAI_MODELS_PATH}` before first chat request
    - for hybrid mode, define LocalAI models that proxy to `http://vllm:8000`
 2. Run `POST /ops/init`
 3. Validate routes and approvals flow
 4. Upload test knowledge file and run ingestion
+
+## Bootstrap helper
+- `ops/bootstrap.sh` can perform first-run setup automatically:
+  - creates `.env` if missing
+  - generates missing secrets
+  - starts stack
+  - runs `/ops/init`
 
 ## Updating
 - Pull latest image/code and redeploy.
@@ -64,7 +73,7 @@ All services share `containers_core` network.
   - `DEPLOY_COMPOSE_FILE` (default `docker-compose.yml`)
   - `DEPLOY_COMPOSE_PROFILES` (comma-separated, e.g. `search,mcp,gpu`)
   - `DEPLOY_BUILD_IMAGES` (`true` or `false`, default `true`)
-  - `DEPLOY_HEALTH_URL` (default `http://127.0.0.1:8000`)
+  - `DEPLOY_HEALTH_URL` (optional; if unset, health checks run inside backend container)
   - `DEPLOY_HEALTH_PATHS` (default `/health,/health/dependencies`)
   - `DEPLOY_HEALTH_RETRIES` (default `30`)
   - `DEPLOY_HEALTH_INTERVAL_SECONDS` (default `5`)
