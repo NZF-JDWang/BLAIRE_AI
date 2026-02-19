@@ -154,6 +154,14 @@ pre,
   gap: 8px;
 }
 
+.app-status-strip {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .app-nav-link {
   text-decoration: none;
   border: 1px solid transparent;

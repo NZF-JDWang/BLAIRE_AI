@@ -3,6 +3,7 @@ import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { AppNav } from "@/components/app-nav";
+import { AppStatusStrip } from "@/components/app-status-strip";
 import { AuthStatusBanner } from "@/components/auth-status-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
               <ThemeToggle />
             </div>
             <AppNav />
+            <AppStatusStrip />
           </div>
         </header>
         <div className="app-shell-content" id="main-content">
