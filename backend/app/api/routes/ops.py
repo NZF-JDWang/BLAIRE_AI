@@ -19,6 +19,7 @@ from app.models.ops import (
 from app.services.backup_service import BackupService
 from app.services.cli_sandbox import CliSandboxError, CliSandboxRunner
 from app.services.init_service import InitService
+from app.services.runtime_config_service import RuntimeConfigService
 from app.services.sandbox_runner import LocalSandboxRunner, SandboxRunnerError
 
 router = APIRouter(tags=["ops"])
@@ -73,14 +74,15 @@ async def ops_status(
     _principal: Principal = Depends(require_roles("admin")),
 ) -> OpsStatusResponse:
     settings = get_settings()
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
     init_steps = await InitService(settings).run()
-    deps = await collect_dependency_status(settings)
+    deps = await collect_dependency_status(settings, runtime_config)
 
     config = OpsStatusConfigResponse(
         api_docs_enabled=settings.api_docs_enabled,
         require_auth=settings.require_auth,
-        search_mode_default=settings.search_mode_default,
-        sensitive_actions_enabled=settings.sensitive_actions_enabled,
+        search_mode_default=runtime_config.search_mode_default,
+        sensitive_actions_enabled=runtime_config.sensitive_actions_enabled,
         enable_mcp_services=settings.enable_mcp_services,
         enable_vllm=settings.enable_vllm,
         brave_api_key_configured=bool(settings.brave_api_key and settings.brave_api_key.get_secret_value()),

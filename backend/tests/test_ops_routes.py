@@ -24,6 +24,7 @@ def _set_required_env() -> None:
 _set_required_env()
 
 from app.main import create_app  # noqa: E402
+from app.models.runtime_config import RuntimeConfigEffective  # noqa: E402
 from app.services.cli_sandbox import CliSandboxRunner  # noqa: E402
 from app.services.dependency_checks import collect_dependency_status  # noqa: E402
 from app.services.init_service import InitService  # noqa: E402
@@ -87,7 +88,7 @@ def test_ops_status_route(monkeypatch) -> None:
             "qdrant_collection_ready": True,
         }
 
-    async def fake_deps(_settings):  # noqa: ANN001, ANN202
+    async def fake_deps(_settings, _runtime_config=None):  # noqa: ANN001, ANN202
         from app.models.dependencies import DependencyItem, DependencyStatusResponse
 
         return DependencyStatusResponse(
@@ -102,13 +103,29 @@ def test_ops_status_route(monkeypatch) -> None:
             ]
         )
 
+    async def fake_effective(self, settings):  # noqa: ANN001, ANN202
+        _ = (self, settings)
+        return RuntimeConfigEffective(
+            search_mode_default="parallel",
+            sensitive_actions_enabled=False,
+            approval_token_ttl_minutes=12,
+            allowed_network_hosts=[],
+            allowed_network_tools=[],
+            allowed_obsidian_paths=[],
+            allowed_ha_operations=[],
+            allowed_homelab_operations=[],
+        )
+
     monkeypatch.setattr(InitService, "run", fake_init)
     monkeypatch.setattr("app.api.routes.ops.collect_dependency_status", fake_deps)
+    monkeypatch.setattr("app.services.runtime_config_service.RuntimeConfigService.get_effective", fake_effective)
     client = TestClient(create_app())
     response = client.get("/ops/status", headers={"X-API-Key": "test-admin-key"})
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ready"
     assert payload["config"]["require_auth"] is True
+    assert payload["config"]["search_mode_default"] == "parallel"
+    assert payload["config"]["sensitive_actions_enabled"] is False
     assert payload["version"]["app_version"] == "0.1.0"
 
