@@ -37,6 +37,16 @@ class PreferencesService:
             async with conn.cursor() as cur:
                 await cur.execute(query)
 
+    async def schema_ready(self) -> bool:
+        query = "SELECT to_regclass('public.user_preferences') IS NOT NULL AS ready;"
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query)
+                row = await cur.fetchone()
+        if row is None:
+            return False
+        return bool(row["ready"])
+
     async def get_or_default(
         self,
         *,

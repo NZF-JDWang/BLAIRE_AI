@@ -61,6 +61,20 @@ class RuntimeConfigService:
             async with conn.cursor() as cur:
                 await cur.execute(query)
 
+    async def schema_ready(self) -> bool:
+        query = """
+        SELECT
+            to_regclass('public.runtime_config') IS NOT NULL AS runtime_config_ready,
+            to_regclass('public.runtime_config_audit') IS NOT NULL AS runtime_audit_ready;
+        """
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query)
+                row = await cur.fetchone()
+        if row is None:
+            return False
+        return bool(row["runtime_config_ready"] and row["runtime_audit_ready"])
+
     async def get_overrides(self) -> RuntimeConfigOverrides:
         query = """
         SELECT

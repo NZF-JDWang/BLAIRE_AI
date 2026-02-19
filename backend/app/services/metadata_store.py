@@ -1,4 +1,5 @@
 import psycopg
+from psycopg.rows import dict_row
 
 
 class MetadataStoreService:
@@ -21,3 +22,13 @@ class MetadataStoreService:
         async with await psycopg.AsyncConnection.connect(self._database_url, autocommit=True) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(query)
+
+    async def schema_ready(self) -> bool:
+        query = "SELECT to_regclass('public.ingestion_file_state') IS NOT NULL AS ready;"
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query)
+                row = await cur.fetchone()
+        if row is None:
+            return False
+        return bool(row["ready"])

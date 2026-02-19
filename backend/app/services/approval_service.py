@@ -65,6 +65,20 @@ class ApprovalService:
                 await cur.execute(create_approvals)
                 await cur.execute(create_audit)
 
+    async def schema_ready(self) -> bool:
+        query = """
+        SELECT
+            to_regclass('public.approvals') IS NOT NULL AS approvals_ready,
+            to_regclass('public.approval_audit_events') IS NOT NULL AS audit_ready;
+        """
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query)
+                row = await cur.fetchone()
+        if row is None:
+            return False
+        return bool(row["approvals_ready"] and row["audit_ready"])
+
     async def create_pending(
         self,
         *,
