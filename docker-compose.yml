@@ -163,6 +163,8 @@ services:
       context: ./mcp-obsidian
     container_name: blaire-obsidian-mcp
     restart: unless-stopped
+    volumes:
+      - ${OBSIDIAN_VAULT_PATH:-/srv/obsidian/BlacksiteLabVault}:/vault:rw
     profiles:
       - mcp
     networks:
@@ -173,6 +175,10 @@ services:
       context: ./mcp-ha
     container_name: blaire-ha-mcp
     restart: unless-stopped
+    environment:
+      HOME_ASSISTANT_URL: ${HOME_ASSISTANT_URL:-}
+      HOME_ASSISTANT_TOKEN: ${HOME_ASSISTANT_TOKEN:-}
+      HOME_ASSISTANT_VERIFY_TLS: ${HOME_ASSISTANT_VERIFY_TLS:-true}
     profiles:
       - mcp
     networks:
