@@ -65,7 +65,7 @@ Open `/approvals` (admin key required) to:
   - `MCP readiness`
   - `Integrations`
 - Runtime policy tab includes a restart-required system config summary for `.env`-backed settings.
-- Model controls tab includes admin model pull action (for Ollama-compatible inference backends).
+- Model controls tab includes admin model pull action (for inference-provider compatible backends).
 - Integrations tab shows non-secret configuration status for Google/IMAP/Home Assistant.
 
 ## Capabilities

@@ -16,7 +16,7 @@ Auth: `X-API-Key` when `REQUIRE_AUTH=true`.
 - `PUT /runtime/config` (admin)
 - `GET /runtime/config/audit` (admin)
 - `GET /models`
-- `POST /models/pull` (admin, Ollama-compatible backends)
+- `POST /models/pull` (admin, inference-provider compatible backends)
 
 ## Search
 - `POST /search`

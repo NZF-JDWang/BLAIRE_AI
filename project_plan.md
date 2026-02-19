@@ -22,7 +22,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 ### A. Foundation and Repository Setup
 - [x] Create root structure aligned to design doc paths (`backend/`, `frontend/`, `data/`, `knowledge/`, MCP folders).
 - [x] Add `docker-compose.yml` with services: `frontend`, `backend`, `postgres`, `qdrant`, optional `searxng`.
-- [x] Add `.env.example` with all required variables (Ollama URL, Qdrant URL, Brave API key, vault/drop paths, MCP endpoints, auth secrets).
+- [x] Add `.env.example` with all required variables (inference base URL, Qdrant URL, Brave API key, vault/drop paths, MCP endpoints, auth secrets).
 - [x] Add backend Python dependency baseline (`FastAPI`, `LangGraph`, `LangChain`, `LlamaIndex`, `Qdrant client`, `structlog`, `Pydantic v2`).
 - [x] Add frontend dependency baseline (Next.js 16 App Router, Tailwind, shadcn/radix, TanStack Query, Zustand, RHF, Zod).
 - [x] Add container networks/volumes and bind mounts exactly as required.
@@ -33,7 +33,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 - [x] Implement config system (`app/config.py`) loading environment variables with typed validation.
 - [x] Implement structured logging and request correlation IDs.
 - [x] Implement chat API endpoint with token-streaming response contract.
-- [x] Implement Ollama client wrapper (model routing hooks, streaming support).
+- [x] Implement inference client wrapper (model routing hooks, streaming support).
 - [x] Implement model registry + runtime model selection policy (supervisor/research/embedding/vision selectable via config/API).
 - [x] Define model classes and preferences (`general`, `vision`, `embedding`, optional `code`) with admin-configurable defaults.
 - [x] Implement router policy that selects within an allowlisted pool per model class.
@@ -104,7 +104,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 
 ### J. Deployment and Operations
 - [x] Finalize compose services and environment wiring for homelab deployment path.
-- [x] Add startup dependency checks (Qdrant, Ollama, MCP endpoints, search providers).
+- [x] Add startup dependency checks (Qdrant, inference provider, MCP endpoints, search providers).
 - [x] Add migration/init routines for vector collections and PostgreSQL metadata stores.
 - [x] Add backup hooks for Qdrant data and critical app state.
 - [x] Add Watchtower update strategy with safe rollout notes.
@@ -146,7 +146,7 @@ Build the platform in vertical slices, starting with backend foundations and sec
 ## 6. Suggested Build Sequence (First 10 Execution Tasks)
 1. Create `docker-compose.yml` and `.env.example`.
 2. Scaffold backend app with health + config + logging.
-3. Add Ollama connectivity and streaming chat endpoint.
+3. Add inference provider connectivity and streaming chat endpoint.
 4. Add Qdrant connectivity and embedding pipeline skeleton.
 5. Implement drop-folder ingestion watcher.
 6. Implement Obsidian full + delta indexing.

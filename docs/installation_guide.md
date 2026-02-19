@@ -68,7 +68,7 @@ At minimum, set:
 
 Important:
 - `DATABASE_URL` password must match `POSTGRES_PASSWORD`.
-- Current inference default is `INFERENCE_BASE_URL=http://localai:8080` (not Ollama).
+- Current inference default is `INFERENCE_BASE_URL=http://localai:8080`.
 
 Useful hardening values before production:
 - `TELEGRAM_WEBHOOK_SECRET_TOKEN`
@@ -222,4 +222,4 @@ For SSH-based automated deploys:
 2. Forgetting `POST /ops/init` after first startup.
 3. Missing API key in frontend settings.
 4. Starting `mcp` profile without configuring related env vars.
-5. Assuming Ollama is required. Current stack uses LocalAI (`INFERENCE_BASE_URL`) and optional vLLM.
+5. Assuming a specific inference provider is required. Current stack uses LocalAI (`INFERENCE_BASE_URL`) and optional vLLM.
