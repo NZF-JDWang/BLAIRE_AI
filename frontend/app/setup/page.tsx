@@ -9,9 +9,11 @@ import {
   formatApiError,
   getBrowserApiKey,
   getDependencyStatus,
+  getOpsStatus,
   getRuntimeDiagnostics,
   getRuntimeConfig,
   getRuntimeOptionsTyped,
+  OpsStatus,
   RuntimeDiagnostics,
   setBrowserApiKey,
 } from "@/lib/api";
@@ -29,6 +31,7 @@ export default function SetupPage() {
   const [runtimeStatus, setRuntimeStatus] = useState("");
   const [deps, setDeps] = useState<DependencyStatus | null>(null);
   const [diagnostics, setDiagnostics] = useState<RuntimeDiagnostics | null>(null);
+  const [opsStatus, setOpsStatus] = useState<OpsStatus | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -53,6 +56,9 @@ export default function SetupPage() {
       if (diagnostics.enable_mcp_services && !diagnostics.mcp_ha_configured) {
         items.push("Set MCP_HA_URL for Home Assistant MCP.");
       }
+      if (diagnostics.enable_mcp_services && !diagnostics.mcp_homelab_configured) {
+        items.push("Set MCP_HOMELAB_URL for Homelab MCP.");
+      }
     }
     if (deps) {
       for (const dep of deps.dependencies) {
@@ -60,6 +66,9 @@ export default function SetupPage() {
           items.push(`Fix required dependency '${dep.name}' (${dep.detail}).`);
         }
       }
+    }
+    if (opsStatus && opsStatus.status !== "ready") {
+      items.push("Run POST /ops/init and resolve degraded dependencies in ops status.");
     }
     return items;
   })();
@@ -74,6 +83,7 @@ export default function SetupPage() {
     setRuntimeStatus("");
     setDeps(null);
     setDiagnostics(null);
+    setOpsStatus(null);
 
     try {
       setBrowserApiKey(apiKey);
@@ -86,12 +96,15 @@ export default function SetupPage() {
       await getRuntimeOptionsTyped();
       setRuntimeStatus("Runtime API reachable.");
 
+      let role: AccessState = "user";
       try {
         await getRuntimeConfig();
         setAccess("admin");
+        role = "admin";
       } catch (err) {
         if (err instanceof ApiRequestError && err.status === 403) {
           setAccess("user");
+          role = "user";
         } else {
           throw err;
         }
@@ -100,6 +113,15 @@ export default function SetupPage() {
       const dependencyStatus = await getDependencyStatus();
       setDeps(dependencyStatus);
       setDiagnostics(await getRuntimeDiagnostics());
+      if (role === "admin") {
+        try {
+          setOpsStatus(await getOpsStatus());
+        } catch (err) {
+          if (!(err instanceof ApiRequestError && err.status === 403)) {
+            throw err;
+          }
+        }
+      }
     } catch (err) {
       setAccess("invalid");
       setError(formatApiError(err, "Setup verification failed"));
@@ -196,6 +218,10 @@ export default function SetupPage() {
               <p className="stat-value">{diagnostics.role}</p>
             </article>
             <article className="stat-card">
+              <p className="stat-label">Auth required</p>
+              <p className="stat-value">{String(diagnostics.require_auth)}</p>
+            </article>
+            <article className="stat-card">
               <p className="stat-label">MCP Services Enabled</p>
               <p className="stat-value">{String(diagnostics.enable_mcp_services)}</p>
             </article>
@@ -223,12 +249,58 @@ export default function SetupPage() {
               <p className="stat-label">Effective search mode</p>
               <p className="stat-value mono">{diagnostics.effective_search_mode_default}</p>
             </article>
+            <article className="stat-card">
+              <p className="stat-label">Sensitive actions</p>
+              <p className="stat-value">{String(diagnostics.effective_sensitive_actions_enabled)}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Approval TTL</p>
+              <p className="stat-value">{diagnostics.effective_approval_token_ttl_minutes} min</p>
+            </article>
           </div>
         )}
       </section>
 
+      <section className="surface stack" aria-label="Admin ops readiness">
+        <h2>5. Admin ops readiness</h2>
+        {!opsStatus ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>Ops status is available for admin keys only.</p>
+          </div>
+        ) : (
+          <>
+            <div className="toolbar">
+              <span className={opsStatus.status === "ready" ? "pill success" : "pill error"}>ops status: {opsStatus.status}</span>
+              <span className="pill mono">
+                app {opsStatus.version.app_version} ({opsStatus.version.environment})
+              </span>
+            </div>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Init step</th>
+                    <th>Ready</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(opsStatus.init_steps).map(([step, ok]) => (
+                    <tr key={step}>
+                      <td className="mono">{step}</td>
+                      <td>
+                        <span className={ok ? "pill success" : "pill error"}>{ok ? "yes" : "no"}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+
       <section className="surface stack" aria-label="Setup checklist">
-        <h2>5. Remediation checklist</h2>
+        <h2>6. Remediation checklist</h2>
         {checklist.length === 0 ? (
           <div className="empty-state">
             <p style={{ margin: 0 }}>No blockers detected. You can continue to Settings and Chat.</p>
@@ -243,7 +315,7 @@ export default function SetupPage() {
       </section>
 
       <section className="surface stack" aria-label="Next steps">
-        <h2>6. Continue</h2>
+        <h2>7. Continue</h2>
         <div className="quick-links">
           <Link href="/settings" className="quick-link">
             <p className="quick-link-title">Settings</p>

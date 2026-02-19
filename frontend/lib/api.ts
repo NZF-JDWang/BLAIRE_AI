@@ -57,6 +57,35 @@ export type RuntimeDiagnostics = {
   effective_approval_token_ttl_minutes: number;
 };
 
+export type OpsStatus = {
+  status: string;
+  init_steps: Record<string, boolean>;
+  dependencies: Array<{
+    name: string;
+    ok: boolean;
+    detail: string;
+    required: boolean;
+    enabled: boolean;
+  }>;
+  config: {
+    api_docs_enabled: boolean;
+    require_auth: boolean;
+    search_mode_default: string;
+    sensitive_actions_enabled: boolean;
+    enable_mcp_services: boolean;
+    enable_vllm: boolean;
+    brave_api_key_configured: boolean;
+    telegram_configured: boolean;
+    google_oauth_configured: boolean;
+    imap_configured: boolean;
+  };
+  version: {
+    app_version: string;
+    python_version: string;
+    environment: string;
+  };
+};
+
 export type UserPreferences = {
   subject: string;
   search_mode: string;
@@ -222,6 +251,14 @@ export async function getRuntimeDiagnostics(): Promise<RuntimeDiagnostics> {
   const response = await apiFetch("/runtime/diagnostics", { cache: "no-store" });
   if (!response.ok) {
     throw await buildApiError(response, "Runtime diagnostics request failed");
+  }
+  return response.json();
+}
+
+export async function getOpsStatus(): Promise<OpsStatus> {
+  const response = await apiFetch("/ops/status", { cache: "no-store" });
+  if (!response.ok) {
+    throw await buildApiError(response, "Ops status request failed");
   }
   return response.json();
 }
