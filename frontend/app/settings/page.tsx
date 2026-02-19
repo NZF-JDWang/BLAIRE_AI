@@ -8,9 +8,11 @@ import {
   formatApiError,
   getBrowserApiKey,
   getDependencyStatus,
+  getRuntimeConfigAudit,
   getMyPreferences,
   getRuntimeConfig,
   getRuntimeOptionsTyped,
+  RuntimeConfigAuditEvent,
   RuntimeConfigBundle,
   RuntimeOptions,
   setBrowserApiKey,
@@ -34,6 +36,7 @@ export default function SettingsPage() {
   const [options, setOptions] = useState<RuntimeOptions | null>(null);
   const [dependencies, setDependencies] = useState<DependencyStatus | null>(null);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigBundle | null>(null);
+  const [runtimeAudit, setRuntimeAudit] = useState<RuntimeConfigAuditEvent[]>([]);
   const [apiKey, setApiKey] = useState("");
   const [prefs, setPrefs] = useState<Preferences>({
     searchMode: "searxng_only",
@@ -65,11 +68,18 @@ export default function SettingsPage() {
         }
         throw err;
       }),
+      getRuntimeConfigAudit(30).catch((err) => {
+        if (err instanceof ApiRequestError && err.status === 403) {
+          return [];
+        }
+        throw err;
+      }),
     ])
-      .then(([runtime, current, deps, config]) => {
+      .then(([runtime, current, deps, config, audit]) => {
         setOptions(runtime);
         setDependencies(deps);
         setRuntimeConfig(config);
+        setRuntimeAudit(audit);
         setLoadError("");
         setPrefs({
           searchMode: current.search_mode,
@@ -87,6 +97,7 @@ export default function SettingsPage() {
         setOptions(null);
         setDependencies(null);
         setRuntimeConfig(null);
+        setRuntimeAudit([]);
         setLoadError(formatApiError(err, "Failed to load runtime options"));
       });
   }, []);
@@ -148,6 +159,7 @@ export default function SettingsPage() {
         allowed_homelab_operations: runtimeConfig.overrides.allowed_homelab_operations,
       });
       setRuntimeConfig(updated);
+      setRuntimeAudit(await getRuntimeConfigAudit(30));
       setStatus("Runtime config saved.");
     } catch (err) {
       setError(formatApiError(err, "Runtime config update failed"));
@@ -627,6 +639,36 @@ export default function SettingsPage() {
               {runtimeConfig.overrides.updated_at ? new Date(runtimeConfig.overrides.updated_at).toLocaleString() : "never"} by{" "}
               {runtimeConfig.overrides.updated_by ?? "n/a"}
             </p>
+
+            <h3>Runtime policy audit</h3>
+            {runtimeAudit.length === 0 ? (
+              <div className="empty-state">
+                <p style={{ margin: 0 }}>No runtime config audit events yet.</p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Actor</th>
+                      <th>Before</th>
+                      <th>After</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runtimeAudit.slice(0, 10).map((event) => (
+                      <tr key={event.id}>
+                        <td>{new Date(event.event_time).toLocaleString()}</td>
+                        <td>{event.actor}</td>
+                        <td className="mono">{event.previous_overrides.search_mode_default ?? "(none)"}</td>
+                        <td className="mono">{event.new_overrides.search_mode_default ?? "(none)"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </>
         )}
       </section>

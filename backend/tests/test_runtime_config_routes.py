@@ -1,8 +1,9 @@
 import os
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
-from app.models.runtime_config import RuntimeConfigBundle, RuntimeConfigEffective, RuntimeConfigOverrides
+from app.models.runtime_config import RuntimeConfigAuditEvent, RuntimeConfigBundle, RuntimeConfigEffective, RuntimeConfigOverrides
 
 
 def _set_required_env() -> None:
@@ -116,3 +117,25 @@ def test_runtime_config_update_as_admin(monkeypatch) -> None:
     )
     assert response.status_code == 200
     assert calls == ["admin"]
+
+
+def test_runtime_config_audit_as_admin(monkeypatch) -> None:
+    async def fake_audit(self, limit: int = 100):  # noqa: ANN001, ANN202
+        _ = (self, limit)
+        return [
+            RuntimeConfigAuditEvent(
+                id=3,
+                actor="admin",
+                previous_overrides=RuntimeConfigOverrides(),
+                new_overrides=_bundle().overrides,
+                event_time=datetime.now(timezone.utc),
+            )
+        ]
+
+    monkeypatch.setattr(RuntimeConfigService, "list_audit", fake_audit)
+    client = _client()
+    response = client.get("/runtime/config/audit", headers={"X-API-Key": "test-admin-key"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["actor"] == "admin"
+    assert payload[0]["new_overrides"]["search_mode_default"] == "parallel"

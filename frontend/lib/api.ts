@@ -84,6 +84,14 @@ export type RuntimeConfigBundle = {
   overrides: RuntimeConfigOverrides;
 };
 
+export type RuntimeConfigAuditEvent = {
+  id: number;
+  actor: string;
+  previous_overrides: RuntimeConfigOverrides;
+  new_overrides: RuntimeConfigOverrides;
+  event_time: string;
+};
+
 export class ApiRequestError extends Error {
   status: number;
   detail: string | null;
@@ -461,6 +469,14 @@ export async function updateRuntimeConfig(update: {
   });
   if (!response.ok) {
     throw await buildApiError(response, "Runtime config update failed");
+  }
+  return response.json();
+}
+
+export async function getRuntimeConfigAudit(limit = 100): Promise<RuntimeConfigAuditEvent[]> {
+  const response = await apiFetch(`/runtime/config/audit?limit=${limit}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw await buildApiError(response, "Runtime config audit request failed");
   }
   return response.json();
 }

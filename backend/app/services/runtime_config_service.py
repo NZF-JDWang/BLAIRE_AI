@@ -2,9 +2,11 @@ from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from app.core.config import Settings
 from app.models.runtime_config import (
+    RuntimeConfigAuditEvent,
     RuntimeConfigBundle,
     RuntimeConfigEffective,
     RuntimeConfigOverrides,
@@ -47,6 +49,13 @@ class RuntimeConfigService:
             updated_by TEXT,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        CREATE TABLE IF NOT EXISTS runtime_config_audit (
+            id BIGSERIAL PRIMARY KEY,
+            actor TEXT NOT NULL,
+            previous_overrides JSONB NOT NULL,
+            new_overrides JSONB NOT NULL,
+            event_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
         """
         async with await psycopg.AsyncConnection.connect(self._database_url, autocommit=True) as conn:
             async with conn.cursor() as cur:
@@ -77,6 +86,7 @@ class RuntimeConfigService:
         return RuntimeConfigOverrides(**row)
 
     async def upsert(self, *, actor: str, request: RuntimeConfigUpdateRequest) -> RuntimeConfigOverrides:
+        previous = await self.get_overrides()
         query = """
         INSERT INTO runtime_config (
             singleton_id,
@@ -137,7 +147,21 @@ class RuntimeConfigService:
             await conn.commit()
         if row is None:
             raise ValueError("Failed to persist runtime configuration")
-        return RuntimeConfigOverrides(**row)
+        updated = RuntimeConfigOverrides(**row)
+
+        audit_query = """
+        INSERT INTO runtime_config_audit (actor, previous_overrides, new_overrides)
+        VALUES (%(actor)s, %(previous_overrides)s, %(new_overrides)s);
+        """
+        audit_params = {
+            "actor": actor,
+            "previous_overrides": Jsonb(previous.model_dump(mode="json")),
+            "new_overrides": Jsonb(updated.model_dump(mode="json")),
+        }
+        async with await psycopg.AsyncConnection.connect(self._database_url, autocommit=True) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(audit_query, audit_params)
+        return updated
 
     async def get_effective(self, settings: Settings) -> RuntimeConfigEffective:
         try:
@@ -153,3 +177,28 @@ class RuntimeConfigService:
             overrides = RuntimeConfigOverrides()
         effective = self._effective_from_overrides(settings, overrides)
         return RuntimeConfigBundle(effective=effective, overrides=overrides)
+
+    async def list_audit(self, limit: int = 100) -> list[RuntimeConfigAuditEvent]:
+        query = """
+        SELECT id, actor, previous_overrides, new_overrides, event_time
+        FROM runtime_config_audit
+        ORDER BY id DESC
+        LIMIT %(limit)s;
+        """
+        async with await psycopg.AsyncConnection.connect(self._database_url, row_factory=dict_row) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query, {"limit": limit})
+                rows = await cur.fetchall()
+
+        events: list[RuntimeConfigAuditEvent] = []
+        for row in rows:
+            events.append(
+                RuntimeConfigAuditEvent(
+                    id=row["id"],
+                    actor=row["actor"],
+                    previous_overrides=RuntimeConfigOverrides(**row["previous_overrides"]),
+                    new_overrides=RuntimeConfigOverrides(**row["new_overrides"]),
+                    event_time=row["event_time"],
+                )
+            )
+        return events

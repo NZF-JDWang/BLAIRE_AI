@@ -75,3 +75,11 @@ class RuntimeConfigEffective(BaseModel):
 class RuntimeConfigBundle(BaseModel):
     effective: RuntimeConfigEffective
     overrides: RuntimeConfigOverrides
+
+
+class RuntimeConfigAuditEvent(BaseModel):
+    id: int
+    actor: str
+    previous_overrides: RuntimeConfigOverrides
+    new_overrides: RuntimeConfigOverrides
+    event_time: datetime
