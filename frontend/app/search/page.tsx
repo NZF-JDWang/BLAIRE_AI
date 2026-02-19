@@ -1,18 +1,29 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
-import { formatApiError, runSearch } from "@/lib/api";
+import { formatApiError, getRuntimeOptionsTyped, runSearch } from "@/lib/api";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState("");
+  const [modes, setModes] = useState<string[]>(["searxng_only", "brave_only", "auto_fallback", "parallel"]);
+  const [defaultMode, setDefaultMode] = useState<string>("unknown");
   const [result, setResult] = useState<{
     mode: string;
     providers_used: string[];
     results: Array<{ title: string; url: string; snippet: string; provider: string }>;
   } | null>(null);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    getRuntimeOptionsTyped()
+      .then((runtime) => {
+        setModes(runtime.search_modes);
+        setDefaultMode(runtime.default_search_mode);
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -31,6 +42,7 @@ export default function SearchPage() {
       <section className="page-hero">
         <p className="page-kicker">Search Endpoint</p>
         <h1 className="page-title">Run direct web search tests by provider mode.</h1>
+        <p className="page-description">Current runtime default mode: {defaultMode}</p>
       </section>
 
       <section className="surface stack">
@@ -48,10 +60,11 @@ export default function SearchPage() {
             Mode
             <select className="select" value={mode} onChange={(e) => setMode(e.target.value)}>
               <option value="">(use preference/default)</option>
-              <option value="searxng_only">searxng_only</option>
-              <option value="brave_only">brave_only</option>
-              <option value="auto_fallback">auto_fallback</option>
-              <option value="parallel">parallel</option>
+              {modes.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
             </select>
           </label>
           <div>
