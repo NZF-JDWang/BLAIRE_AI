@@ -31,7 +31,7 @@ export default function KnowledgePage() {
   }
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, []);
 
   async function onUpload(file: File) {
@@ -56,9 +56,7 @@ export default function KnowledgePage() {
     setError("");
     try {
       const result = await reindexObsidian(fullRescan);
-      setReindexInfo(
-        `indexed=${result.indexed_files}, unchanged=${result.unchanged_files}, chunks=${result.chunks_indexed}`,
-      );
+      setReindexInfo(`indexed=${result.indexed_files}, unchanged=${result.unchanged_files}, chunks=${result.chunks_indexed}`);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reindex failed");
@@ -66,55 +64,79 @@ export default function KnowledgePage() {
   }
 
   return (
-    <main style={{ maxWidth: "840px", margin: "40px auto", padding: "0 16px" }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "12px" }}>Knowledge</h1>
-      <div style={{ marginBottom: "12px", display: "flex", gap: "8px", alignItems: "center" }}>
-        <input
-          type="file"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void onUpload(file);
-          }}
-        />
-        <button onClick={() => void refresh()} disabled={uploading}>
-          Refresh
-        </button>
-        <button onClick={() => void onReindex(false)} disabled={uploading}>
-          Reindex Obsidian (Delta)
-        </button>
-        <button onClick={() => void onReindex(true)} disabled={uploading}>
-          Reindex Obsidian (Full)
-        </button>
-      </div>
-      {error ? <p style={{ color: "#b91c1c" }}>{error}</p> : null}
-      {reindexInfo ? <p style={{ fontFamily: "monospace" }}>{reindexInfo}</p> : null}
-      {status ? (
-        <div style={{ border: "1px solid #cbd5e1", borderRadius: "8px", padding: "12px" }}>
-          <p>
-            <strong>Drop folder:</strong> <code>{status.drop_folder}</code>
-          </p>
-          <p>
-            <strong>Files detected:</strong> {status.files_detected}
-          </p>
-          <p>
-            <strong>Last scan:</strong>{" "}
-            {status.last_scan_at ? new Date(status.last_scan_at).toLocaleString() : "never"}
-          </p>
-          <p>
-            <strong>Qdrant reachable:</strong> {String(status.qdrant_reachable)}
-          </p>
-          <p>
-            <strong>Obsidian vault:</strong> <code>{status.obsidian_vault_path}</code>
-          </p>
-          <p>
-            <strong>Obsidian markdown files:</strong> {status.obsidian_files_detected}
-          </p>
-          <p>
-            <strong>Obsidian last scan:</strong>{" "}
-            {status.obsidian_last_scan_at ? new Date(status.obsidian_last_scan_at).toLocaleString() : "never"}
-          </p>
+    <main className="page-wrap">
+      <section className="page-hero">
+        <p className="page-kicker">Knowledge Operations</p>
+        <h1 className="page-title">Ingest files and maintain index health.</h1>
+        <p className="page-description">
+          Upload source files, monitor storage/index status, and run delta or full Obsidian reindex operations.
+        </p>
+      </section>
+
+      <section className="surface stack" aria-label="Knowledge controls">
+        <div className="toolbar">
+          <label className="field-label" style={{ minWidth: "280px" }}>
+            Upload file
+            <input
+              className="file-input"
+              type="file"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void onUpload(file);
+              }}
+              disabled={uploading}
+            />
+          </label>
+          <button onClick={() => void refresh()} disabled={uploading} className="button button-muted">
+            Refresh status
+          </button>
+          <button onClick={() => void onReindex(false)} disabled={uploading} className="button">
+            Reindex Obsidian (delta)
+          </button>
+          <button onClick={() => void onReindex(true)} disabled={uploading} className="button button-primary">
+            Reindex Obsidian (full)
+          </button>
         </div>
-      ) : null}
+        {uploading ? <p className="help-text">Uploading file and refreshing status...</p> : null}
+        {reindexInfo ? <p className="help-text mono">{reindexInfo}</p> : null}
+        {error ? <p className="error-text">{error}</p> : null}
+      </section>
+
+      <section className="surface stack" aria-label="Knowledge status">
+        <h2>Status</h2>
+        {!status ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>Status is unavailable. Use Refresh status to retry.</p>
+          </div>
+        ) : (
+          <div className="stats-grid">
+            <article className="stat-card">
+              <p className="stat-label">Drop folder</p>
+              <p className="stat-value mono">{status.drop_folder}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Files detected</p>
+              <p className="stat-value">{status.files_detected}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Last scan</p>
+              <p className="stat-value">{status.last_scan_at ? new Date(status.last_scan_at).toLocaleString() : "Never"}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Qdrant reachable</p>
+              <p className="stat-value">{String(status.qdrant_reachable)}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Obsidian vault</p>
+              <p className="stat-value mono">{status.obsidian_vault_path}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Obsidian markdown files</p>
+              <p className="stat-value">{status.obsidian_files_detected}</p>
+            </article>
+          </div>
+        )}
+      </section>
     </main>
   );
 }

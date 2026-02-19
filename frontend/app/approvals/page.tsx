@@ -9,8 +9,14 @@ import {
   executeApproval,
   getApprovalAudit,
   getRecentApprovals,
-  rejectApproval
+  rejectApproval,
 } from "@/lib/api";
+
+function statusClass(status: string): string {
+  if (status === "approved" || status === "executed") return "pill success";
+  if (status === "rejected" || status === "expired") return "pill error";
+  return "pill warn";
+}
 
 export default function ApprovalsPage() {
   const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
@@ -33,7 +39,7 @@ export default function ApprovalsPage() {
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   async function onApprove(id: string) {
@@ -83,70 +89,92 @@ export default function ApprovalsPage() {
   }
 
   return (
-    <main style={{ maxWidth: "1000px", margin: "48px auto", padding: "0 16px" }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "16px" }}>Approval Queue</h1>
-      <button onClick={load} disabled={loading} style={{ marginBottom: "12px", padding: "8px 12px" }}>
-        {loading ? "Refreshing..." : "Refresh"}
-      </button>
-      {error ? <p style={{ color: "#b91c1c" }}>{error}</p> : null}
-      {!error && approvals.length === 0 ? <p>No approvals found.</p> : null}
-      {!error && approvals.length > 0 ? (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.92rem" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #cbd5e1" }}>
-              <th style={{ padding: "8px" }}>Status</th>
-              <th style={{ padding: "8px" }}>Class</th>
-              <th style={{ padding: "8px" }}>Target</th>
-              <th style={{ padding: "8px" }}>Tool</th>
-              <th style={{ padding: "8px" }}>Requested By</th>
-              <th style={{ padding: "8px" }}>Created</th>
-              <th style={{ padding: "8px" }}>Payload Hash</th>
-              <th style={{ padding: "8px" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {approvals.map((approval) => (
-              <tr key={approval.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "8px", fontFamily: "monospace" }}>{approval.status}</td>
-                <td style={{ padding: "8px", fontFamily: "monospace" }}>{approval.action_class}</td>
-                <td style={{ padding: "8px" }}>{approval.target_host}</td>
-                <td style={{ padding: "8px" }}>{approval.tool_name}</td>
-                <td style={{ padding: "8px" }}>{approval.requested_by}</td>
-                <td style={{ padding: "8px" }}>{new Date(approval.created_at).toLocaleString()}</td>
-                <td style={{ padding: "8px", fontFamily: "monospace" }}>{approval.payload_hash.slice(0, 14)}...</td>
-                <td style={{ padding: "8px" }}>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <button onClick={() => onApprove(approval.id)} style={{ padding: "6px 10px" }}>
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => onExecute(approval.id, approval.payload_hash)}
-                      style={{ padding: "6px 10px" }}
-                    >
-                      Execute
-                    </button>
-                    <button onClick={() => onReject(approval.id)} style={{ padding: "6px 10px" }}>
-                      Reject
-                    </button>
-                    <button onClick={() => onLoadAudit(approval.id)} style={{ padding: "6px 10px" }}>
-                      Audit
-                    </button>
-                  </div>
-                  {(audit[approval.id] ?? []).length > 0 ? (
-                    <div style={{ marginTop: "8px", fontSize: "0.8rem", maxWidth: "380px" }}>
-                      {(audit[approval.id] ?? []).slice(0, 5).map((event) => (
-                        <div key={event.id} style={{ marginBottom: "4px", fontFamily: "monospace" }}>
-                          {event.event_type} by {event.actor}
+    <main className="page-wrap">
+      <section className="page-hero">
+        <p className="page-kicker">Human-In-The-Loop</p>
+        <h1 className="page-title">Review and execute approval-gated actions safely.</h1>
+        <p className="page-description">
+          Approve first to mint an execution token, then execute with payload hash matching and traceable audit events.
+        </p>
+      </section>
+
+      <section className="surface stack" aria-label="Approval controls">
+        <div className="toolbar">
+          <button onClick={() => void load()} disabled={loading} className="button button-primary">
+            {loading ? "Refreshing queue..." : "Refresh queue"}
+          </button>
+          <span className="pill">{approvals.length} records</span>
+        </div>
+        {error ? <p className="error-text">{error}</p> : null}
+      </section>
+
+      <section className="surface stack" aria-label="Approval table">
+        {approvals.length === 0 ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>No approvals found in recent history.</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Class</th>
+                  <th>Target</th>
+                  <th>Tool</th>
+                  <th>Requested By</th>
+                  <th>Created</th>
+                  <th>Payload Hash</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvals.map((approval) => (
+                  <tr key={approval.id}>
+                    <td>
+                      <span className={statusClass(approval.status)}>{approval.status}</span>
+                    </td>
+                    <td className="mono">{approval.action_class}</td>
+                    <td>{approval.target_host || "-"}</td>
+                    <td>{approval.tool_name}</td>
+                    <td>{approval.requested_by}</td>
+                    <td>{new Date(approval.created_at).toLocaleString()}</td>
+                    <td className="mono">{approval.payload_hash.slice(0, 14)}...</td>
+                    <td>
+                      <div className="row">
+                        <button onClick={() => void onApprove(approval.id)} className="button">
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => void onExecute(approval.id, approval.payload_hash)}
+                          className="button button-primary"
+                        >
+                          Execute
+                        </button>
+                        <button onClick={() => void onReject(approval.id)} className="button button-danger">
+                          Reject
+                        </button>
+                        <button onClick={() => void onLoadAudit(approval.id)} className="button button-muted">
+                          Audit
+                        </button>
+                      </div>
+                      {(audit[approval.id] ?? []).length > 0 ? (
+                        <div className="stack" style={{ marginTop: "8px" }}>
+                          {(audit[approval.id] ?? []).slice(0, 5).map((event) => (
+                            <p key={event.id} className="help-text mono" style={{ margin: 0 }}>
+                              {event.event_type} by {event.actor}
+                            </p>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : null}
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </main>
   );
 }

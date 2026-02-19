@@ -8,7 +8,7 @@ import {
   getRuntimeOptionsTyped,
   RuntimeOptions,
   setBrowserApiKey,
-  updateMyPreferences
+  updateMyPreferences,
 } from "@/lib/api";
 
 type Preferences = {
@@ -23,8 +23,11 @@ export default function SettingsPage() {
   const [prefs, setPrefs] = useState<Preferences>({
     searchMode: "searxng_only",
     modelClass: "general",
-    modelOverride: ""
+    modelOverride: "",
   });
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setApiKey(getBrowserApiKey());
@@ -34,45 +37,58 @@ export default function SettingsPage() {
         setPrefs({
           searchMode: current.search_mode,
           modelClass: current.model_class,
-          modelOverride: current.model_override ?? ""
+          modelOverride: current.model_override ?? "",
         });
       })
       .catch(() => setOptions(null));
   }, []);
 
   async function save() {
-    setBrowserApiKey(apiKey);
-    await updateMyPreferences({
-      search_mode: prefs.searchMode,
-      model_class: prefs.modelClass,
-      model_override: prefs.modelOverride || null
-    });
+    setSaving(true);
+    setError("");
+    setStatus("");
+    try {
+      setBrowserApiKey(apiKey);
+      await updateMyPreferences({
+        search_mode: prefs.searchMode,
+        model_class: prefs.modelClass,
+        model_override: prefs.modelOverride || null,
+      });
+      setStatus("Preferences saved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save preferences");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const models = options?.model_allowlist[prefs.modelClass] ?? [];
 
   return (
-    <main style={{ maxWidth: "760px", margin: "40px auto", padding: "0 16px" }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "12px" }}>Settings</h1>
-      <p style={{ marginBottom: "16px" }}>
-        Runtime preference controls. These are saved locally until backend preference persistence is added.
-      </p>
+    <main className="page-wrap">
+      <section className="page-hero">
+        <p className="page-kicker">Runtime Preferences</p>
+        <h1 className="page-title">Tune search behavior and model defaults per user.</h1>
+        <p className="page-description">
+          API key is stored in the browser for proxy calls. Preferences are synced through backend user preference APIs.
+        </p>
+      </section>
 
-      <div style={{ display: "grid", gap: "12px" }}>
-        <label>
+      <section className="surface stack" aria-label="Preferences form">
+        <label className="field-label">
           API key
           <input
-            style={{ marginLeft: "8px", minWidth: "260px" }}
+            className="input"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="Paste your user API key"
           />
         </label>
 
-        <label>
+        <label className="field-label">
           Search mode
           <select
-            style={{ marginLeft: "8px" }}
+            className="select"
             value={prefs.searchMode}
             onChange={(e) => setPrefs((prev) => ({ ...prev, searchMode: e.target.value }))}
           >
@@ -84,16 +100,16 @@ export default function SettingsPage() {
           </select>
         </label>
 
-        <label>
+        <label className="field-label">
           Model class
           <select
-            style={{ marginLeft: "8px" }}
+            className="select"
             value={prefs.modelClass}
             onChange={(e) =>
               setPrefs((prev) => ({
                 ...prev,
                 modelClass: e.target.value,
-                modelOverride: ""
+                modelOverride: "",
               }))
             }
           >
@@ -104,10 +120,10 @@ export default function SettingsPage() {
           </select>
         </label>
 
-        <label>
+        <label className="field-label">
           Model override
           <select
-            style={{ marginLeft: "8px" }}
+            className="select"
             value={prefs.modelOverride}
             onChange={(e) => setPrefs((prev) => ({ ...prev, modelOverride: e.target.value }))}
           >
@@ -119,11 +135,15 @@ export default function SettingsPage() {
             ))}
           </select>
         </label>
-      </div>
 
-      <button style={{ marginTop: "16px", padding: "10px 16px" }} onClick={save}>
-        Save Preferences
-      </button>
+        <div className="toolbar">
+          <button className="button button-primary" onClick={() => void save()} disabled={saving}>
+            {saving ? "Saving..." : "Save preferences"}
+          </button>
+          {status ? <span className="pill success">{status}</span> : null}
+        </div>
+        {error ? <p className="error-text">{error}</p> : null}
+      </section>
     </main>
   );
 }

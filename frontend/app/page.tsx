@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { getDependencyStatus, getHealth, getRuntimeOptions } from "@/lib/api";
 
 export default async function HomePage() {
@@ -6,12 +8,14 @@ export default async function HomePage() {
   let generalModels = "unknown";
   let sensitiveActions = "unknown";
   let dependencySummary = "unknown";
+
   try {
     const health = (await getHealth()) as { status?: string };
     backendStatus = health.status ?? "unknown";
   } catch {
     backendStatus = "unreachable";
   }
+
   try {
     const options = (await getRuntimeOptions()) as {
       default_search_mode?: string;
@@ -26,6 +30,7 @@ export default async function HomePage() {
     generalModels = "unavailable";
     sensitiveActions = "unavailable";
   }
+
   try {
     const deps = await getDependencyStatus();
     const ok = deps.dependencies.filter((d) => d.ok).length;
@@ -35,34 +40,69 @@ export default async function HomePage() {
   }
 
   return (
-    <main style={{ maxWidth: "900px", margin: "48px auto", padding: "0 16px" }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "12px" }}>BLAIRE</h1>
-      <p style={{ lineHeight: 1.5 }}>
-        Frontend scaffold is active. Backend integration endpoints and agent UI will be added next.
-      </p>
-      <p style={{ marginTop: "8px", fontFamily: "monospace" }}>backend: {backendStatus}</p>
-      <p style={{ marginTop: "8px", fontFamily: "monospace" }}>search default: {defaultSearchMode}</p>
-      <p style={{ marginTop: "8px", fontFamily: "monospace" }}>general models: {generalModels}</p>
-      <p style={{ marginTop: "8px", fontFamily: "monospace" }}>sensitive actions enabled: {sensitiveActions}</p>
-      <p style={{ marginTop: "8px", fontFamily: "monospace" }}>dependencies: {dependencySummary}</p>
-      <p style={{ marginTop: "16px" }}>
-        <a href="/chat">Open chat</a>
-      </p>
-      <p style={{ marginTop: "8px" }}>
-        <a href="/settings">Open settings</a>
-      </p>
-      <p style={{ marginTop: "8px" }}>
-        <a href="/approvals">Open approval queue</a>
-      </p>
-      <p style={{ marginTop: "8px" }}>
-        <a href="/knowledge">Open knowledge status</a>
-      </p>
-      <p style={{ marginTop: "8px" }}>
-        <a href="/swarm">Open swarm panel</a>
-      </p>
-      <p style={{ marginTop: "8px" }}>
-        <a href="/search">Open search</a>
-      </p>
+    <main className="page-wrap">
+      <section className="page-hero">
+        <p className="page-kicker">Operational Dashboard</p>
+        <h1 className="page-title">Run BLAIRE with clear runtime visibility.</h1>
+        <p className="page-description">
+          Core services are connected. Use the workspace routes below for chat, swarm orchestration, knowledge
+          ingestion, approvals, and runtime tuning.
+        </p>
+      </section>
+
+      <section className="stats-grid" aria-label="System overview">
+        <article className="stat-card">
+          <p className="stat-label">Backend</p>
+          <p className="stat-value">{backendStatus}</p>
+        </article>
+        <article className="stat-card">
+          <p className="stat-label">Search Mode</p>
+          <p className="stat-value mono">{defaultSearchMode}</p>
+        </article>
+        <article className="stat-card">
+          <p className="stat-label">Dependencies</p>
+          <p className="stat-value mono">{dependencySummary}</p>
+        </article>
+        <article className="stat-card">
+          <p className="stat-label">General Models</p>
+          <p className="stat-value mono">{generalModels}</p>
+        </article>
+        <article className="stat-card">
+          <p className="stat-label">Sensitive Actions</p>
+          <p className="stat-value">{sensitiveActions}</p>
+        </article>
+      </section>
+
+      <section className="surface stack" aria-label="Primary routes">
+        <h2>Primary workspaces</h2>
+        <p className="help-text">Each route is production-connected to existing backend contracts.</p>
+        <div className="quick-links">
+          <Link href="/chat" className="quick-link">
+            <p className="quick-link-title">Chat</p>
+            <p className="quick-link-copy">Streaming responses, model class selection, and citations.</p>
+          </Link>
+          <Link href="/swarm" className="quick-link">
+            <p className="quick-link-title">Swarm</p>
+            <p className="quick-link-copy">Run multi-agent research tasks and monitor live traces.</p>
+          </Link>
+          <Link href="/knowledge" className="quick-link">
+            <p className="quick-link-title">Knowledge</p>
+            <p className="quick-link-copy">Upload docs and reindex your Obsidian vault.</p>
+          </Link>
+          <Link href="/approvals" className="quick-link">
+            <p className="quick-link-title">Approvals</p>
+            <p className="quick-link-copy">Approve, execute, reject, and audit sensitive actions.</p>
+          </Link>
+          <Link href="/settings" className="quick-link">
+            <p className="quick-link-title">Settings</p>
+            <p className="quick-link-copy">Control API key, preferred search mode, and model defaults.</p>
+          </Link>
+          <Link href="/search" className="quick-link">
+            <p className="quick-link-title">Search</p>
+            <p className="quick-link-copy">Direct search endpoint testing with provider mode control.</p>
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }

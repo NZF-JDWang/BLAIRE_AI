@@ -1,7 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import type { ReactNode } from "react";
+
+import { AppNav } from "@/components/app-nav";
+
 import "./globals.css";
+
+const displayFont = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-display",
+});
+
+const monoFont = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500"],
+});
 
 export const metadata: Metadata = {
   title: "BLAIRE",
@@ -18,18 +32,21 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
-      <body>
+      <body className={`${displayFont.variable} ${monoFont.variable}`}>
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
+        <div className="app-shell-bg" aria-hidden="true" />
         <header className="app-shell-header">
-          <nav className="app-shell-nav">
-            <Link href="/">Home</Link>
-            <Link href="/chat">Chat</Link>
-            <Link href="/swarm">Swarm</Link>
-            <Link href="/knowledge">Knowledge</Link>
-            <Link href="/settings">Settings</Link>
-            <Link href="/approvals">Approvals</Link>
-          </nav>
+          <div className="app-shell-header-inner">
+            <p className="app-shell-title">BLAIRE</p>
+            <p className="app-shell-subtitle">Blacksite Lab AI Hub</p>
+            <AppNav />
+          </div>
         </header>
-        <div className="app-shell-content">{children}</div>
+        <div className="app-shell-content" id="main-content">
+          {children}
+        </div>
       </body>
     </html>
   );

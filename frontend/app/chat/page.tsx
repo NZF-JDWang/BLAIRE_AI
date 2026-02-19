@@ -36,8 +36,8 @@ async function streamChat(params: {
       messages: params.messages,
       model_class: params.modelClass,
       model_override: params.modelOverride || null,
-      stream: true
-    })
+      stream: true,
+    }),
   });
   if (!response.ok || !response.body) {
     throw new Error(`Chat request failed: ${response.status}`);
@@ -116,6 +116,7 @@ export default function ChatPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!input.trim() || loading) return;
+
     setError("");
     setCitations([]);
     setRagStatus("disabled");
@@ -148,7 +149,7 @@ export default function ChatPage() {
             return cloned;
           });
         },
-        onDone: () => undefined
+        onDone: () => undefined,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
@@ -158,94 +159,118 @@ export default function ChatPage() {
   }
 
   return (
-    <main style={{ maxWidth: "960px", margin: "40px auto", padding: "0 16px" }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "8px" }}>Chat</h1>
-      <p style={{ marginBottom: "16px" }}>Streaming chat endpoint with runtime-selectable model classes.</p>
+    <main className="page-wrap">
+      <section className="page-hero">
+        <p className="page-kicker">Chat Workspace</p>
+        <h1 className="page-title">Stream responses with model and RAG visibility.</h1>
+        <p className="page-description">
+          Select a model class, optionally override with a specific runtime model, and inspect citations from retrieval.
+        </p>
+      </section>
 
-      <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
-        <label>
-          Model class
-          <select value={modelClass} onChange={(e) => setModelClass(e.target.value)} style={{ marginLeft: "8px" }}>
-            <option value="general">general</option>
-            <option value="vision">vision</option>
-            <option value="embedding">embedding</option>
-            <option value="code">code</option>
-          </select>
-        </label>
-        <label>
-          Override
-          <select
-            value={modelOverride}
-            onChange={(e) => setModelOverride(e.target.value)}
-            style={{ marginLeft: "8px" }}
-          >
-            <option value="">(class default)</option>
-            {availableModels.map((model) => (
-              <option key={model} value={model}>
-                {model}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <section className="surface stack" aria-label="Chat runtime controls">
+        <div className="row">
+          <label className="field-label" style={{ minWidth: "210px" }}>
+            Model class
+            <select className="select" value={modelClass} onChange={(e) => setModelClass(e.target.value)}>
+              <option value="general">general</option>
+              <option value="vision">vision</option>
+              <option value="embedding">embedding</option>
+              <option value="code">code</option>
+            </select>
+          </label>
+          <label className="field-label" style={{ minWidth: "260px" }}>
+            Model override
+            <select className="select" value={modelOverride} onChange={(e) => setModelOverride(e.target.value)}>
+              <option value="">(class default)</option>
+              {availableModels.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className={ragError ? "pill error" : ragStatus === "ready" ? "pill success" : "pill"}>
+            RAG {ragStatus}
+          </span>
+        </div>
+        {ragError ? <p className="error-text">{ragError}</p> : null}
+      </section>
 
-      <div style={{ border: "1px solid #cbd5e1", borderRadius: "8px", padding: "12px", minHeight: "280px" }}>
-        {messages.length === 0 ? <p style={{ opacity: 0.7 }}>No messages yet.</p> : null}
-        {messages.map((message, idx) => (
-          <div key={`${message.role}-${idx}`} style={{ marginBottom: "12px" }}>
-            <strong>{message.role}:</strong> <span>{message.content}</span>
+      <section className="surface stack" aria-label="Chat history">
+        <div className="message-feed">
+          {messages.length === 0 ? (
+            <div className="empty-state">
+              <p style={{ margin: 0 }}>No messages yet. Ask a question to start a streamed response.</p>
+            </div>
+          ) : null}
+          {messages.map((message, idx) => (
+            <article key={`${message.role}-${idx}`} className={message.role === "user" ? "message user" : "message"}>
+              <p className="message-role">{message.role}</p>
+              <p className="message-text">{message.content || (loading ? "..." : "(empty response)")}</p>
+            </article>
+          ))}
+        </div>
+
+        <form onSubmit={onSubmit} className="stack">
+          <label className="field-label">
+            Prompt
+            <textarea
+              className="textarea"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask BLAIRE to analyze, summarize, or reason through a task..."
+              disabled={loading}
+            />
+          </label>
+          <div className="toolbar">
+            <button type="submit" className="button button-primary" disabled={loading || !input.trim()}>
+              {loading ? "Streaming response..." : "Send message"}
+            </button>
+            <p className="help-text">Press Enter inside the field to submit.</p>
           </div>
-        ))}
-      </div>
+        </form>
+        {error ? <p className="error-text">{error}</p> : null}
+      </section>
 
-      <form onSubmit={onSubmit} style={{ marginTop: "12px", display: "flex", gap: "8px" }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask BLAIRE..."
-          style={{ flex: 1, padding: "10px", border: "1px solid #94a3b8", borderRadius: "6px" }}
-        />
-        <button type="submit" disabled={loading} style={{ padding: "10px 16px" }}>
-          {loading ? "Sending..." : "Send"}
-        </button>
-      </form>
-      {error ? <p style={{ color: "#b91c1c", marginTop: "8px" }}>{error}</p> : null}
-      <p style={{ marginTop: "10px", fontFamily: "monospace" }}>
-        rag: {ragStatus}
-        {ragError ? ` (${ragError})` : ""}
-      </p>
-      {citations.length > 0 ? (
-        <section style={{ marginTop: "16px" }}>
-          <h2 style={{ fontSize: "1.1rem", marginBottom: "8px" }}>Citations</h2>
-          <ul>
+      <section className="surface stack" aria-label="Citation panel">
+        <h2>Citations</h2>
+        {citations.length === 0 ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>No citations returned for the latest response.</p>
+          </div>
+        ) : (
+          <div className="panel-list">
             {citations.map((citation, idx) => (
-              <li key={`${citation.source_name}-${citation.chunk_index}-${idx}`}>
-                <strong>{citation.source_name}</strong> ({citation.file_type}) #{citation.chunk_index} score=
-                {typeof citation.score === "number" ? citation.score.toFixed(3) : "n/a"}
-                <div style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
-                  {citation.source_path ? (
-                    citation.source_path.startsWith("http://") || citation.source_path.startsWith("https://") ? (
-                      <a href={citation.source_path} target="_blank" rel="noreferrer">
-                        {citation.source_path}
-                      </a>
-                    ) : (
-                      <span title="Local path">{citation.source_path}</span>
-                    )
+              <article key={`${citation.source_name}-${citation.chunk_index}-${idx}`} className="surface" style={{ padding: "12px" }}>
+                <p style={{ marginBottom: "6px" }}>
+                  <strong>{citation.source_name ?? "Unknown source"}</strong> {citation.file_type ? `(${citation.file_type})` : ""}
+                </p>
+                <p className="help-text" style={{ marginBottom: "6px" }}>
+                  chunk #{citation.chunk_index ?? "n/a"} | score {typeof citation.score === "number" ? citation.score.toFixed(3) : "n/a"}
+                </p>
+                {citation.source_path ? (
+                  citation.source_path.startsWith("http://") || citation.source_path.startsWith("https://") ? (
+                    <a href={citation.source_path} target="_blank" rel="noreferrer" className="mono" style={{ fontSize: "0.82rem" }}>
+                      {citation.source_path}
+                    </a>
                   ) : (
-                    "(no source path)"
-                  )}
-                </div>
-                {citation.ingested_at ? (
-                  <div style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
-                    ingested: {new Date(citation.ingested_at).toLocaleString()}
-                  </div>
+                    <p className="mono" style={{ margin: "0 0 8px", fontSize: "0.82rem" }}>
+                      {citation.source_path}
+                    </p>
+                  )
                 ) : null}
-                <div>{String(citation.text ?? "").slice(0, 220)}</div>
-              </li>
+                {citation.ingested_at ? (
+                  <p className="help-text" style={{ marginBottom: "8px" }}>
+                    Ingested: {new Date(citation.ingested_at).toLocaleString()}
+                  </p>
+                ) : null}
+                <p style={{ margin: 0 }}>{String(citation.text ?? "").slice(0, 240)}</p>
+              </article>
             ))}
-          </ul>
-        </section>
-      ) : null}
+          </div>
+        )}
+      </section>
     </main>
   );
 }

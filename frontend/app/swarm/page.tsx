@@ -36,67 +36,97 @@ export default function SwarmPage() {
   }
 
   return (
-    <main style={{ maxWidth: "920px", margin: "40px auto", padding: "0 16px" }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "12px" }}>Swarm</h1>
-      <form onSubmit={onSubmit} style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Research topic..."
-          style={{ flex: 1, padding: "10px", border: "1px solid #94a3b8", borderRadius: "6px" }}
-        />
-        <button type="submit" disabled={loading} style={{ padding: "10px 16px" }}>
-          {loading ? "Running..." : "Run Swarm"}
-        </button>
-        <button type="button" onClick={() => void refreshLive()} style={{ padding: "10px 16px" }}>
-          Refresh Live
-        </button>
-      </form>
-      {error ? <p style={{ color: "#b91c1c" }}>{error}</p> : null}
-      {result ? (
-        <div style={{ border: "1px solid #cbd5e1", borderRadius: "8px", padding: "12px" }}>
-          <p>
-            <strong>Supervisor:</strong> {result.supervisor_summary}
-          </p>
-          {result.workers.map((worker) => (
-            <div key={worker.worker_id} style={{ marginTop: "10px" }}>
-              <p>
-                <strong>{worker.worker_id}</strong>: {worker.summary}
-              </p>
-              <ul>
-                {worker.sources.map((source) => (
-                  <li key={source}>
-                    <a href={source} target="_blank" rel="noreferrer">
-                      {source}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      ) : null}
+    <main className="page-wrap">
+      <section className="page-hero">
+        <p className="page-kicker">Swarm Orchestration</p>
+        <h1 className="page-title">Launch multi-agent research and inspect execution traces.</h1>
+        <p className="page-description">
+          Submit a query to the swarm pipeline, then review supervisor summaries, worker outputs, and live run state.
+        </p>
+      </section>
 
-      {live && live.runs.length > 0 ? (
-        <section style={{ marginTop: "16px", border: "1px solid #cbd5e1", borderRadius: "8px", padding: "12px" }}>
-          <h2 style={{ marginTop: 0 }}>Live Swarm Runs</h2>
-          {live.runs.map((run) => (
-            <div key={run.run_id} style={{ marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid #e2e8f0" }}>
-              <p>
-                <strong>{run.query}</strong> ({new Date(run.created_at).toLocaleString()})
-              </p>
-              <p style={{ margin: "6px 0" }}>{run.supervisor_summary}</p>
-              <div style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
-                {run.trace.map((step, idx) => (
-                  <div key={`${run.run_id}-${idx}`}>
-                    {step.status}: {step.step}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </section>
-      ) : null}
+      <section className="surface stack" aria-label="Run swarm">
+        <form onSubmit={onSubmit} className="stack">
+          <label className="field-label">
+            Research prompt
+            <textarea
+              className="textarea"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Compare local LLM serving strategies for incident-response assistants..."
+            />
+          </label>
+          <div className="toolbar">
+            <button type="submit" disabled={loading || !query.trim()} className="button button-primary">
+              {loading ? "Running swarm..." : "Run swarm"}
+            </button>
+            <button type="button" onClick={() => void refreshLive()} className="button button-muted">
+              Refresh live runs
+            </button>
+          </div>
+        </form>
+        {error ? <p className="error-text">{error}</p> : null}
+      </section>
+
+      <section className="surface stack" aria-label="Swarm result">
+        <h2>Latest result</h2>
+        {!result ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>No completed run yet. Submit a query to populate this panel.</p>
+          </div>
+        ) : (
+          <div className="stack">
+            <p>
+              <strong>Supervisor summary:</strong> {result.supervisor_summary}
+            </p>
+            {result.workers.map((worker) => (
+              <article key={worker.worker_id} className="surface" style={{ padding: "12px" }}>
+                <p style={{ marginBottom: "6px" }}>
+                  <strong>{worker.worker_id}</strong>
+                </p>
+                <p style={{ marginTop: 0 }}>{worker.summary}</p>
+                <ul className="list-reset">
+                  {worker.sources.map((source) => (
+                    <li key={source}>
+                      <a href={source} target="_blank" rel="noreferrer">
+                        {source}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="surface stack" aria-label="Live swarm runs">
+        <h2>Live runs</h2>
+        {!live || live.runs.length === 0 ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>No active or recent live runs available.</p>
+          </div>
+        ) : (
+          <div className="panel-list">
+            {live.runs.map((run) => (
+              <article key={run.run_id} className="surface" style={{ padding: "12px" }}>
+                <p style={{ marginBottom: "6px" }}>
+                  <strong>{run.query}</strong>
+                </p>
+                <p className="help-text">{new Date(run.created_at).toLocaleString()}</p>
+                <p>{run.supervisor_summary}</p>
+                <div className="mono" style={{ fontSize: "0.82rem" }}>
+                  {run.trace.map((step, idx) => (
+                    <div key={`${run.run_id}-${idx}`}>
+                      {step.status}: {step.step}
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   );
 }
