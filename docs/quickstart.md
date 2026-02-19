@@ -62,7 +62,7 @@ Before chat requests, make sure `${LOCALAI_MODELS_PATH}` contains your LocalAI m
 1. Open `/setup`.
 2. Paste API key and click `Save and verify`.
 3. Confirm detected access level (`user` or `admin`).
-4. Review dependency readiness and fix any required failures.
+4. Review dependency + runtime diagnostics and remediation checklist.
 5. Continue to `/settings` and `/chat`.
 
 ## 7) Smoke tests

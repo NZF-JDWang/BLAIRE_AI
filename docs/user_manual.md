@@ -5,13 +5,15 @@
 - Use `/setup` for first-run key setup and verification.
 - You can also set/update key in `Settings` page (`API key` field).
 - This key is sent on frontend API calls and required by backend routes when auth is enabled.
+- The header status strip shows current role, effective search mode, sensitive-action state, and dependency health summary.
 
 ## Chat
 1. Open `/chat`.
 2. Select model class and optional model override.
-3. Send prompt.
-4. Response streams token-by-token.
-5. RAG status and citations appear under the response.
+3. Optionally set request-level controls (`temperature`, `top_p`, `max_tokens`, context window, RAG toggle, retrieval K).
+4. Send prompt.
+5. Response streams token-by-token.
+6. RAG status and citations appear under the response.
 
 Model tips:
 - Overrides are validated against the backend allowlist for the selected class.
@@ -39,9 +41,10 @@ Open `/knowledge` to:
 
 ## Approvals
 Open `/approvals` (admin key required) to:
-- View pending/recent approvals
+- View pending queue and recent history
 - Approve/reject requests
 - Execute approved actions with token/payload hash
+- Load audit events per approval
 
 ## Settings
 - Configure:
