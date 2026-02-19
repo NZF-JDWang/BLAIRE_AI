@@ -209,13 +209,24 @@ On Windows PowerShell:
 ```
 
 This script:
+- runs preflight checks (`ops/preflight.*`) before startup
 - creates `.env` from `.env.example` if missing
 - generates required secrets when empty
 - syncs `DATABASE_URL` password with `POSTGRES_PASSWORD` when default placeholders are present
+- auto-selects compose profiles from env (`gpu`, `mcp`, `search`)
 - warns if configured host ports are already in use
 - starts compose
 - waits for backend readiness
 - runs `/ops/init` automatically (with retry)
+- runs smoke checks (`ops/smoke-test.*`) after init
+
+Standalone checks:
+- Linux/macOS:
+  - `bash ops/preflight.sh`
+  - `bash ops/smoke-test.sh`
+- Windows PowerShell:
+  - `./ops/preflight.ps1`
+  - `./ops/smoke-test.ps1`
 
 ## 13) Optional Automated Deployment
 

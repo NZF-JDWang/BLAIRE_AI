@@ -85,6 +85,52 @@ PY
 
 sync_database_url_password
 
+get_env_value() {
+  local key="$1"
+  local value
+  value="$(grep -E "^${key}=" .env | head -n 1 | cut -d= -f2- || true)"
+  printf '%s' "$value"
+}
+
+is_truthy() {
+  local raw="$1"
+  local normalized
+  normalized="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+  [[ "$normalized" == "1" || "$normalized" == "true" || "$normalized" == "yes" || "$normalized" == "on" ]]
+}
+
+compose_profiles=()
+enable_vllm="$(get_env_value ENABLE_VLLM)"
+if is_truthy "$enable_vllm"; then
+  compose_profiles+=("gpu")
+fi
+
+enable_mcp="$(get_env_value ENABLE_MCP_SERVICES)"
+mcp_obsidian_url="$(get_env_value MCP_OBSIDIAN_URL)"
+mcp_ha_url="$(get_env_value MCP_HA_URL)"
+mcp_homelab_url="$(get_env_value MCP_HOMELAB_URL)"
+if is_truthy "$enable_mcp" \
+  || [[ "$mcp_obsidian_url" == *"obsidian-mcp-server"* ]] \
+  || [[ "$mcp_ha_url" == *"ha-mcp-server"* ]] \
+  || [[ "$mcp_homelab_url" == *"homelab-mcp"* ]]; then
+  compose_profiles+=("mcp")
+fi
+
+search_mode_default="$(get_env_value SEARCH_MODE_DEFAULT)"
+searxng_url="$(get_env_value SEARXNG_URL)"
+if [[ "${search_mode_default:-searxng_only}" != "brave_only" ]] && [[ "$searxng_url" == *"searxng"* ]]; then
+  compose_profiles+=("search")
+fi
+
+compose_cmd=(docker compose)
+for profile in "${compose_profiles[@]}"; do
+  compose_cmd+=(--profile "$profile")
+done
+
+if [[ -f "./ops/preflight.sh" ]]; then
+  bash ./ops/preflight.sh
+fi
+
 if command -v ss >/dev/null 2>&1; then
   frontend_port="$(grep -E '^FRONTEND_HOST_PORT=' .env | head -n 1 | cut -d= -f2-)"
   backend_port="$(grep -E '^BACKEND_HOST_PORT=' .env | head -n 1 | cut -d= -f2-)"
@@ -99,7 +145,7 @@ if command -v ss >/dev/null 2>&1; then
   fi
 fi
 
-docker compose up -d
+"${compose_cmd[@]}" up -d
 
 admin_key="$(grep -E '^ADMIN_API_KEYS=' .env | head -n 1 | cut -d= -f2- | cut -d, -f1)"
 if [[ -z "${admin_key}" ]]; then
@@ -108,7 +154,7 @@ if [[ -z "${admin_key}" ]]; then
 fi
 
 for attempt in {1..30}; do
-  if docker compose exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/health', headers={'X-API-Key':'${admin_key}'}); urllib.request.urlopen(req, timeout=5).read()"; then
+  if "${compose_cmd[@]}" exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/health', headers={'X-API-Key':'${admin_key}'}); urllib.request.urlopen(req, timeout=5).read()"; then
     break
   fi
   if [[ "$attempt" -eq 30 ]]; then
@@ -119,7 +165,7 @@ for attempt in {1..30}; do
 done
 
 for attempt in {1..10}; do
-  if docker compose exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/ops/init', method='POST', headers={'X-API-Key':'${admin_key}'}); urllib.request.urlopen(req, timeout=30).read(); print('ops/init completed')"; then
+  if "${compose_cmd[@]}" exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/ops/init', method='POST', headers={'X-API-Key':'${admin_key}'}); urllib.request.urlopen(req, timeout=30).read(); print('ops/init completed')"; then
     break
   fi
   if [[ "$attempt" -eq 10 ]]; then
@@ -129,4 +175,13 @@ for attempt in {1..10}; do
   sleep 2
 done
 
+if [[ -f "./ops/smoke-test.sh" ]]; then
+  bash ./ops/smoke-test.sh "${compose_profiles[@]}"
+fi
+
+if [[ "${#compose_profiles[@]}" -gt 0 ]]; then
+  echo "Enabled profiles: ${compose_profiles[*]}"
+else
+  echo "Enabled profiles: none"
+fi
 echo "Bootstrap completed successfully."

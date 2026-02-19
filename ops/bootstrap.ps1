@@ -51,6 +51,12 @@ function Get-EnvValue {
     return ($line.Line -replace "^$Key=", "")
 }
 
+function Is-Truthy {
+    param([string]$Value)
+    $normalized = $Value.ToLowerInvariant()
+    return $normalized -in @("1", "true", "yes", "on")
+}
+
 function Sync-DatabaseUrlPassword {
     $postgresPassword = Get-EnvValue "POSTGRES_PASSWORD"
     if ([string]::IsNullOrWhiteSpace($postgresPassword)) {
@@ -110,6 +116,39 @@ Ensure-EnvValue "USER_API_KEYS" (New-SecretHex)
 Ensure-EnvValue "FRONTEND_PROXY_API_KEY" (New-SecretHex)
 Sync-DatabaseUrlPassword
 
+$composeProfiles = @()
+$enableVllm = Get-EnvValue "ENABLE_VLLM"
+if (-not [string]::IsNullOrWhiteSpace($enableVllm) -and (Is-Truthy $enableVllm)) {
+    $composeProfiles += "gpu"
+}
+
+$enableMcp = Get-EnvValue "ENABLE_MCP_SERVICES"
+$mcpObsidian = Get-EnvValue "MCP_OBSIDIAN_URL"
+$mcpHa = Get-EnvValue "MCP_HA_URL"
+$mcpHomelab = Get-EnvValue "MCP_HOMELAB_URL"
+if ((-not [string]::IsNullOrWhiteSpace($enableMcp) -and (Is-Truthy $enableMcp)) -or
+    $mcpObsidian.Contains("obsidian-mcp-server") -or
+    $mcpHa.Contains("ha-mcp-server") -or
+    $mcpHomelab.Contains("homelab-mcp")) {
+    $composeProfiles += "mcp"
+}
+
+$searchModeDefault = Get-EnvValue "SEARCH_MODE_DEFAULT"
+if ([string]::IsNullOrWhiteSpace($searchModeDefault)) { $searchModeDefault = "searxng_only" }
+$searxngUrl = Get-EnvValue "SEARXNG_URL"
+if ($searchModeDefault -ne "brave_only" -and $searxngUrl.Contains("searxng")) {
+    $composeProfiles += "search"
+}
+
+if (Test-Path "./ops/preflight.ps1") {
+    & "./ops/preflight.ps1"
+}
+
+$composeArgs = @("compose")
+foreach ($profile in $composeProfiles) {
+    $composeArgs += @("--profile", $profile)
+}
+
 $frontendPort = Get-EnvValue "FRONTEND_HOST_PORT"
 if ([string]::IsNullOrWhiteSpace($frontendPort)) { $frontendPort = "3000" }
 $backendPort = Get-EnvValue "BACKEND_HOST_PORT"
@@ -123,7 +162,7 @@ if ($listening -match "LISTENING\s+\S+:$backendPort\s") {
     Write-Warning "BACKEND_HOST_PORT $backendPort is already in use"
 }
 
-docker compose up -d
+& docker @composeArgs up -d
 
 $adminKey = (Get-EnvValue "ADMIN_API_KEYS").Split(",")[0].Trim()
 if ([string]::IsNullOrWhiteSpace($adminKey)) {
@@ -132,7 +171,7 @@ if ([string]::IsNullOrWhiteSpace($adminKey)) {
 
 for ($attempt = 1; $attempt -le 30; $attempt++) {
     try {
-        docker compose exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/health', headers={'X-API-Key':'$adminKey'}); urllib.request.urlopen(req, timeout=5).read()"
+        & docker @composeArgs exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/health', headers={'X-API-Key':'$adminKey'}); urllib.request.urlopen(req, timeout=5).read()"
         break
     } catch {
         if ($attempt -eq 30) { throw "Backend did not become ready in time." }
@@ -142,7 +181,7 @@ for ($attempt = 1; $attempt -le 30; $attempt++) {
 
 for ($attempt = 1; $attempt -le 10; $attempt++) {
     try {
-        docker compose exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/ops/init', method='POST', headers={'X-API-Key':'$adminKey'}); urllib.request.urlopen(req, timeout=30).read(); print('ops/init completed')"
+        & docker @composeArgs exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/ops/init', method='POST', headers={'X-API-Key':'$adminKey'}); urllib.request.urlopen(req, timeout=30).read(); print('ops/init completed')"
         break
     } catch {
         if ($attempt -eq 10) { throw "Failed to call /ops/init after retries." }
@@ -150,4 +189,13 @@ for ($attempt = 1; $attempt -le 10; $attempt++) {
     }
 }
 
+if (Test-Path "./ops/smoke-test.ps1") {
+    & "./ops/smoke-test.ps1" -Profiles $composeProfiles
+}
+
+if ($composeProfiles.Count -gt 0) {
+    Write-Host "Enabled profiles: $($composeProfiles -join ', ')"
+} else {
+    Write-Host "Enabled profiles: none"
+}
 Write-Host "Bootstrap completed successfully."

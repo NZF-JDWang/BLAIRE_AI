@@ -76,9 +76,23 @@ Before chat requests, make sure `${LOCALAI_MODELS_PATH}` contains your LocalAI m
 - Linux/macOS: `bash ops/bootstrap.sh`
 - Windows PowerShell: `./ops/bootstrap.ps1`
 - Script actions:
+  - run preflight checks (env completeness, placeholders, writable paths, ports)
   - create `.env` if missing
   - generate required secrets if empty
   - keep `DATABASE_URL` password in sync with `POSTGRES_PASSWORD` when placeholder/default is used
+  - auto-enable compose profiles from env:
+    - `gpu` when `ENABLE_VLLM=true`
+    - `mcp` when MCP is enabled or local MCP sidecars are configured
+    - `search` when search mode requires SearxNG and `SEARXNG_URL` points to local sidecar
   - start compose stack
   - wait for backend readiness
   - run `POST /ops/init` automatically (with retry)
+  - run post-install smoke checks automatically
+
+## Optional standalone validation
+- Linux/macOS:
+  - `bash ops/preflight.sh`
+  - `bash ops/smoke-test.sh`
+- Windows PowerShell:
+  - `./ops/preflight.ps1`
+  - `./ops/smoke-test.ps1`
