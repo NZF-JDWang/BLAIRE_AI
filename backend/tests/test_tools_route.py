@@ -10,7 +10,7 @@ from app.services.approval_service import canonical_payload_hash
 def _set_required_env() -> None:
     os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://user:pass@localhost:5432/db")
     os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
-    os.environ.setdefault("OLLAMA_BASE_URL", "http://localhost:11434")
+    os.environ.setdefault("INFERENCE_BASE_URL", "http://localhost:11434")
     os.environ.setdefault("MCP_OBSIDIAN_URL", "http://localhost:3000")
     os.environ.setdefault("MCP_HA_URL", "http://localhost:3001")
     os.environ.setdefault("API_ALLOWED_HOSTS", "testserver,localhost,127.0.0.1,backend")
@@ -107,3 +107,4 @@ def test_tools_list_exposes_all_action_classes() -> None:
     assert classes["echo_text"] == "local_safe"
     assert classes["filesystem_write"] == "local_sensitive"
     assert classes["network_probe"] == "network_sensitive"
+

@@ -9,7 +9,7 @@ from app.services.init_service import InitService
 def _settings() -> Settings:
     os.environ["DATABASE_URL"] = "postgresql+psycopg://user:pass@localhost:5432/db"
     os.environ["QDRANT_URL"] = "http://localhost:6333"
-    os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+    os.environ["INFERENCE_BASE_URL"] = "http://localhost:11434"
     os.environ["MCP_OBSIDIAN_URL"] = "http://localhost:3000"
     os.environ["MCP_HA_URL"] = "http://localhost:3001"
     os.environ["MODEL_GENERAL_DEFAULT"] = "qwen2.5:7b-instruct"
@@ -49,3 +49,4 @@ async def test_init_service_runs_all_steps(monkeypatch) -> None:
     assert result["metadata_schema_ready"] is True
     assert result["qdrant_collection_ready"] is True
     assert calls == ["approval", "preferences", "metadata", "qdrant"]
+

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 def _set_required_env() -> None:
     os.environ["DATABASE_URL"] = "postgresql+psycopg://user:pass@localhost:5432/db"
     os.environ["QDRANT_URL"] = "http://localhost:6333"
-    os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+    os.environ["INFERENCE_BASE_URL"] = "http://localhost:11434"
     os.environ["MCP_OBSIDIAN_URL"] = "http://localhost:3000"
     os.environ["MCP_HA_URL"] = "http://localhost:3001"
     os.environ["API_ALLOWED_HOSTS"] = "testserver,localhost,127.0.0.1,backend"
@@ -61,6 +61,7 @@ def test_models_endpoint_returns_installed_and_allowlist(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["model_allow_any_inference"] is True
-    assert payload["model_allow_any_ollama"] is True
+    assert payload["model_allow_any_inference"] is True
     assert "dolphin-llama3:8b-v2.9-q4_K_M" in payload["installed_models"]
     assert "dolphin-llama3:8b-v2.9-q4_K_M" in payload["allowlist"]["general"]
+

@@ -115,14 +115,6 @@ export async function getRuntimeOptionsTyped(): Promise<RuntimeOptions> {
   return data as RuntimeOptions;
 }
 
-export async function getPendingApprovals(limit = 50): Promise<ApprovalRecord[]> {
-  const response = await apiFetch(`/approvals/pending?limit=${limit}`, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Pending approvals request failed: ${response.status}`);
-  }
-  return response.json();
-}
-
 export async function getRecentApprovals(limit = 100): Promise<ApprovalRecord[]> {
   const response = await apiFetch(`/approvals/recent?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) {

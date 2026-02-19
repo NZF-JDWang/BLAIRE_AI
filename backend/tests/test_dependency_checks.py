@@ -10,7 +10,7 @@ from app.services.dependency_checks import collect_dependency_status
 def _settings() -> Settings:
     os.environ["DATABASE_URL"] = "postgresql+psycopg://user:pass@localhost:5432/db"
     os.environ["QDRANT_URL"] = "http://localhost:6333"
-    os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+    os.environ["INFERENCE_BASE_URL"] = "http://localhost:11434"
     os.environ["MCP_OBSIDIAN_URL"] = "http://localhost:3000"
     os.environ["MCP_HA_URL"] = "http://localhost:3001"
     os.environ["MODEL_GENERAL_DEFAULT"] = "qwen2.5:7b-instruct"
@@ -32,4 +32,5 @@ async def test_dependency_status_includes_brave_config(monkeypatch) -> None:
     brave = [dep for dep in status.dependencies if dep.name == "brave_api_key"][0]
     assert brave.ok is False
     assert brave.detail == "missing"
+
 

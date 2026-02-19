@@ -19,4 +19,3 @@ class ModelsResponse(BaseModel):
     allowlist: dict[str, list[str]]
     defaults: dict[str, str | None]
     model_allow_any_inference: bool
-    model_allow_any_ollama: bool

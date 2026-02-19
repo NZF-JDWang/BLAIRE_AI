@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 def _set_required_env(drop_folder: Path) -> None:
     os.environ["DATABASE_URL"] = "postgresql+psycopg://user:pass@localhost:5432/db"
     os.environ["QDRANT_URL"] = "http://localhost:6333"
-    os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+    os.environ["INFERENCE_BASE_URL"] = "http://localhost:11434"
     os.environ["MCP_OBSIDIAN_URL"] = "http://localhost:3000"
     os.environ["MCP_HA_URL"] = "http://localhost:3001"
     os.environ["API_ALLOWED_HOSTS"] = "testserver,localhost,127.0.0.1,backend"
@@ -37,4 +37,5 @@ def test_knowledge_upload_saves_file(tmp_path: Path) -> None:
     assert payload["bytes"] > 0
     stored = tmp_path / payload["stored_filename"]
     assert stored.exists()
+
 

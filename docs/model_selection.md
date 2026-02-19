@@ -41,7 +41,6 @@ MODEL_DISALLOWLIST=old-model:7b
   - `allowlist`
   - `defaults`
   - `model_allow_any_inference`
-  - `model_allow_any_ollama`
 
 ## Quick verification
 1. Check models:

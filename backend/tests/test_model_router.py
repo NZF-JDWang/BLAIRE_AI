@@ -7,7 +7,7 @@ from app.services.model_router import ModelRouter
 def _settings(*, allow_any_inference: bool = False) -> Settings:
     os.environ["DATABASE_URL"] = "postgresql+psycopg://user:pass@localhost:5432/db"
     os.environ["QDRANT_URL"] = "http://localhost:6333"
-    os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+    os.environ["INFERENCE_BASE_URL"] = "http://localhost:11434"
     os.environ["MCP_OBSIDIAN_URL"] = "http://localhost:3000"
     os.environ["MCP_HA_URL"] = "http://localhost:3001"
     os.environ["MODEL_GENERAL_DEFAULT"] = "qwen2.5:7b-instruct"
@@ -84,3 +84,4 @@ def test_select_model_rejects_installed_override_when_allow_any_disabled(monkeyp
     assert selection.model_name == "qwen2.5:7b-instruct"
     assert selection.reason == "class_default"
     assert selection.rejected_candidates == ["session_override_disallowed:dolphin-llama3:8b-v2.9-q4_K_M"]
+

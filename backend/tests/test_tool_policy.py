@@ -8,7 +8,7 @@ from app.tools.base import ToolSpec
 def test_network_tool_requires_allowlisted_host() -> None:
     os.environ["DATABASE_URL"] = "postgresql+psycopg://user:pass@localhost:5432/db"
     os.environ["QDRANT_URL"] = "http://localhost:6333"
-    os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+    os.environ["INFERENCE_BASE_URL"] = "http://localhost:11434"
     os.environ["MCP_OBSIDIAN_URL"] = "http://localhost:3000"
     os.environ["MCP_HA_URL"] = "http://localhost:3001"
     os.environ["MODEL_GENERAL_DEFAULT"] = "qwen2.5:7b-instruct"
@@ -33,4 +33,5 @@ def test_network_tool_requires_allowlisted_host() -> None:
         assert False, "Expected ToolPolicyError"
     except ToolPolicyError:
         assert True
+
 

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     inference_base_url: str = Field(
         default="http://localai:8080",
         alias="INFERENCE_BASE_URL",
-        validation_alias=AliasChoices("INFERENCE_BASE_URL", "LOCALAI_BASE_URL", "OLLAMA_BASE_URL"),
     )
     vllm_base_url: str = Field(default="http://vllm:8000", alias="VLLM_BASE_URL")
 
@@ -59,14 +58,12 @@ class Settings(BaseSettings):
     model_allow_any_inference: bool = Field(
         default=False,
         alias="MODEL_ALLOW_ANY_INFERENCE",
-        validation_alias=AliasChoices("MODEL_ALLOW_ANY_INFERENCE", "MODEL_ALLOW_ANY_OLLAMA"),
     )
     model_allowlist_extra_general: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_GENERAL")
     model_allowlist_extra_vision: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_VISION")
     model_allowlist_extra_embedding: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_EMBEDDING")
     model_allowlist_extra_code: str = Field(default="", alias="MODEL_ALLOWLIST_EXTRA_CODE")
     model_disallowlist: str = Field(default="", alias="MODEL_DISALLOWLIST")
-    allow_any_vision_models: bool = Field(default=False, alias="ALLOW_ANY_VISION_MODELS")
     qdrant_collection_name: str = Field(default="knowledge_multimodal", alias="QDRANT_COLLECTION_NAME")
     qdrant_embedding_dim: int = Field(default=768, alias="QDRANT_EMBEDDING_DIM")
     max_upload_mb: int = Field(default=25, alias="MAX_UPLOAD_MB")
@@ -199,15 +196,6 @@ class Settings(BaseSettings):
 
     def model_disallowlist_list(self) -> list[str]:
         return [model.strip() for model in self.model_disallowlist.split(",") if model.strip()]
-
-    @property
-    def ollama_base_url(self) -> str:
-        return self.inference_base_url
-
-    @property
-    def model_allow_any_ollama(self) -> bool:
-        return self.model_allow_any_inference
-
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
