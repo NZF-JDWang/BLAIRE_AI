@@ -8,18 +8,21 @@ import {
   formatApiError,
   getBrowserApiKey,
   getDependencyStatus,
+  getIntegrationsStatus,
   getRuntimeConfigAudit,
   getMyPreferences,
   getModelsInfo,
   getRuntimeConfig,
   getRuntimeSystemSummary,
   getRuntimeOptionsTyped,
+  IntegrationsStatus,
   RuntimeConfigAuditEvent,
   RuntimeConfigBundle,
   ModelsInfo,
   RuntimeOptions,
   RuntimeSystemSummary,
   setBrowserApiKey,
+  pullModel,
   updateRuntimeConfig,
   updateMyPreferences,
 } from "@/lib/api";
@@ -36,7 +39,7 @@ type Preferences = {
   retrievalK: number;
 };
 
-type SettingsTab = "identity" | "model" | "runtime" | "readiness";
+type SettingsTab = "identity" | "model" | "runtime" | "readiness" | "integrations";
 
 export default function SettingsPage() {
   const [options, setOptions] = useState<RuntimeOptions | null>(null);
@@ -45,6 +48,7 @@ export default function SettingsPage() {
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigBundle | null>(null);
   const [runtimeAudit, setRuntimeAudit] = useState<RuntimeConfigAuditEvent[]>([]);
   const [systemSummary, setSystemSummary] = useState<RuntimeSystemSummary | null>(null);
+  const [integrationsStatus, setIntegrationsStatus] = useState<IntegrationsStatus | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [prefs, setPrefs] = useState<Preferences>({
     searchMode: "searxng_only",
@@ -63,6 +67,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savingRuntime, setSavingRuntime] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [pullingModel, setPullingModel] = useState(false);
+  const [modelPullName, setModelPullName] = useState("");
   const [activeTab, setActiveTab] = useState<SettingsTab>("identity");
 
   useEffect(() => {
@@ -90,14 +96,21 @@ export default function SettingsPage() {
         }
         throw err;
       }),
+      getIntegrationsStatus().catch((err) => {
+        if (err instanceof ApiRequestError && err.status === 403) {
+          return null;
+        }
+        throw err;
+      }),
     ])
-      .then(([runtime, current, deps, config, audit, models, summary]) => {
+      .then(([runtime, current, deps, config, audit, models, summary, integrations]) => {
         setOptions(runtime);
         setModelsInfo(models);
         setDependencies(deps);
         setRuntimeConfig(config);
         setRuntimeAudit(audit);
         setSystemSummary(summary);
+        setIntegrationsStatus(integrations);
         setLoadError("");
         setPrefs({
           searchMode: current.search_mode,
@@ -118,6 +131,7 @@ export default function SettingsPage() {
         setRuntimeConfig(null);
         setRuntimeAudit([]);
         setSystemSummary(null);
+        setIntegrationsStatus(null);
         setLoadError(formatApiError(err, "Failed to load runtime options"));
       });
   }, []);
@@ -188,6 +202,25 @@ export default function SettingsPage() {
     }
   }
 
+  async function requestModelPull() {
+    if (!modelPullName.trim()) {
+      setError("Model name is required for pull.");
+      return;
+    }
+    setPullingModel(true);
+    setError("");
+    setStatus("");
+    try {
+      const result = await pullModel(modelPullName.trim());
+      setStatus(`${result.status}: ${result.model_name}`);
+      setModelsInfo(await getModelsInfo());
+    } catch (err) {
+      setError(formatApiError(err, "Model pull failed"));
+    } finally {
+      setPullingModel(false);
+    }
+  }
+
   const models = options?.model_allowlist[prefs.modelClass] ?? [];
 
   return (
@@ -213,6 +246,9 @@ export default function SettingsPage() {
           </button>
           <button className={activeTab === "readiness" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("readiness")}>
             MCP readiness
+          </button>
+          <button className={activeTab === "integrations" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("integrations")}>
+            Integrations
           </button>
         </div>
       </section>
@@ -271,6 +307,18 @@ export default function SettingsPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="toolbar">
+              <input
+                className="input mono"
+                value={modelPullName}
+                onChange={(e) => setModelPullName(e.target.value)}
+                placeholder="model to pull (admin)"
+                style={{ maxWidth: "320px" }}
+              />
+              <button className="button button-muted" onClick={() => void requestModelPull()} disabled={pullingModel}>
+                {pullingModel ? "Pulling..." : "Pull model"}
+              </button>
             </div>
           </>
         ) : null}
@@ -811,6 +859,50 @@ export default function SettingsPage() {
             )}
           </>
         )}
+      </section>
+      ) : null}
+
+      {activeTab === "integrations" ? (
+      <section className="surface stack" aria-label="Integrations status">
+        <h2>Integrations status</h2>
+        {!integrationsStatus ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>Integrations status unavailable for this key.</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Integration</th>
+                  <th>Configured</th>
+                  <th>Endpoint/Host</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Google OAuth</td>
+                  <td>{String(integrationsStatus.google_oauth_configured)}</td>
+                  <td className="mono">{integrationsStatus.google_api_base}</td>
+                </tr>
+                <tr>
+                  <td>IMAP</td>
+                  <td>{String(integrationsStatus.imap_configured)}</td>
+                  <td className="mono">{integrationsStatus.imap_host || "(unset)"}</td>
+                </tr>
+                <tr>
+                  <td>Home Assistant</td>
+                  <td>{String(integrationsStatus.home_assistant_configured)}</td>
+                  <td className="mono">{integrationsStatus.home_assistant_url}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="help-text">
+          Tokens/secrets are intentionally not returned by the API. Configure credentials in `.env` (restart required),
+          then verify here.
+        </p>
       </section>
       ) : null}
     </main>

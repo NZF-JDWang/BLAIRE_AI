@@ -1,17 +1,28 @@
+import httpx
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.models.runtime_diagnostics import RuntimeDiagnosticsResponse
-from app.models.runtime_options import ModelsResponse, RuntimeOptionsResponse
+from app.models.runtime_options import ModelPullRequest, ModelPullResponse, ModelsResponse, RuntimeOptionsResponse
 from app.models.runtime_system import RuntimeSystemSummaryResponse
 from app.services.model_router import ModelRouter
 from app.services.runtime_config_service import RuntimeConfigService
 from app.tools.registry import ToolRegistry
 
 router = APIRouter(tags=["runtime"])
+
+
+async def _pull_model_via_inference(inference_base_url: str, model_name: str) -> str:
+    endpoint = inference_base_url.rstrip("/") + "/api/pull"
+    payload = {"model": model_name, "stream": False}
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        response = await client.post(endpoint, json=payload)
+    if response.status_code >= 400:
+        raise ValueError(f"Pull failed with status {response.status_code}")
+    return "Pull requested successfully"
 
 
 @router.get("/runtime/options", response_model=RuntimeOptionsResponse)
@@ -63,6 +74,24 @@ async def models(
         },
         model_allow_any_inference=settings.model_allow_any_inference,
     )
+
+
+@router.post("/models/pull", response_model=ModelPullResponse)
+async def pull_model(
+    request: ModelPullRequest,
+    _principal: Principal = Depends(require_roles("admin")),
+) -> ModelPullResponse:
+    settings = get_settings()
+    model_name = request.model_name.strip()
+    if not model_name:
+        raise HTTPException(status_code=400, detail="model_name is required")
+    try:
+        detail = await _pull_model_via_inference(settings.inference_base_url, model_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Model pull failed: {exc}") from exc
+    return ModelPullResponse(status="accepted", model_name=model_name, detail=detail)
 
 
 @router.get("/runtime/diagnostics", response_model=RuntimeDiagnosticsResponse)

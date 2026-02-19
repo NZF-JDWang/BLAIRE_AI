@@ -19,3 +19,13 @@ class ModelsResponse(BaseModel):
     allowlist: dict[str, list[str]]
     defaults: dict[str, str | None]
     model_allow_any_inference: bool
+
+
+class ModelPullRequest(BaseModel):
+    model_name: str
+
+
+class ModelPullResponse(BaseModel):
+    status: str
+    model_name: str
+    detail: str

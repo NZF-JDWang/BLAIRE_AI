@@ -93,3 +93,16 @@ def test_imap_messages(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["messages"][0]["subject"] == "hello"
 
+
+def test_integrations_status_admin_only() -> None:
+    get_settings.cache_clear()
+    client = TestClient(create_app())
+    user_response = client.get("/integrations/status", headers={"X-API-Key": "test-user-key"})
+    assert user_response.status_code == 403
+
+    admin_response = client.get("/integrations/status", headers={"X-API-Key": "test-admin-key"})
+    assert admin_response.status_code == 200
+    payload = admin_response.json()
+    assert payload["google_oauth_configured"] is True
+    assert payload["imap_configured"] is True
+

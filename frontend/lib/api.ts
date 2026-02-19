@@ -48,6 +48,15 @@ export type ModelsInfo = {
   model_allow_any_inference: boolean;
 };
 
+export type IntegrationsStatus = {
+  google_oauth_configured: boolean;
+  google_api_base: string;
+  imap_configured: boolean;
+  imap_host: string;
+  home_assistant_configured: boolean;
+  home_assistant_url: string;
+};
+
 export type RuntimeDiagnostics = {
   role: string;
   require_auth: boolean;
@@ -294,6 +303,18 @@ export async function getModelsInfo(): Promise<ModelsInfo> {
   return response.json();
 }
 
+export async function pullModel(modelName: string): Promise<{ status: string; model_name: string; detail: string }> {
+  const response = await apiFetch("/models/pull", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model_name: modelName }),
+  });
+  if (!response.ok) {
+    throw await buildApiError(response, "Model pull request failed");
+  }
+  return response.json();
+}
+
 export async function getOpsStatus(): Promise<OpsStatus> {
   const response = await apiFetch("/ops/status", { cache: "no-store" });
   if (!response.ok) {
@@ -306,6 +327,14 @@ export async function getRuntimeSystemSummary(): Promise<RuntimeSystemSummary> {
   const response = await apiFetch("/runtime/system-summary", { cache: "no-store" });
   if (!response.ok) {
     throw await buildApiError(response, "Runtime system summary request failed");
+  }
+  return response.json();
+}
+
+export async function getIntegrationsStatus(): Promise<IntegrationsStatus> {
+  const response = await apiFetch("/integrations/status", { cache: "no-store" });
+  if (!response.ok) {
+    throw await buildApiError(response, "Integrations status request failed");
   }
   return response.json();
 }

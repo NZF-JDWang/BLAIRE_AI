@@ -132,3 +132,21 @@ def test_runtime_system_summary_admin_only() -> None:
     payload = admin_response.json()
     assert payload["app_env"] in {"production", "development", "staging", "test"}
     assert payload["restart_required_note"].startswith("These values come from environment")
+
+
+def test_models_pull_admin_only_and_success(monkeypatch) -> None:
+    async def fake_pull(inference_base_url: str, model_name: str):  # noqa: ANN001, ANN202
+        _ = inference_base_url
+        assert model_name == "qwen2.5:7b-instruct"
+        return "Pull requested successfully"
+
+    monkeypatch.setattr("app.api.routes.runtime_options._pull_model_via_inference", fake_pull)
+    client = _client()
+    user_response = client.post("/models/pull", headers={"X-API-Key": "test-user-key"}, json={"model_name": "qwen2.5:7b-instruct"})
+    assert user_response.status_code == 403
+
+    admin_response = client.post("/models/pull", headers={"X-API-Key": "test-admin-key"}, json={"model_name": "qwen2.5:7b-instruct"})
+    assert admin_response.status_code == 200
+    payload = admin_response.json()
+    assert payload["status"] == "accepted"
+    assert payload["model_name"] == "qwen2.5:7b-instruct"

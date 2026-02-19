@@ -9,6 +9,7 @@ from app.models.integrations import (
     CalendarEventsResponse,
     GmailSendRequest,
     ImapMessagesResponse,
+    IntegrationsStatusResponse,
     IntegrationActionResponse,
 )
 from app.services.approval_service import ApprovalService, canonical_payload_hash
@@ -23,6 +24,21 @@ def _google_service() -> GoogleIntegrationService:
     if not token:
         raise HTTPException(status_code=503, detail="Google OAuth token is not configured")
     return GoogleIntegrationService(api_base=settings.google_api_base, oauth_token=token)
+
+
+@router.get("/integrations/status", response_model=IntegrationsStatusResponse)
+async def integrations_status(
+    _principal: Principal = Depends(require_roles("admin")),
+) -> IntegrationsStatusResponse:
+    settings = get_settings()
+    return IntegrationsStatusResponse(
+        google_oauth_configured=bool(settings.google_oauth_token and settings.google_oauth_token.get_secret_value()),
+        google_api_base=settings.google_api_base,
+        imap_configured=bool(settings.imap_host and settings.imap_user and settings.imap_password),
+        imap_host=settings.imap_host,
+        home_assistant_configured=bool(settings.mcp_ha_url.strip()),
+        home_assistant_url=settings.mcp_ha_url,
+    )
 
 
 @router.get("/integrations/google/calendar/events", response_model=CalendarEventsResponse)

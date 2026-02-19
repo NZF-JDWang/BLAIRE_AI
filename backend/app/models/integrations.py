@@ -27,3 +27,12 @@ class IntegrationActionResponse(BaseModel):
 
 class ImapMessagesResponse(BaseModel):
     messages: list[dict[str, Any]]
+
+
+class IntegrationsStatusResponse(BaseModel):
+    google_oauth_configured: bool
+    google_api_base: str
+    imap_configured: bool
+    imap_host: str
+    home_assistant_configured: bool
+    home_assistant_url: str

@@ -16,6 +16,7 @@ Auth: `X-API-Key` when `REQUIRE_AUTH=true`.
 - `PUT /runtime/config` (admin)
 - `GET /runtime/config/audit` (admin)
 - `GET /models`
+- `POST /models/pull` (admin, Ollama-compatible backends)
 
 ## Search
 - `POST /search`
@@ -70,6 +71,7 @@ Auth: `X-API-Key` when `REQUIRE_AUTH=true`.
 - `POST /voice/stt`
 
 ## Integrations
+- `GET /integrations/status` (admin)
 - `GET /integrations/google/calendar/events`
 - `POST /integrations/google/gmail/send`
 - `GET /integrations/imap/messages`
