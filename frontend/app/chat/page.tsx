@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { getMyPreferences, getRuntimeOptionsTyped, RuntimeOptions } from "@/lib/api";
+import { apiFetch, formatApiError, getMyPreferences, getRuntimeOptionsTyped, RuntimeOptions } from "@/lib/api";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -19,8 +19,6 @@ type Citation = {
   ingested_at?: string;
 };
 
-const API_BASE = "/api";
-
 async function streamChat(params: {
   messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;
   modelClass: string;
@@ -29,7 +27,7 @@ async function streamChat(params: {
   onMeta: (meta: { citations?: Citation[]; rag_status?: string; rag_error?: string | null }) => void;
   onDone: () => void;
 }): Promise<void> {
-  const response = await fetch(`${API_BASE}/chat`, {
+  const response = await apiFetch("/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -152,7 +150,7 @@ export default function ChatPage() {
         onDone: () => undefined,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
+      setError(formatApiError(err, "Request failed"));
     } finally {
       setLoading(false);
     }

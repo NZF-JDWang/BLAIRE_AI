@@ -49,6 +49,47 @@ export type UserPreferences = {
   updated_at: string;
 };
 
+export type RuntimeConfigEffective = {
+  search_mode_default: string;
+  sensitive_actions_enabled: boolean;
+  approval_token_ttl_minutes: number;
+  allowed_network_hosts: string[];
+  allowed_network_tools: string[];
+  allowed_obsidian_paths: string[];
+  allowed_ha_operations: string[];
+  allowed_homelab_operations: string[];
+};
+
+export type RuntimeConfigOverrides = {
+  search_mode_default: string | null;
+  sensitive_actions_enabled: boolean | null;
+  approval_token_ttl_minutes: number | null;
+  allowed_network_hosts: string | null;
+  allowed_network_tools: string | null;
+  allowed_obsidian_paths: string | null;
+  allowed_ha_operations: string | null;
+  allowed_homelab_operations: string | null;
+  updated_by: string | null;
+  updated_at: string | null;
+};
+
+export type RuntimeConfigBundle = {
+  effective: RuntimeConfigEffective;
+  overrides: RuntimeConfigOverrides;
+};
+
+export class ApiRequestError extends Error {
+  status: number;
+  detail: string | null;
+
+  constructor(status: number, detail: string | null, message: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 function apiBaseUrl(): string {
   if (typeof window === "undefined") {
     return process.env.INTERNAL_API_BASE_URL ?? "http://backend:8000";
@@ -70,10 +111,12 @@ export function setBrowserApiKey(key: string) {
   if (!trimmed) {
     window.localStorage.removeItem("blaire_api_key");
     document.cookie = "blaire_api_key=; Path=/; Max-Age=0; SameSite=Lax";
+    window.dispatchEvent(new Event("blaire-api-key-changed"));
     return;
   }
   window.localStorage.setItem("blaire_api_key", trimmed);
   document.cookie = `blaire_api_key=${encodeURIComponent(trimmed)}; Path=/; SameSite=Lax`;
+  window.dispatchEvent(new Event("blaire-api-key-changed"));
 }
 
 export function getBrowserApiKey(): string {
@@ -83,7 +126,37 @@ export function getBrowserApiKey(): string {
   return window.localStorage.getItem("blaire_api_key") ?? "";
 }
 
-async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+async function buildApiError(response: Response, label: string): Promise<ApiRequestError> {
+  let detail: string | null = null;
+  try {
+    const data = (await response.json()) as { detail?: string };
+    if (typeof data.detail === "string") {
+      detail = data.detail;
+    }
+  } catch {
+    detail = null;
+  }
+  return new ApiRequestError(
+    response.status,
+    detail,
+    detail ? `${label}: ${response.status} (${detail})` : `${label}: ${response.status}`,
+  );
+}
+
+export function formatApiError(err: unknown, fallback: string): string {
+  if (err instanceof ApiRequestError) {
+    if (err.status === 401) {
+      return "Missing API key. Open Settings and add a valid user or admin key.";
+    }
+    if (err.status === 403) {
+      return err.detail ? `Access denied: ${err.detail}` : "Access denied. Check key role and allowlists.";
+    }
+    return err.detail ? `${fallback}: ${err.detail}` : `${fallback}: ${err.status}`;
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers ?? {});
   for (const [key, value] of Object.entries(apiKeyHeader())) {
     headers.set(key, value);
@@ -97,7 +170,7 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
 export async function getHealth(): Promise<unknown> {
   const response = await apiFetch("/health", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Health check failed: ${response.status}`);
+    throw await buildApiError(response, "Health check failed");
   }
   return response.json();
 }
@@ -105,7 +178,7 @@ export async function getHealth(): Promise<unknown> {
 export async function getRuntimeOptions(): Promise<unknown> {
   const response = await apiFetch("/runtime/options", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Runtime options request failed: ${response.status}`);
+    throw await buildApiError(response, "Runtime options request failed");
   }
   return response.json();
 }
@@ -118,7 +191,7 @@ export async function getRuntimeOptionsTyped(): Promise<RuntimeOptions> {
 export async function getRecentApprovals(limit = 100): Promise<ApprovalRecord[]> {
   const response = await apiFetch(`/approvals/recent?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Recent approvals request failed: ${response.status}`);
+    throw await buildApiError(response, "Recent approvals request failed");
   }
   return response.json();
 }
@@ -126,7 +199,7 @@ export async function getRecentApprovals(limit = 100): Promise<ApprovalRecord[]>
 export async function getApprovalAudit(approvalId: string, limit = 200): Promise<ApprovalAuditEvent[]> {
   const response = await apiFetch(`/approvals/${approvalId}/audit?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Approval audit request failed: ${response.status}`);
+    throw await buildApiError(response, "Approval audit request failed");
   }
   return response.json();
 }
@@ -141,7 +214,7 @@ export async function approveApproval(approvalId: string): Promise<{
     headers: { "Content-Type": "application/json" }
   });
   if (!response.ok) {
-    throw new Error(`Approve request failed: ${response.status}`);
+    throw await buildApiError(response, "Approve request failed");
   }
   return response.json();
 }
@@ -153,7 +226,7 @@ export async function rejectApproval(approvalId: string, reason: string): Promis
     body: JSON.stringify({ reason })
   });
   if (!response.ok) {
-    throw new Error(`Reject request failed: ${response.status}`);
+    throw await buildApiError(response, "Reject request failed");
   }
   return response.json();
 }
@@ -168,7 +241,7 @@ export async function executeApproval(approvalId: string, executionToken: string
     })
   });
   if (!response.ok) {
-    throw new Error(`Execute request failed: ${response.status}`);
+    throw await buildApiError(response, "Execute request failed");
   }
   return response.json();
 }
@@ -186,9 +259,21 @@ export type KnowledgeStatus = {
 export async function getKnowledgeStatus(): Promise<KnowledgeStatus> {
   const response = await apiFetch("/knowledge/status", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Knowledge status request failed: ${response.status}`);
+    throw await buildApiError(response, "Knowledge status request failed");
   }
   return response.json();
+}
+
+export async function uploadKnowledgeFile(file: File): Promise<void> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await apiFetch("/knowledge/upload", {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) {
+    throw await buildApiError(response, "Upload failed");
+  }
 }
 
 export async function reindexObsidian(fullRescan = false): Promise<{
@@ -203,7 +288,7 @@ export async function reindexObsidian(fullRescan = false): Promise<{
     body: JSON.stringify({ full_rescan: fullRescan, limit: 5000 }),
   });
   if (!response.ok) {
-    throw new Error(`Obsidian reindex failed: ${response.status}`);
+    throw await buildApiError(response, "Obsidian reindex failed");
   }
   return response.json();
 }
@@ -268,7 +353,7 @@ export async function runResearch(query: string, searchMode?: string): Promise<R
     })
   });
   if (!response.ok) {
-    throw new Error(`Research request failed: ${response.status}`);
+    throw await buildApiError(response, "Research request failed");
   }
   return response.json();
 }
@@ -276,7 +361,7 @@ export async function runResearch(query: string, searchMode?: string): Promise<R
 export async function getLiveSwarmRuns(limit = 20): Promise<SwarmLiveResponse> {
   const response = await apiFetch(`/agents/swarm/live?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Live swarm request failed: ${response.status}`);
+    throw await buildApiError(response, "Live swarm request failed");
   }
   return response.json();
 }
@@ -292,7 +377,7 @@ export async function runSearch(query: string, mode?: string): Promise<{
     body: JSON.stringify({ query, mode: mode ?? null, limit: 10 }),
   });
   if (!response.ok) {
-    throw new Error(`Search request failed: ${response.status}`);
+    throw await buildApiError(response, "Search request failed");
   }
   return response.json();
 }
@@ -302,13 +387,15 @@ export type DependencyStatus = {
     name: string;
     ok: boolean;
     detail: string;
+    required: boolean;
+    enabled: boolean;
   }>;
 };
 
 export async function getDependencyStatus(): Promise<DependencyStatus> {
   const response = await apiFetch("/health/dependencies", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Dependency status request failed: ${response.status}`);
+    throw await buildApiError(response, "Dependency status request failed");
   }
   return response.json();
 }
@@ -316,7 +403,7 @@ export async function getDependencyStatus(): Promise<DependencyStatus> {
 export async function getMyPreferences(): Promise<UserPreferences> {
   const response = await apiFetch("/preferences/me", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Preferences request failed: ${response.status}`);
+    throw await buildApiError(response, "Preferences request failed");
   }
   return response.json();
 }
@@ -332,7 +419,36 @@ export async function updateMyPreferences(update: {
     body: JSON.stringify(update),
   });
   if (!response.ok) {
-    throw new Error(`Preferences update failed: ${response.status}`);
+    throw await buildApiError(response, "Preferences update failed");
+  }
+  return response.json();
+}
+
+export async function getRuntimeConfig(): Promise<RuntimeConfigBundle> {
+  const response = await apiFetch("/runtime/config", { cache: "no-store" });
+  if (!response.ok) {
+    throw await buildApiError(response, "Runtime config request failed");
+  }
+  return response.json();
+}
+
+export async function updateRuntimeConfig(update: {
+  search_mode_default: string | null;
+  sensitive_actions_enabled: boolean | null;
+  approval_token_ttl_minutes: number | null;
+  allowed_network_hosts: string | null;
+  allowed_network_tools: string | null;
+  allowed_obsidian_paths: string | null;
+  allowed_ha_operations: string | null;
+  allowed_homelab_operations: string | null;
+}): Promise<RuntimeConfigBundle> {
+  const response = await apiFetch("/runtime/config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(update),
+  });
+  if (!response.ok) {
+    throw await buildApiError(response, "Runtime config update failed");
   }
   return response.json();
 }

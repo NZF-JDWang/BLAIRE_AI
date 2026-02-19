@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-import { runSearch } from "@/lib/api";
+import { formatApiError, runSearch } from "@/lib/api";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -22,7 +22,7 @@ export default function SearchPage() {
       const data = await runSearch(query.trim(), mode || undefined);
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Search failed");
+      setError(formatApiError(err, "Search failed"));
     }
   }
 

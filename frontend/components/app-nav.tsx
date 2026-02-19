@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/approvals", label: "Approvals" },
   { href: "/settings", label: "Settings" },
   { href: "/search", label: "Search" },
+  { href: "/capabilities", label: "Capabilities" },
 ] as const;
 
 export function AppNav() {

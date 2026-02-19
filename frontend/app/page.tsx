@@ -101,6 +101,10 @@ export default async function HomePage() {
             <p className="quick-link-title">Search</p>
             <p className="quick-link-copy">Direct search endpoint testing with provider mode control.</p>
           </Link>
+          <Link href="/capabilities" className="quick-link">
+            <p className="quick-link-title">Capabilities</p>
+            <p className="quick-link-copy">Inspect tools, MCP connectivity, and dependency readiness.</p>
+          </Link>
         </div>
       </section>
     </main>

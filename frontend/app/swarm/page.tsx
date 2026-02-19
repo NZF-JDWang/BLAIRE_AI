@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-import { getLiveSwarmRuns, ResearchResponse, runResearch, SwarmLiveResponse } from "@/lib/api";
+import { formatApiError, getLiveSwarmRuns, ResearchResponse, runResearch, SwarmLiveResponse } from "@/lib/api";
 
 export default function SwarmPage() {
   const [query, setQuery] = useState("");
@@ -29,7 +29,7 @@ export default function SwarmPage() {
       setResult(response);
       await refreshLive();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Research failed");
+      setError(formatApiError(err, "Research failed"));
     } finally {
       setLoading(false);
     }

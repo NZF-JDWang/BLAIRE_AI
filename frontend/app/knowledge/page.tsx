@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { getKnowledgeStatus, reindexObsidian } from "@/lib/api";
+import { formatApiError, getKnowledgeStatus, reindexObsidian, uploadKnowledgeFile } from "@/lib/api";
 
 type KnowledgeStatus = {
   drop_folder: string;
@@ -26,7 +26,7 @@ export default function KnowledgePage() {
       const data = await getKnowledgeStatus();
       setStatus(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load knowledge status");
+      setError(formatApiError(err, "Failed to load knowledge status"));
     }
   }
 
@@ -38,15 +38,10 @@ export default function KnowledgePage() {
     setError("");
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const response = await fetch("/api/knowledge/upload", { method: "POST", body: form });
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.status}`);
-      }
+      await uploadKnowledgeFile(file);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(formatApiError(err, "Upload failed"));
     } finally {
       setUploading(false);
     }
@@ -59,7 +54,7 @@ export default function KnowledgePage() {
       setReindexInfo(`indexed=${result.indexed_files}, unchanged=${result.unchanged_files}, chunks=${result.chunks_indexed}`);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Reindex failed");
+      setError(formatApiError(err, "Reindex failed"));
     }
   }
 

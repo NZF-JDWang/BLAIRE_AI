@@ -7,6 +7,7 @@ import {
   ApprovalRecord,
   approveApproval,
   executeApproval,
+  formatApiError,
   getApprovalAudit,
   getRecentApprovals,
   rejectApproval,
@@ -32,7 +33,7 @@ export default function ApprovalsPage() {
       const data = await getRecentApprovals(150);
       setApprovals(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load approvals");
+      setError(formatApiError(err, "Failed to load approvals"));
     } finally {
       setLoading(false);
     }
@@ -49,7 +50,7 @@ export default function ApprovalsPage() {
       setTokens((prev) => ({ ...prev, [id]: result.execution_token }));
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Approve failed");
+      setError(formatApiError(err, "Approve failed"));
     }
   }
 
@@ -59,7 +60,7 @@ export default function ApprovalsPage() {
       await rejectApproval(id, "Rejected from approval queue UI");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Reject failed");
+      setError(formatApiError(err, "Reject failed"));
     }
   }
 
@@ -74,7 +75,7 @@ export default function ApprovalsPage() {
       await executeApproval(id, token, expectedPayloadHash);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Execute failed");
+      setError(formatApiError(err, "Execute failed"));
     }
   }
 
@@ -84,7 +85,7 @@ export default function ApprovalsPage() {
       const events = await getApprovalAudit(id, 100);
       setAudit((prev) => ({ ...prev, [id]: events }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Audit load failed");
+      setError(formatApiError(err, "Audit load failed"));
     }
   }
 

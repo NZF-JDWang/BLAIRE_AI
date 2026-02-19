@@ -3,6 +3,8 @@ import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { AppNav } from "@/components/app-nav";
+import { AuthStatusBanner } from "@/components/auth-status-banner";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 import "./globals.css";
 
@@ -39,12 +41,20 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <div className="app-shell-bg" aria-hidden="true" />
         <header className="app-shell-header">
           <div className="app-shell-header-inner">
-            <p className="app-shell-title">BLAIRE</p>
-            <p className="app-shell-subtitle">Blacksite Lab AI Hub</p>
+            <div className="app-shell-headline">
+              <div>
+                <p className="app-shell-title">BLAIRE</p>
+                <p className="app-shell-subtitle">Blacksite Lab AI Hub</p>
+              </div>
+              <ThemeToggle />
+            </div>
             <AppNav />
           </div>
         </header>
         <div className="app-shell-content" id="main-content">
+          <div className="page-wrap" style={{ marginBottom: "12px" }}>
+            <AuthStatusBanner />
+          </div>
           {children}
         </div>
       </body>
