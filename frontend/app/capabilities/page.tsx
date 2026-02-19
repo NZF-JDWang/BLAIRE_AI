@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { DependencyStatus, formatApiError, getDependencyStatus, getRuntimeOptionsTyped, RuntimeOptions } from "@/lib/api";
+import {
+  DependencyStatus,
+  formatApiError,
+  getDependencyStatus,
+  getRuntimeDiagnostics,
+  getRuntimeOptionsTyped,
+  RuntimeDiagnostics,
+  RuntimeOptions,
+} from "@/lib/api";
 
 function dependencyClass(ok: boolean, enabled: boolean): string {
   if (!enabled) return "pill";
@@ -11,6 +19,7 @@ function dependencyClass(ok: boolean, enabled: boolean): string {
 
 export default function CapabilitiesPage() {
   const [runtime, setRuntime] = useState<RuntimeOptions | null>(null);
+  const [diagnostics, setDiagnostics] = useState<RuntimeDiagnostics | null>(null);
   const [deps, setDeps] = useState<DependencyStatus | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,12 +28,18 @@ export default function CapabilitiesPage() {
     setLoading(true);
     setError("");
     try {
-      const [runtimeOptions, dependencyStatus] = await Promise.all([getRuntimeOptionsTyped(), getDependencyStatus()]);
+      const [runtimeOptions, dependencyStatus, runtimeDiagnostics] = await Promise.all([
+        getRuntimeOptionsTyped(),
+        getDependencyStatus(),
+        getRuntimeDiagnostics(),
+      ]);
       setRuntime(runtimeOptions);
       setDeps(dependencyStatus);
+      setDiagnostics(runtimeDiagnostics);
     } catch (err) {
       setError(formatApiError(err, "Failed to load capabilities"));
       setRuntime(null);
+      setDiagnostics(null);
       setDeps(null);
     } finally {
       setLoading(false);
@@ -38,6 +53,10 @@ export default function CapabilitiesPage() {
   const toolRows = useMemo(() => runtime?.tools ?? [], [runtime]);
   const dependencyRows = useMemo(() => deps?.dependencies ?? [], [deps]);
   const failedDependencies = useMemo(() => dependencyRows.filter((item) => item.enabled && !item.ok), [dependencyRows]);
+  const mcpIssues = useMemo(
+    () => dependencyRows.filter((item) => ["mcp_obsidian", "mcp_home_assistant", "mcp_homelab"].includes(item.name) && !item.ok && item.enabled),
+    [dependencyRows],
+  );
 
   function dependencyHint(name: string): string {
     if (name === "mcp_obsidian") return "Check ENABLE_MCP_SERVICES, MCP_OBSIDIAN_URL, and vault mount/path.";
@@ -69,6 +88,41 @@ export default function CapabilitiesPage() {
           {runtime ? <span className="pill success">runtime options loaded</span> : null}
         </div>
         {error ? <p className="error-text">{error}</p> : null}
+      </section>
+
+      <section className="surface stack">
+        <h2>MCP guidance</h2>
+        {!diagnostics ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>Runtime diagnostics unavailable.</p>
+          </div>
+        ) : (
+          <>
+            {!diagnostics.enable_mcp_services ? (
+              <div className="empty-state">
+                <p style={{ margin: 0 }}>
+                  MCP services are disabled. Enable `ENABLE_MCP_SERVICES=true` if you want Obsidian/Home Assistant/Homelab actions.
+                </p>
+              </div>
+            ) : mcpIssues.length === 0 ? (
+              <div className="empty-state">
+                <p style={{ margin: 0 }}>MCP services are enabled and currently healthy.</p>
+              </div>
+            ) : (
+              <div className="panel-list">
+                {mcpIssues.map((item) => (
+                  <article key={`mcp-${item.name}`} className="surface" style={{ padding: "12px" }}>
+                    <p style={{ marginBottom: "6px" }}>
+                      <strong>{item.name}</strong>
+                    </p>
+                    <p className="help-text">{item.detail}</p>
+                    <p style={{ marginBottom: 0 }}>{dependencyHint(item.name)}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </section>
 
       <section className="surface stack">
