@@ -41,6 +41,13 @@ export type RuntimeOptions = {
   }>;
 };
 
+export type ModelsInfo = {
+  installed_models: string[];
+  allowlist: Record<string, string[]>;
+  defaults: Record<string, string | null>;
+  model_allow_any_inference: boolean;
+};
+
 export type RuntimeDiagnostics = {
   role: string;
   require_auth: boolean;
@@ -275,6 +282,14 @@ export async function getRuntimeDiagnostics(): Promise<RuntimeDiagnostics> {
   const response = await apiFetch("/runtime/diagnostics", { cache: "no-store" });
   if (!response.ok) {
     throw await buildApiError(response, "Runtime diagnostics request failed");
+  }
+  return response.json();
+}
+
+export async function getModelsInfo(): Promise<ModelsInfo> {
+  const response = await apiFetch("/models", { cache: "no-store" });
+  if (!response.ok) {
+    throw await buildApiError(response, "Models info request failed");
   }
   return response.json();
 }

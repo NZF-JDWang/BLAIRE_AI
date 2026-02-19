@@ -10,11 +10,13 @@ import {
   getDependencyStatus,
   getRuntimeConfigAudit,
   getMyPreferences,
+  getModelsInfo,
   getRuntimeConfig,
   getRuntimeSystemSummary,
   getRuntimeOptionsTyped,
   RuntimeConfigAuditEvent,
   RuntimeConfigBundle,
+  ModelsInfo,
   RuntimeOptions,
   RuntimeSystemSummary,
   setBrowserApiKey,
@@ -39,6 +41,7 @@ type SettingsTab = "identity" | "model" | "runtime" | "readiness";
 export default function SettingsPage() {
   const [options, setOptions] = useState<RuntimeOptions | null>(null);
   const [dependencies, setDependencies] = useState<DependencyStatus | null>(null);
+  const [modelsInfo, setModelsInfo] = useState<ModelsInfo | null>(null);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigBundle | null>(null);
   const [runtimeAudit, setRuntimeAudit] = useState<RuntimeConfigAuditEvent[]>([]);
   const [systemSummary, setSystemSummary] = useState<RuntimeSystemSummary | null>(null);
@@ -80,6 +83,7 @@ export default function SettingsPage() {
         }
         throw err;
       }),
+      getModelsInfo().catch(() => null),
       getRuntimeSystemSummary().catch((err) => {
         if (err instanceof ApiRequestError && err.status === 403) {
           return null;
@@ -87,8 +91,9 @@ export default function SettingsPage() {
         throw err;
       }),
     ])
-      .then(([runtime, current, deps, config, audit, summary]) => {
+      .then(([runtime, current, deps, config, audit, models, summary]) => {
         setOptions(runtime);
+        setModelsInfo(models);
         setDependencies(deps);
         setRuntimeConfig(config);
         setRuntimeAudit(audit);
@@ -109,6 +114,7 @@ export default function SettingsPage() {
       .catch((err) => {
         setOptions(null);
         setDependencies(null);
+        setModelsInfo(null);
         setRuntimeConfig(null);
         setRuntimeAudit([]);
         setSystemSummary(null);
@@ -240,6 +246,34 @@ export default function SettingsPage() {
       {activeTab === "model" ? (
       <section className="surface stack" aria-label="Model and retrieval controls">
         <h2>Model and retrieval controls</h2>
+        {modelsInfo ? (
+          <>
+            <p className="help-text">
+              Installed models: {modelsInfo.installed_models.length} | allow-any-inference:{" "}
+              {String(modelsInfo.model_allow_any_inference)}
+            </p>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th>Default</th>
+                    <th>Allowlist count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(modelsInfo.defaults).map(([modelClass, defaultModel]) => (
+                    <tr key={`model-class-${modelClass}`}>
+                      <td className="mono">{modelClass}</td>
+                      <td className="mono">{defaultModel ?? "(none)"}</td>
+                      <td>{modelsInfo.allowlist[modelClass]?.length ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
 
         <label className="field-label">
           Search mode
