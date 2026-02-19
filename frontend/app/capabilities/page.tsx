@@ -37,6 +37,18 @@ export default function CapabilitiesPage() {
 
   const toolRows = useMemo(() => runtime?.tools ?? [], [runtime]);
   const dependencyRows = useMemo(() => deps?.dependencies ?? [], [deps]);
+  const failedDependencies = useMemo(() => dependencyRows.filter((item) => item.enabled && !item.ok), [dependencyRows]);
+
+  function dependencyHint(name: string): string {
+    if (name === "mcp_obsidian") return "Check ENABLE_MCP_SERVICES, MCP_OBSIDIAN_URL, and vault mount/path.";
+    if (name === "mcp_home_assistant") return "Check ENABLE_MCP_SERVICES plus HOME_ASSISTANT_URL/TOKEN on ha-mcp.";
+    if (name === "mcp_homelab") return "Check ENABLE_MCP_SERVICES and homelab-mcp container health.";
+    if (name === "searxng") return "Check SEARXNG_URL reachability or switch search mode.";
+    if (name === "brave_api_key") return "Add BRAVE_API_KEY or use searxng_only mode.";
+    if (name === "inference_api") return "Check INFERENCE_BASE_URL and model runtime availability.";
+    if (name === "qdrant") return "Check QDRANT_URL and container/network health.";
+    return "Review service logs and runtime config.";
+  }
 
   return (
     <main className="page-wrap">
@@ -57,6 +69,59 @@ export default function CapabilitiesPage() {
           {runtime ? <span className="pill success">runtime options loaded</span> : null}
         </div>
         {error ? <p className="error-text">{error}</p> : null}
+      </section>
+
+      <section className="surface stack">
+        <h2>Policy snapshot</h2>
+        {!runtime ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>Runtime policy unavailable.</p>
+          </div>
+        ) : (
+          <div className="stats-grid">
+            <article className="stat-card">
+              <p className="stat-label">Default search mode</p>
+              <p className="stat-value mono">{runtime.default_search_mode}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Sensitive actions</p>
+              <p className="stat-value">{String(runtime.sensitive_actions_enabled)}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Approval TTL (minutes)</p>
+              <p className="stat-value">{runtime.approval_token_ttl_minutes}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Allowed network hosts</p>
+              <p className="stat-value mono">{runtime.allowed_network_hosts.join(", ") || "(any)"}</p>
+            </article>
+            <article className="stat-card">
+              <p className="stat-label">Allowed network tools</p>
+              <p className="stat-value mono">{runtime.allowed_network_tools.join(", ") || "(any)"}</p>
+            </article>
+          </div>
+        )}
+      </section>
+
+      <section className="surface stack">
+        <h2>Actionable issues</h2>
+        {failedDependencies.length === 0 ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>No enabled dependency failures detected.</p>
+          </div>
+        ) : (
+          <div className="panel-list">
+            {failedDependencies.map((item) => (
+              <article key={`issue-${item.name}`} className="surface" style={{ padding: "12px" }}>
+                <p style={{ marginBottom: "6px" }}>
+                  <strong>{item.name}</strong>
+                </p>
+                <p className="help-text">{item.detail}</p>
+                <p style={{ marginBottom: 0 }}>{dependencyHint(item.name)}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="surface stack">
