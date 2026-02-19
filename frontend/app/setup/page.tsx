@@ -32,6 +32,38 @@ export default function SetupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const checklist = (() => {
+    const items: string[] = [];
+    if (!apiKey.trim()) {
+      items.push("Add a browser API key.");
+    }
+    if (access === "invalid") {
+      items.push("Use a valid API key from ADMIN_API_KEYS or USER_API_KEYS.");
+    }
+    if (diagnostics) {
+      if (!diagnostics.drop_folder_exists) {
+        items.push(`Create/mount drop folder: ${diagnostics.drop_folder_path}`);
+      }
+      if (!diagnostics.obsidian_vault_exists) {
+        items.push(`Create/mount Obsidian vault path: ${diagnostics.obsidian_vault_path}`);
+      }
+      if (diagnostics.enable_mcp_services && !diagnostics.mcp_obsidian_configured) {
+        items.push("Set MCP_OBSIDIAN_URL or disable MCP services.");
+      }
+      if (diagnostics.enable_mcp_services && !diagnostics.mcp_ha_configured) {
+        items.push("Set MCP_HA_URL for Home Assistant MCP.");
+      }
+    }
+    if (deps) {
+      for (const dep of deps.dependencies) {
+        if (dep.required && dep.enabled && !dep.ok) {
+          items.push(`Fix required dependency '${dep.name}' (${dep.detail}).`);
+        }
+      }
+    }
+    return items;
+  })();
+
   useEffect(() => {
     setApiKey(getBrowserApiKey());
   }, []);
@@ -195,8 +227,23 @@ export default function SetupPage() {
         )}
       </section>
 
+      <section className="surface stack" aria-label="Setup checklist">
+        <h2>5. Remediation checklist</h2>
+        {checklist.length === 0 ? (
+          <div className="empty-state">
+            <p style={{ margin: 0 }}>No blockers detected. You can continue to Settings and Chat.</p>
+          </div>
+        ) : (
+          <ul className="list-reset">
+            {checklist.map((item, idx) => (
+              <li key={`check-${idx}`}>{item}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="surface stack" aria-label="Next steps">
-        <h2>5. Continue</h2>
+        <h2>6. Continue</h2>
         <div className="quick-links">
           <Link href="/settings" className="quick-link">
             <p className="quick-link-title">Settings</p>
