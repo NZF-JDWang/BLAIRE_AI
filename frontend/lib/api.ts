@@ -234,6 +234,14 @@ export async function getRecentApprovals(limit = 100): Promise<ApprovalRecord[]>
   return response.json();
 }
 
+export async function getPendingApprovals(limit = 100): Promise<ApprovalRecord[]> {
+  const response = await apiFetch(`/approvals/pending?limit=${limit}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw await buildApiError(response, "Pending approvals request failed");
+  }
+  return response.json();
+}
+
 export async function getApprovalAudit(approvalId: string, limit = 200): Promise<ApprovalAuditEvent[]> {
   const response = await apiFetch(`/approvals/${approvalId}/audit?limit=${limit}`, { cache: "no-store" });
   if (!response.ok) {
