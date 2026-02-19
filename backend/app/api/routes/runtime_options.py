@@ -6,6 +6,7 @@ from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.models.runtime_diagnostics import RuntimeDiagnosticsResponse
 from app.models.runtime_options import ModelsResponse, RuntimeOptionsResponse
+from app.models.runtime_system import RuntimeSystemSummaryResponse
 from app.services.model_router import ModelRouter
 from app.services.runtime_config_service import RuntimeConfigService
 from app.tools.registry import ToolRegistry
@@ -84,4 +85,34 @@ async def runtime_diagnostics(
         effective_search_mode_default=runtime_config.search_mode_default,
         effective_sensitive_actions_enabled=runtime_config.sensitive_actions_enabled,
         effective_approval_token_ttl_minutes=runtime_config.approval_token_ttl_minutes,
+    )
+
+
+@router.get("/runtime/system-summary", response_model=RuntimeSystemSummaryResponse)
+async def runtime_system_summary(
+    _principal: Principal = Depends(require_roles("admin")),
+) -> RuntimeSystemSummaryResponse:
+    settings = get_settings()
+    return RuntimeSystemSummaryResponse(
+        app_env=settings.app_env,
+        api_docs_enabled=settings.api_docs_enabled,
+        enable_mcp_services=settings.enable_mcp_services,
+        enable_vllm=settings.enable_vllm,
+        inference_base_url=settings.inference_base_url,
+        qdrant_url=settings.qdrant_url,
+        searxng_url=settings.searxng_url,
+        mcp_obsidian_url=settings.mcp_obsidian_url,
+        mcp_ha_url=settings.mcp_ha_url,
+        mcp_homelab_url=settings.mcp_homelab_url,
+        drop_folder=settings.drop_folder,
+        obsidian_vault_path=settings.obsidian_vault_path,
+        model_general_default=settings.model_general_default,
+        model_vision_default=settings.model_vision_default,
+        model_embedding_default=settings.model_embedding_default,
+        model_code_default=settings.model_code_default,
+        brave_api_key_configured=bool(settings.brave_api_key and settings.brave_api_key.get_secret_value()),
+        telegram_configured=bool(settings.telegram_bot_token and settings.telegram_bot_token.get_secret_value()),
+        google_oauth_configured=bool(settings.google_oauth_token and settings.google_oauth_token.get_secret_value()),
+        imap_configured=bool(settings.imap_host and settings.imap_user and settings.imap_password),
+        restart_required_note="These values come from environment/system config and require service restart when changed.",
     )

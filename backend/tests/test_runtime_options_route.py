@@ -120,3 +120,15 @@ def test_runtime_diagnostics_returns_effective_config(monkeypatch) -> None:
     assert payload["effective_search_mode_default"] == "parallel"
     assert payload["effective_sensitive_actions_enabled"] is False
     assert payload["effective_approval_token_ttl_minutes"] == 19
+
+
+def test_runtime_system_summary_admin_only() -> None:
+    client = _client()
+    user_response = client.get("/runtime/system-summary", headers={"X-API-Key": "test-user-key"})
+    assert user_response.status_code == 403
+
+    admin_response = client.get("/runtime/system-summary", headers={"X-API-Key": "test-admin-key"})
+    assert admin_response.status_code == 200
+    payload = admin_response.json()
+    assert payload["app_env"] in {"production", "development", "staging", "test"}
+    assert payload["restart_required_note"].startswith("These values come from environment")

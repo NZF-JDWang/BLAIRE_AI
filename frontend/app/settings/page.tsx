@@ -11,10 +11,12 @@ import {
   getRuntimeConfigAudit,
   getMyPreferences,
   getRuntimeConfig,
+  getRuntimeSystemSummary,
   getRuntimeOptionsTyped,
   RuntimeConfigAuditEvent,
   RuntimeConfigBundle,
   RuntimeOptions,
+  RuntimeSystemSummary,
   setBrowserApiKey,
   updateRuntimeConfig,
   updateMyPreferences,
@@ -39,6 +41,7 @@ export default function SettingsPage() {
   const [dependencies, setDependencies] = useState<DependencyStatus | null>(null);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfigBundle | null>(null);
   const [runtimeAudit, setRuntimeAudit] = useState<RuntimeConfigAuditEvent[]>([]);
+  const [systemSummary, setSystemSummary] = useState<RuntimeSystemSummary | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [prefs, setPrefs] = useState<Preferences>({
     searchMode: "searxng_only",
@@ -77,12 +80,19 @@ export default function SettingsPage() {
         }
         throw err;
       }),
+      getRuntimeSystemSummary().catch((err) => {
+        if (err instanceof ApiRequestError && err.status === 403) {
+          return null;
+        }
+        throw err;
+      }),
     ])
-      .then(([runtime, current, deps, config, audit]) => {
+      .then(([runtime, current, deps, config, audit, summary]) => {
         setOptions(runtime);
         setDependencies(deps);
         setRuntimeConfig(config);
         setRuntimeAudit(audit);
+        setSystemSummary(summary);
         setLoadError("");
         setPrefs({
           searchMode: current.search_mode,
@@ -101,6 +111,7 @@ export default function SettingsPage() {
         setDependencies(null);
         setRuntimeConfig(null);
         setRuntimeAudit([]);
+        setSystemSummary(null);
         setLoadError(formatApiError(err, "Failed to load runtime options"));
       });
   }, []);
@@ -680,6 +691,89 @@ export default function SettingsPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+
+            <h3>System config summary (restart required)</h3>
+            {!systemSummary ? (
+              <div className="empty-state">
+                <p style={{ margin: 0 }}>System summary unavailable for this key.</p>
+              </div>
+            ) : (
+              <>
+                <p className="help-text">{systemSummary.restart_required_note}</p>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Setting</th>
+                        <th>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="mono">app_env</td>
+                        <td>{systemSummary.app_env}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">enable_mcp_services</td>
+                        <td>{String(systemSummary.enable_mcp_services)}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">enable_vllm</td>
+                        <td>{String(systemSummary.enable_vllm)}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">inference_base_url</td>
+                        <td className="mono">{systemSummary.inference_base_url}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">qdrant_url</td>
+                        <td className="mono">{systemSummary.qdrant_url}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">searxng_url</td>
+                        <td className="mono">{systemSummary.searxng_url}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">mcp_obsidian_url</td>
+                        <td className="mono">{systemSummary.mcp_obsidian_url}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">mcp_ha_url</td>
+                        <td className="mono">{systemSummary.mcp_ha_url}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">mcp_homelab_url</td>
+                        <td className="mono">{systemSummary.mcp_homelab_url}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">drop_folder</td>
+                        <td className="mono">{systemSummary.drop_folder}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">obsidian_vault_path</td>
+                        <td className="mono">{systemSummary.obsidian_vault_path}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">brave_api_key_configured</td>
+                        <td>{String(systemSummary.brave_api_key_configured)}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">telegram_configured</td>
+                        <td>{String(systemSummary.telegram_configured)}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">google_oauth_configured</td>
+                        <td>{String(systemSummary.google_oauth_configured)}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">imap_configured</td>
+                        <td>{String(systemSummary.imap_configured)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </>
         )}
