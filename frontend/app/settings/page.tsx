@@ -32,6 +32,8 @@ type Preferences = {
   retrievalK: number;
 };
 
+type SettingsTab = "identity" | "model" | "runtime" | "readiness";
+
 export default function SettingsPage() {
   const [options, setOptions] = useState<RuntimeOptions | null>(null);
   const [dependencies, setDependencies] = useState<DependencyStatus | null>(null);
@@ -55,6 +57,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savingRuntime, setSavingRuntime] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("identity");
 
   useEffect(() => {
     setApiKey(getBrowserApiKey());
@@ -182,18 +185,18 @@ export default function SettingsPage() {
 
       <section className="surface stack" aria-label="Settings sections">
         <div className="toolbar">
-          <a className="button button-muted" href="#identity">
+          <button className={activeTab === "identity" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("identity")}>
             Identity
-          </a>
-          <a className="button button-muted" href="#model-controls">
+          </button>
+          <button className={activeTab === "model" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("model")}>
             Model controls
-          </a>
-          <a className="button button-muted" href="#runtime-policy">
+          </button>
+          <button className={activeTab === "runtime" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("runtime")}>
             Runtime policy
-          </a>
-          <a className="button button-muted" href="#readiness">
+          </button>
+          <button className={activeTab === "readiness" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("readiness")}>
             MCP readiness
-          </a>
+          </button>
         </div>
       </section>
 
@@ -205,7 +208,8 @@ export default function SettingsPage() {
         </section>
       ) : null}
 
-      <section className="surface stack" id="identity" aria-label="Identity and access">
+      {activeTab === "identity" ? (
+      <section className="surface stack" aria-label="Identity and access">
         <h2>Identity and access</h2>
         <label className="field-label">
           API key
@@ -220,8 +224,10 @@ export default function SettingsPage() {
           Use `Connection test` to confirm key validity before changing other settings.
         </p>
       </section>
+      ) : null}
 
-      <section className="surface stack" id="model-controls" aria-label="Model and retrieval controls">
+      {activeTab === "model" ? (
+      <section className="surface stack" aria-label="Model and retrieval controls">
         <h2>Model and retrieval controls</h2>
 
         <label className="field-label">
@@ -351,7 +357,9 @@ export default function SettingsPage() {
           </select>
         </label>
       </section>
+      ) : null}
 
+      {activeTab === "identity" || activeTab === "model" ? (
       <section className="surface stack" aria-label="Save user preferences">
         <h2>Save user preferences</h2>
         <div className="toolbar">
@@ -369,8 +377,10 @@ export default function SettingsPage() {
           a backend restart today.
         </p>
       </section>
+      ) : null}
 
-      <section className="surface stack" id="readiness" aria-label="MCP and tool readiness">
+      {activeTab === "readiness" ? (
+      <section className="surface stack" aria-label="MCP and tool readiness">
         <h2>MCP and tool readiness</h2>
         {!dependencies ? (
           <div className="empty-state">
@@ -412,8 +422,10 @@ export default function SettingsPage() {
           `ALLOWED_*` settings.
         </p>
       </section>
+      ) : null}
 
-      <section className="surface stack" id="runtime-policy" aria-label="Runtime policy overrides">
+      {activeTab === "runtime" ? (
+      <section className="surface stack" aria-label="Runtime policy overrides">
         <h2>Admin runtime policy overrides</h2>
         {!runtimeConfig ? (
           <div className="empty-state">
@@ -672,6 +684,7 @@ export default function SettingsPage() {
           </>
         )}
       </section>
+      ) : null}
     </main>
   );
 }

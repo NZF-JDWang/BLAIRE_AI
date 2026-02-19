@@ -109,6 +109,10 @@ export default async function HomePage() {
             <p className="quick-link-title">Capabilities</p>
             <p className="quick-link-copy">Inspect tools, MCP connectivity, and dependency readiness.</p>
           </Link>
+          <Link href="/tools" className="quick-link">
+            <p className="quick-link-title">Tools</p>
+            <p className="quick-link-copy">Review tool action classes, approval needs, and policy allowlists.</p>
+          </Link>
         </div>
       </section>
     </main>

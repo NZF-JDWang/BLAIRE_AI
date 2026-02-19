@@ -64,3 +64,9 @@ Open `/approvals` (admin key required) to:
   - tool registry and action class
   - dependency and MCP readiness
   - policy-related availability context
+
+## Tools
+- Open `/tools` to inspect:
+  - action class and sensitivity level
+  - approval requirement implications
+  - active allowlists and policy constraints

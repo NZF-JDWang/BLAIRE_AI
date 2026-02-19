@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/settings", label: "Settings" },
   { href: "/search", label: "Search" },
   { href: "/capabilities", label: "Capabilities" },
+  { href: "/tools", label: "Tools" },
 ] as const;
 
 export function AppNav() {
