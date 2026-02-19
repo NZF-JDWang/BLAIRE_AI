@@ -28,6 +28,13 @@ def _set_required_env() -> None:
 _set_required_env()
 
 from app.main import create_app  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
+from app.models.runtime_config import RuntimeConfigEffective  # noqa: E402
+
+
+def _client() -> TestClient:
+    get_settings.cache_clear()
+    return TestClient(create_app())
 
 
 def test_runtime_options_exposes_dynamic_available_models(monkeypatch) -> None:
@@ -40,7 +47,7 @@ def test_runtime_options_exposes_dynamic_available_models(monkeypatch) -> None:
             "qwen2.5vl:7b",
         ],
     )
-    client = TestClient(create_app())
+    client = _client()
     response = client.get("/runtime/options", headers={"X-API-Key": "test-user-key"})
     assert response.status_code == 200
     payload = response.json()
@@ -56,7 +63,7 @@ def test_models_endpoint_returns_installed_and_allowlist(monkeypatch) -> None:
         "app.services.model_router.fetch_available_model_names",
         lambda *_args, **_kwargs: ["dolphin-llama3:8b-v2.9-q4_K_M"],
     )
-    client = TestClient(create_app())
+    client = _client()
     response = client.get("/models", headers={"X-API-Key": "test-user-key"})
     assert response.status_code == 200
     payload = response.json()
@@ -65,3 +72,26 @@ def test_models_endpoint_returns_installed_and_allowlist(monkeypatch) -> None:
     assert "dolphin-llama3:8b-v2.9-q4_K_M" in payload["installed_models"]
     assert "dolphin-llama3:8b-v2.9-q4_K_M" in payload["allowlist"]["general"]
 
+
+def test_runtime_options_uses_runtime_config_override(monkeypatch) -> None:
+    async def fake_effective(self, settings):  # noqa: ANN001, ANN202
+        _ = (self, settings)
+        return RuntimeConfigEffective(
+            search_mode_default="parallel",
+            sensitive_actions_enabled=False,
+            approval_token_ttl_minutes=22,
+            allowed_network_hosts=["example.local"],
+            allowed_network_tools=["network_probe"],
+            allowed_obsidian_paths=["notes"],
+            allowed_ha_operations=["light.turn_on"],
+            allowed_homelab_operations=["dns.resolve"],
+        )
+
+    monkeypatch.setattr("app.services.runtime_config_service.RuntimeConfigService.get_effective", fake_effective)
+    client = _client()
+    response = client.get("/runtime/options", headers={"X-API-Key": "test-user-key"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["default_search_mode"] == "parallel"
+    assert payload["sensitive_actions_enabled"] is False
+    assert payload["approval_token_ttl_minutes"] == 22

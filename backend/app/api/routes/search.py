@@ -4,6 +4,7 @@ from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.models.search import SearchRequest, SearchResponse
 from app.services.preferences_service import PreferencesService
+from app.services.runtime_config_service import RuntimeConfigService
 from app.services.search_service import SearchError, SearchService
 
 router = APIRouter(tags=["search"])
@@ -15,9 +16,10 @@ async def search(
     principal: Principal = Depends(require_roles("admin", "user")),
 ) -> SearchResponse:
     settings = get_settings()
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
     prefs = await PreferencesService(settings.database_url.get_secret_value()).get_or_default(
         subject=principal.subject,
-        default_search_mode=settings.search_mode_default,
+        default_search_mode=runtime_config.search_mode_default,
     )
     service = SearchService(settings)
     try:

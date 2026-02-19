@@ -15,6 +15,7 @@ from app.models.mcp import (
 )
 from app.services.approval_service import ApprovalService, canonical_payload_hash
 from app.services.mcp_client import McpClient, McpClientError
+from app.services.runtime_config_service import RuntimeConfigService
 
 router = APIRouter(tags=["mcp"])
 
@@ -31,10 +32,8 @@ def _normalize_obsidian_path(path: str) -> str:
     return normalized
 
 
-def _enforce_obsidian_scope(path: str) -> str:
-    settings = get_settings()
+def _enforce_obsidian_scope(path: str, allowed: list[str]) -> str:
     normalized = _normalize_obsidian_path(path)
-    allowed = settings.allowed_obsidian_paths_list()
     if not allowed:
         return normalized
     for prefix in allowed:
@@ -77,8 +76,9 @@ async def obsidian_read(
     _: Principal = Depends(require_roles("admin", "user")),
 ) -> McpActionResponse:
     settings = get_settings()
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
     client = McpClient()
-    scoped_path = _enforce_obsidian_scope(request.path)
+    scoped_path = _enforce_obsidian_scope(request.path, runtime_config.allowed_obsidian_paths)
     try:
         data = await client.call(settings.mcp_obsidian_url, "vault.read", {"path": scoped_path})
     except McpClientError as exc:
@@ -104,8 +104,9 @@ async def obsidian_write(
     principal: Principal = Depends(require_roles("admin", "user")),
 ) -> McpActionResponse:
     settings = get_settings()
-    scoped_path = _enforce_obsidian_scope(request.path)
-    if not settings.sensitive_actions_enabled:
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
+    scoped_path = _enforce_obsidian_scope(request.path, runtime_config.allowed_obsidian_paths)
+    if not runtime_config.sensitive_actions_enabled:
         raise HTTPException(status_code=503, detail="Sensitive actions are globally disabled")
     rate_limiter.check(
         f"mcp-obsidian:{principal.subject}:{raw_request.client.host if raw_request.client else 'unknown'}",
@@ -178,13 +179,14 @@ async def home_assistant_call(
     principal: Principal = Depends(require_roles("admin", "user")),
 ) -> McpActionResponse:
     settings = get_settings()
-    if not settings.sensitive_actions_enabled:
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
+    if not runtime_config.sensitive_actions_enabled:
         raise HTTPException(status_code=503, detail="Sensitive actions are globally disabled")
     rate_limiter.check(
         f"mcp-ha:{principal.subject}:{raw_request.client.host if raw_request.client else 'unknown'}",
         RateLimitRule(30, 60),
     )
-    allowed = settings.allowed_ha_operations_list()
+    allowed = runtime_config.allowed_ha_operations
     if allowed and request.operation not in allowed:
         raise HTTPException(status_code=403, detail="Home Assistant operation is not allowlisted")
 
@@ -259,13 +261,14 @@ async def homelab_call(
     principal: Principal = Depends(require_roles("admin", "user")),
 ) -> McpActionResponse:
     settings = get_settings()
-    if not settings.sensitive_actions_enabled:
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
+    if not runtime_config.sensitive_actions_enabled:
         raise HTTPException(status_code=503, detail="Sensitive actions are globally disabled")
     rate_limiter.check(
         f"mcp-homelab:{principal.subject}:{raw_request.client.host if raw_request.client else 'unknown'}",
         RateLimitRule(30, 60),
     )
-    allowed = settings.allowed_homelab_operations_list()
+    allowed = runtime_config.allowed_homelab_operations
     if allowed and request.operation not in allowed:
         raise HTTPException(status_code=403, detail="Homelab operation is not allowlisted")
 

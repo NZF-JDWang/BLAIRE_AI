@@ -11,6 +11,7 @@ from app.api.routes.mcp import router as mcp_router
 from app.api.routes.ops import router as ops_router
 from app.api.routes.preferences import router as preferences_router
 from app.api.routes.runtime_options import router as runtime_options_router
+from app.api.routes.runtime_config import router as runtime_config_router
 from app.api.routes.search import router as search_router
 from app.api.routes.telegram import router as telegram_router
 from app.api.routes.tools import router as tools_router
@@ -26,6 +27,7 @@ from app.core.request_context import RequestContextMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.services.dependency_checks import collect_dependency_status
 from app.services.init_service import InitService
+from app.services.runtime_config_service import RuntimeConfigService
 
 
 @asynccontextmanager
@@ -46,7 +48,8 @@ async def lifespan(app: FastAPI):
         logger.exception("init_routines_failed")
         raise
     try:
-        status = await collect_dependency_status(settings)
+        runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
+        status = await collect_dependency_status(settings, runtime_config)
         logger.info(
             "dependency_status",
             dependencies=[item.model_dump() for item in status.dependencies],
@@ -76,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(chat_router)
     app.include_router(runtime_options_router)
+    app.include_router(runtime_config_router)
     app.include_router(approvals_router)
     app.include_router(tools_router)
     app.include_router(search_router)

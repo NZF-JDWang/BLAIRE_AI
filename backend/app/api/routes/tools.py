@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.core.rate_limit import RateLimitRule, rate_limiter
 from app.models.tool_execution import ToolExecutionRequest, ToolExecutionResult
 from app.services.approval_service import ApprovalService, canonical_payload_hash
+from app.services.runtime_config_service import RuntimeConfigService
 from app.services.tool_policy import ToolPolicy, ToolPolicyError
 from app.tools.registry import ToolRegistry
 
@@ -34,9 +35,10 @@ async def execute_tool(
     principal: Principal = Depends(require_roles("admin", "user")),
 ) -> ToolExecutionResult:
     settings = get_settings()
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
     registry = ToolRegistry()
     approval_service = ApprovalService(settings.database_url.get_secret_value())
-    policy = ToolPolicy(settings)
+    policy = ToolPolicy(settings, runtime_config)
 
     tool = registry.get(request.tool_name)
     if tool is None:

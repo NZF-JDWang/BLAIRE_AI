@@ -34,6 +34,10 @@ async def test_init_service_runs_all_steps(monkeypatch) -> None:
         _ = self
         calls.append("metadata")
 
+    async def runtime_config(self):  # noqa: ANN001, ANN202
+        _ = self
+        calls.append("runtime_config")
+
     async def qdrant(self):  # noqa: ANN001, ANN202
         _ = self
         calls.append("qdrant")
@@ -41,12 +45,14 @@ async def test_init_service_runs_all_steps(monkeypatch) -> None:
     monkeypatch.setattr("app.services.init_service.ApprovalService.init_schema", approval)
     monkeypatch.setattr("app.services.init_service.PreferencesService.init_schema", prefs)
     monkeypatch.setattr("app.services.init_service.MetadataStoreService.init_schema", meta)
+    monkeypatch.setattr("app.services.init_service.RuntimeConfigService.init_schema", runtime_config)
     monkeypatch.setattr("app.services.init_service.QdrantBootstrapService.ensure_collection", qdrant)
 
     result = await InitService(_settings()).run()
     assert result["approval_schema_ready"] is True
     assert result["preferences_schema_ready"] is True
     assert result["metadata_schema_ready"] is True
+    assert result["runtime_config_schema_ready"] is True
     assert result["qdrant_collection_ready"] is True
-    assert calls == ["approval", "preferences", "metadata", "qdrant"]
+    assert calls == ["approval", "preferences", "metadata", "runtime_config", "qdrant"]
 

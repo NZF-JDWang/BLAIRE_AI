@@ -4,6 +4,7 @@ from app.core.auth import Principal, require_roles
 from app.core.config import get_settings
 from app.models.runtime_options import ModelsResponse, RuntimeOptionsResponse
 from app.services.model_router import ModelRouter
+from app.services.runtime_config_service import RuntimeConfigService
 from app.tools.registry import ToolRegistry
 
 router = APIRouter(tags=["runtime"])
@@ -14,19 +15,20 @@ async def runtime_options(
     _principal: Principal = Depends(require_roles("admin", "user")),
 ) -> RuntimeOptionsResponse:
     settings = get_settings()
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
     router_service = ModelRouter(settings)
     registry = ToolRegistry()
     model_allowlist = router_service.get_allowlist()
     return RuntimeOptionsResponse(
         search_modes=["brave_only", "searxng_only", "auto_fallback", "parallel"],
-        default_search_mode=settings.search_mode_default,
+        default_search_mode=runtime_config.search_mode_default,
         model_allowlist=model_allowlist,
         available_models=sorted({model for models in model_allowlist.values() for model in models}),
         available_models_by_class=model_allowlist,
-        sensitive_actions_enabled=settings.sensitive_actions_enabled,
-        approval_token_ttl_minutes=settings.approval_token_ttl_minutes,
-        allowed_network_hosts=settings.allowed_network_hosts_list(),
-        allowed_network_tools=settings.allowed_network_tools_list(),
+        sensitive_actions_enabled=runtime_config.sensitive_actions_enabled,
+        approval_token_ttl_minutes=runtime_config.approval_token_ttl_minutes,
+        allowed_network_hosts=runtime_config.allowed_network_hosts,
+        allowed_network_tools=runtime_config.allowed_network_tools,
         tools=[
             {
                 "name": spec.name,

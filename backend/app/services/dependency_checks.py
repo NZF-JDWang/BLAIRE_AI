@@ -3,6 +3,7 @@ import asyncio
 import httpx
 
 from app.core.config import Settings
+from app.models.runtime_config import RuntimeConfigEffective
 from app.models.dependencies import DependencyItem, DependencyStatusResponse
 
 
@@ -50,8 +51,11 @@ async def _check_http(
         )
 
 
-async def collect_dependency_status(settings: Settings) -> DependencyStatusResponse:
-    search_mode = settings.search_mode_default
+async def collect_dependency_status(
+    settings: Settings,
+    runtime_config: RuntimeConfigEffective | None = None,
+) -> DependencyStatusResponse:
+    search_mode = runtime_config.search_mode_default if runtime_config else settings.search_mode_default
     searx_required = search_mode in {"searxng_only", "parallel"}
     brave_required = search_mode in {"brave_only", "parallel"}
     searx_enabled = bool(settings.searxng_url.strip()) and search_mode in {"searxng_only", "auto_fallback", "parallel"}

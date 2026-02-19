@@ -5,6 +5,7 @@ from app.core.config import get_settings
 from app.models.preferences import PreferenceResponse, PreferenceUpdateRequest
 from app.services.model_router import ModelRouter
 from app.services.preferences_service import PreferencesService
+from app.services.runtime_config_service import RuntimeConfigService
 
 router = APIRouter(tags=["preferences"])
 
@@ -19,9 +20,10 @@ async def get_my_preferences(
     principal: Principal = Depends(require_roles("admin", "user")),
 ) -> PreferenceResponse:
     settings = get_settings()
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
     return await _service().get_or_default(
         subject=principal.subject,
-        default_search_mode=settings.search_mode_default,
+        default_search_mode=runtime_config.search_mode_default,
     )
 
 

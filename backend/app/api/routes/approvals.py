@@ -15,6 +15,7 @@ from app.models.approval import (
     ApprovalRejectRequest,
 )
 from app.services.approval_service import ApprovalService
+from app.services.runtime_config_service import RuntimeConfigService
 
 router = APIRouter(tags=["approvals"])
 
@@ -80,12 +81,13 @@ async def approve_approval(
     principal: Principal = Depends(require_roles("admin")),
 ) -> ApprovalApproveResponse:
     settings = get_settings()
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
     rate_limiter.check(f"approve:{principal.subject}:{request.client.host if request.client else 'unknown'}", RateLimitRule(20, 60))
     try:
         record, token, expires_at = await _service().approve(
             approval_id=approval_id,
             actor=principal.subject,
-            ttl_minutes=settings.approval_token_ttl_minutes,
+            ttl_minutes=runtime_config.approval_token_ttl_minutes,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -114,7 +116,8 @@ async def execute_approval(
     principal: Principal = Depends(require_roles("admin")),
 ) -> ApprovalRecord:
     settings = get_settings()
-    if not settings.sensitive_actions_enabled:
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
+    if not runtime_config.sensitive_actions_enabled:
         raise HTTPException(status_code=503, detail="Sensitive actions are globally disabled")
     rate_limiter.check(f"execute:{principal.subject}:{raw_request.client.host if raw_request.client else 'unknown'}", RateLimitRule(30, 60))
     try:

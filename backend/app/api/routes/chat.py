@@ -14,6 +14,7 @@ from app.rag.vector_store import QdrantVectorStore
 from app.services.inference_client import InferenceClient
 from app.services.model_router import ModelRouter
 from app.services.preferences_service import PreferencesService
+from app.services.runtime_config_service import RuntimeConfigService
 
 router = APIRouter(tags=["chat"])
 
@@ -28,11 +29,12 @@ async def chat(
     principal: Principal = Depends(require_roles("admin", "user")),
 ):
     settings = get_settings()
+    runtime_config = await RuntimeConfigService(settings.database_url.get_secret_value()).get_effective(settings)
     logger = get_logger(component="chat")
     model_router = ModelRouter(settings)
     prefs = await PreferencesService(settings.database_url.get_secret_value()).get_or_default(
         subject=principal.subject,
-        default_search_mode=settings.search_mode_default,
+        default_search_mode=runtime_config.search_mode_default,
     )
     effective_model_class = request.model_class or prefs.model_class
 
