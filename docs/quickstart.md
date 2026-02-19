@@ -1,4 +1,7 @@
 # Quickstart
+Fastest path to get BLAIRE running locally.
+
+For full setup detail and production-oriented notes, use `docs/installation_guide.md`.
 
 ## 1) Prerequisites
 - Docker + Docker Compose

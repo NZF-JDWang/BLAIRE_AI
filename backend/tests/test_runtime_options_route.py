@@ -33,6 +33,7 @@ from app.models.runtime_config import RuntimeConfigEffective  # noqa: E402
 
 
 def _client() -> TestClient:
+    _set_required_env()
     get_settings.cache_clear()
     return TestClient(create_app())
 
@@ -67,7 +68,6 @@ def test_models_endpoint_returns_installed_and_allowlist(monkeypatch) -> None:
     response = client.get("/models", headers={"X-API-Key": "test-user-key"})
     assert response.status_code == 200
     payload = response.json()
-    assert payload["model_allow_any_inference"] is True
     assert payload["model_allow_any_inference"] is True
     assert "dolphin-llama3:8b-v2.9-q4_K_M" in payload["installed_models"]
     assert "dolphin-llama3:8b-v2.9-q4_K_M" in payload["allowlist"]["general"]

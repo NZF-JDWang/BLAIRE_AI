@@ -1,18 +1,21 @@
 # BLAIRE Documentation
 
-This folder contains the full operational and user documentation for BLAIRE.
+This folder contains user, operator, and reference documentation for BLAIRE.
 
-## Start Here
-1. `docs/installation_guide.md`
-2. `docs/quickstart.md`
+## Minimum docs to get running
+Use these for first-time setup. Everything else is optional.
+1. `docs/quickstart.md`
+2. `docs/installation_guide.md`
 3. `docs/configuration.md`
-4. `docs/deployment.md`
+4. `docs/troubleshooting.md`
 
-## Full Manual
-- `docs/user_manual.md` - day-to-day usage (chat, swarm, knowledge, approvals, settings)
-- `docs/model_selection.md` - model allowlist logic, runtime model endpoints, and override behavior
-- `docs/admin_runbook.md` - init, operations, backups, sandbox execution, integrations
+## Operator docs
+- `docs/deployment.md` - deployment and update workflow
+- `docs/admin_runbook.md` - recurring admin and incident tasks
+- `docs/security_model.md` - auth, approval model, and sandbox boundaries
+
+## Reference docs
+- `docs/user_manual.md` - day-to-day UI usage
+- `docs/model_selection.md` - model allowlist and runtime selection behavior
 - `docs/api_reference.md` - backend route reference
-- `docs/security_model.md` - auth, approval model, sandbox boundaries
-- `docs/troubleshooting.md` - common failures and fixes
-- `docs/architecture.md` - system architecture and component responsibilities
+- `docs/architecture.md` - component and data-flow overview
