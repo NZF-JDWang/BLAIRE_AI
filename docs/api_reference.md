@@ -15,6 +15,7 @@ Auth: `X-API-Key` when `REQUIRE_AUTH=true`.
 - `GET /runtime/config` (admin)
 - `PUT /runtime/config` (admin)
 - `GET /runtime/config/audit` (admin)
+- `GET /models`
 
 ## Search
 - `POST /search`

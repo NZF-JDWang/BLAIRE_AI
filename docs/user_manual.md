@@ -58,6 +58,12 @@ Open `/approvals` (admin key required) to:
   - sensitive actions toggle
   - approval TTL
   - network/obsidian/HA/homelab allowlists
+- Settings is tabbed into:
+  - `Identity`
+  - `Model controls`
+  - `Runtime policy`
+  - `MCP readiness`
+- Runtime policy tab includes a restart-required system config summary for `.env`-backed settings.
 
 ## Capabilities
 - Open `/capabilities` to view:
