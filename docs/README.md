@@ -3,9 +3,10 @@
 This folder contains the full operational and user documentation for BLAIRE.
 
 ## Start Here
-1. `docs/quickstart.md`
-2. `docs/configuration.md`
-3. `docs/deployment.md`
+1. `docs/installation_guide.md`
+2. `docs/quickstart.md`
+3. `docs/configuration.md`
+4. `docs/deployment.md`
 
 ## Full Manual
 - `docs/user_manual.md` - day-to-day usage (chat, swarm, knowledge, approvals, settings)
