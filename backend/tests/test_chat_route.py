@@ -34,6 +34,12 @@ def _fake_pref() -> PreferenceResponse:
         search_mode="searxng_only",
         model_class="general",
         model_override=None,
+        temperature=0.7,
+        top_p=1.0,
+        max_tokens=None,
+        context_window_tokens=None,
+        use_rag=True,
+        retrieval_k=4,
         updated_at=datetime.now(timezone.utc),
     )
 
@@ -43,8 +49,8 @@ def test_chat_streaming_response(monkeypatch) -> None:
         _ = (self, subject, default_search_mode, default_model_class)
         return _fake_pref()
 
-    async def fake_stream_chat(self, model: str, messages: list[dict[str, str]]):  # noqa: ANN001, ANN202
-        _ = (self, model, messages)
+    async def fake_stream_chat(self, model: str, messages: list[dict[str, str]], **kwargs):  # noqa: ANN001, ANN202
+        _ = (self, model, messages, kwargs)
         yield "Hello"
         yield " world"
 
@@ -75,8 +81,8 @@ def test_chat_non_streaming_response(monkeypatch) -> None:
         _ = (self, subject, default_search_mode, default_model_class)
         return _fake_pref()
 
-    async def fake_stream_chat(self, model: str, messages: list[dict[str, str]]):  # noqa: ANN001, ANN202
-        _ = (self, model, messages)
+    async def fake_stream_chat(self, model: str, messages: list[dict[str, str]], **kwargs):  # noqa: ANN001, ANN202
+        _ = (self, model, messages, kwargs)
         yield "Hello"
         yield " world"
 
@@ -107,8 +113,8 @@ def test_chat_invalid_session_override_falls_back(monkeypatch) -> None:
         _ = (self, subject, default_search_mode, default_model_class)
         return _fake_pref()
 
-    async def fake_stream_chat(self, model: str, messages: list[dict[str, str]]):  # noqa: ANN001, ANN202
-        _ = (self, model, messages)
+    async def fake_stream_chat(self, model: str, messages: list[dict[str, str]], **kwargs):  # noqa: ANN001, ANN202
+        _ = (self, model, messages, kwargs)
         yield "fallback ok"
 
     monkeypatch.setattr(PreferencesService, "get_or_default", fake_get_or_default)

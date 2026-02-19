@@ -37,6 +37,14 @@ async def chat(
         default_search_mode=runtime_config.search_mode_default,
     )
     effective_model_class = request.model_class or prefs.model_class
+    effective_use_rag = request.use_rag if request.use_rag is not None else prefs.use_rag
+    effective_retrieval_k = request.retrieval_k if request.retrieval_k is not None else prefs.retrieval_k
+    effective_temperature = request.temperature if request.temperature is not None else prefs.temperature
+    effective_top_p = request.top_p if request.top_p is not None else prefs.top_p
+    effective_max_tokens = request.max_tokens if request.max_tokens is not None else prefs.max_tokens
+    effective_context_window_tokens = (
+        request.context_window_tokens if request.context_window_tokens is not None else prefs.context_window_tokens
+    )
 
     try:
         selection = model_router.select_model(
@@ -70,7 +78,7 @@ async def chat(
     citations: list[dict] = []
     rag_status = "disabled"
     rag_error: str | None = None
-    if request.use_rag:
+    if effective_use_rag:
         rag_status = "none"
         try:
             latest_user = next((msg.content for msg in reversed(request.messages) if msg.role == "user"), "")
@@ -80,7 +88,7 @@ async def chat(
                     vector_store=QdrantVectorStore(settings.qdrant_url, settings.qdrant_collection_name),
                     embedding_model=settings.model_embedding_default,
                 )
-                results = await retrieval.retrieve(query=latest_user, limit=request.retrieval_k)
+                results = await retrieval.retrieve(query=latest_user, limit=effective_retrieval_k)
                 citations = [
                     {
                         "source_path": item.source_path,
@@ -131,7 +139,14 @@ async def chat(
                         "citations": citations,
                     },
                 )
-                async for token in client.stream_chat(selection.model_name, formatted_messages):
+                async for token in client.stream_chat(
+                    selection.model_name,
+                    formatted_messages,
+                    temperature=effective_temperature,
+                    top_p=effective_top_p,
+                    max_tokens=effective_max_tokens,
+                    context_window_tokens=effective_context_window_tokens,
+                ):
                     combined.append(token)
                     yield _sse_event("token", {"text": token})
                 total_ms = round((perf_counter() - stream_started) * 1000, 2)
@@ -164,7 +179,14 @@ async def chat(
     try:
         started = perf_counter()
         chunks = []
-        async for token in client.stream_chat(selection.model_name, formatted_messages):
+        async for token in client.stream_chat(
+            selection.model_name,
+            formatted_messages,
+            temperature=effective_temperature,
+            top_p=effective_top_p,
+            max_tokens=effective_max_tokens,
+            context_window_tokens=effective_context_window_tokens,
+        ):
             chunks.append(token)
         total_ms = round((perf_counter() - started) * 1000, 2)
         logger.info(

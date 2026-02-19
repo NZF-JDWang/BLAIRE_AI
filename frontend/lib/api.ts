@@ -46,6 +46,12 @@ export type UserPreferences = {
   search_mode: string;
   model_class: string;
   model_override: string | null;
+  temperature: number;
+  top_p: number;
+  max_tokens: number | null;
+  context_window_tokens: number | null;
+  use_rag: boolean;
+  retrieval_k: number;
   updated_at: string;
 };
 
@@ -412,6 +418,12 @@ export async function updateMyPreferences(update: {
   search_mode: string;
   model_class: string;
   model_override: string | null;
+  temperature: number;
+  top_p: number;
+  max_tokens: number | null;
+  context_window_tokens: number | null;
+  use_rag: boolean;
+  retrieval_k: number;
 }): Promise<UserPreferences> {
   const response = await apiFetch("/preferences/me", {
     method: "PUT",

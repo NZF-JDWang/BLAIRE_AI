@@ -33,6 +33,12 @@ def _fake_pref() -> PreferenceResponse:
         search_mode="searxng_only",
         model_class="general",
         model_override=None,
+        temperature=0.7,
+        top_p=1.0,
+        max_tokens=None,
+        context_window_tokens=None,
+        use_rag=True,
+        retrieval_k=4,
         updated_at=datetime.now(timezone.utc),
     )
 
@@ -57,6 +63,12 @@ def test_update_preferences(monkeypatch) -> None:
             search_mode="parallel",
             model_class="general",
             model_override=None,
+            temperature=0.5,
+            top_p=0.9,
+            max_tokens=900,
+            context_window_tokens=8192,
+            use_rag=False,
+            retrieval_k=2,
             updated_at=datetime.now(timezone.utc),
         )
 
@@ -65,7 +77,17 @@ def test_update_preferences(monkeypatch) -> None:
     response = client.put(
         "/preferences/me",
         headers={"X-API-Key": "test-user-key"},
-        json={"search_mode": "parallel", "model_class": "general", "model_override": None},
+        json={
+            "search_mode": "parallel",
+            "model_class": "general",
+            "model_override": None,
+            "temperature": 0.5,
+            "top_p": 0.9,
+            "max_tokens": 900,
+            "context_window_tokens": 8192,
+            "use_rag": False,
+            "retrieval_k": 2,
+        },
     )
     assert response.status_code == 200
     assert response.json()["search_mode"] == "parallel"

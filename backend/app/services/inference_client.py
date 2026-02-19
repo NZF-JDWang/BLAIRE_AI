@@ -48,12 +48,29 @@ class InferenceClient:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
 
-    async def stream_chat(self, model: str, messages: list[dict[str, Any]]) -> AsyncIterator[str]:
+    async def stream_chat(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
+        context_window_tokens: int | None = None,
+    ) -> AsyncIterator[str]:
         payload = {
             "model": model,
             "messages": messages,
             "stream": True,
         }
+        if temperature is not None:
+            payload["temperature"] = temperature
+        if top_p is not None:
+            payload["top_p"] = top_p
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        if context_window_tokens is not None:
+            payload["num_ctx"] = context_window_tokens
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             async with client.stream("POST", f"{self._base_url}/v1/chat/completions", json=payload) as response:
                 response.raise_for_status()

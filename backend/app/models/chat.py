@@ -17,8 +17,12 @@ class ChatRequest(BaseModel):
     model_class: ModelClass | None = None
     model_override: str | None = Field(default=None, max_length=128)
     stream: bool = True
-    use_rag: bool = True
-    retrieval_k: int = Field(default=4, ge=1, le=12)
+    use_rag: bool | None = None
+    retrieval_k: int | None = Field(default=None, ge=1, le=12)
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_tokens: int | None = Field(default=None, ge=1, le=8192)
+    context_window_tokens: int | None = Field(default=None, ge=256, le=262144)
 
     @field_validator("messages")
     @classmethod

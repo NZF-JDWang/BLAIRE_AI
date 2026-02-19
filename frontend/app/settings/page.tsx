@@ -22,6 +22,12 @@ type Preferences = {
   searchMode: string;
   modelClass: string;
   modelOverride: string;
+  temperature: number;
+  topP: number;
+  maxTokens: string;
+  contextWindowTokens: string;
+  useRag: boolean;
+  retrievalK: number;
 };
 
 export default function SettingsPage() {
@@ -33,6 +39,12 @@ export default function SettingsPage() {
     searchMode: "searxng_only",
     modelClass: "general",
     modelOverride: "",
+    temperature: 0.7,
+    topP: 1.0,
+    maxTokens: "",
+    contextWindowTokens: "",
+    useRag: true,
+    retrievalK: 4,
   });
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
@@ -63,6 +75,12 @@ export default function SettingsPage() {
           searchMode: current.search_mode,
           modelClass: current.model_class,
           modelOverride: current.model_override ?? "",
+          temperature: current.temperature,
+          topP: current.top_p,
+          maxTokens: current.max_tokens ? String(current.max_tokens) : "",
+          contextWindowTokens: current.context_window_tokens ? String(current.context_window_tokens) : "",
+          useRag: current.use_rag,
+          retrievalK: current.retrieval_k,
         });
       })
       .catch((err) => {
@@ -83,6 +101,12 @@ export default function SettingsPage() {
         search_mode: prefs.searchMode,
         model_class: prefs.modelClass,
         model_override: prefs.modelOverride || null,
+        temperature: prefs.temperature,
+        top_p: prefs.topP,
+        max_tokens: prefs.maxTokens.trim() ? Number(prefs.maxTokens) : null,
+        context_window_tokens: prefs.contextWindowTokens.trim() ? Number(prefs.contextWindowTokens) : null,
+        use_rag: prefs.useRag,
+        retrieval_k: prefs.retrievalK,
       });
       setStatus("Preferences saved.");
     } catch (err) {
@@ -211,6 +235,82 @@ export default function SettingsPage() {
                 {model}
               </option>
             ))}
+          </select>
+        </label>
+
+        <label className="field-label">
+          Temperature
+          <input
+            className="input"
+            type="number"
+            min={0}
+            max={2}
+            step={0.1}
+            value={prefs.temperature}
+            onChange={(e) => setPrefs((prev) => ({ ...prev, temperature: Number(e.target.value) }))}
+          />
+        </label>
+
+        <label className="field-label">
+          Top P
+          <input
+            className="input"
+            type="number"
+            min={0}
+            max={1}
+            step={0.05}
+            value={prefs.topP}
+            onChange={(e) => setPrefs((prev) => ({ ...prev, topP: Number(e.target.value) }))}
+          />
+        </label>
+
+        <label className="field-label">
+          Max tokens
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={8192}
+            value={prefs.maxTokens}
+            onChange={(e) => setPrefs((prev) => ({ ...prev, maxTokens: e.target.value }))}
+            placeholder="blank = provider default"
+          />
+        </label>
+
+        <label className="field-label">
+          Context window tokens
+          <input
+            className="input"
+            type="number"
+            min={256}
+            max={262144}
+            value={prefs.contextWindowTokens}
+            onChange={(e) => setPrefs((prev) => ({ ...prev, contextWindowTokens: e.target.value }))}
+            placeholder="blank = provider default"
+          />
+        </label>
+
+        <label className="field-label">
+          Default retrieval K
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={12}
+            value={prefs.retrievalK}
+            onChange={(e) => setPrefs((prev) => ({ ...prev, retrievalK: Number(e.target.value) }))}
+          />
+        </label>
+
+        <label className="field-label">
+          Default RAG behavior
+          <select
+            className="select"
+            value={prefs.useRag ? "enabled" : "disabled"}
+            onChange={(e) => setPrefs((prev) => ({ ...prev, useRag: e.target.value === "enabled" }))}
+          >
+            <option value="enabled">enabled</option>
+            <option value="disabled">disabled</option>
           </select>
         </label>
 
