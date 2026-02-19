@@ -12,6 +12,8 @@ BLAIRE reads settings from `.env` (see `.env.example`).
 - `QDRANT_URL`, `QDRANT_COLLECTION_NAME`, `QDRANT_EMBEDDING_DIM`
 - `INFERENCE_BASE_URL` (LocalAI OpenAI-compatible endpoint)
 - `VLLM_BASE_URL` (used for dependency checks and direct vLLM ops)
+- `VLLM_MODEL` (default `Qwen/Qwen3-VL-14B` in `.env.example`)
+- `VLLM_QUANTIZATION` (default `nvfp4` in `.env.example`)
 - `SEARCH_MODE_DEFAULT`, `BRAVE_API_KEY`, `SEARXNG_URL`
 
 ## Knowledge and storage

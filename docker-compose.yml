@@ -23,8 +23,8 @@ services:
       SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
       MCP_OBSIDIAN_URL: ${MCP_OBSIDIAN_URL}
       MCP_HA_URL: ${MCP_HA_URL}
-      MODEL_GENERAL_DEFAULT: ${MODEL_GENERAL_DEFAULT:-qwen2.5:7b-instruct}
-      MODEL_VISION_DEFAULT: ${MODEL_VISION_DEFAULT:-qwen2.5vl:7b}
+      MODEL_GENERAL_DEFAULT: ${MODEL_GENERAL_DEFAULT:-qwen3-vl:14b-q4_K_M}
+      MODEL_VISION_DEFAULT: ${MODEL_VISION_DEFAULT:-qwen3-vl:14b-q4_K_M}
       MODEL_EMBEDDING_DEFAULT: ${MODEL_EMBEDDING_DEFAULT:-nomic-embed-text:v1.5}
       MODEL_CODE_DEFAULT: ${MODEL_CODE_DEFAULT:-}
       REQUIRE_AUTH: ${REQUIRE_AUTH:-true}
@@ -78,7 +78,9 @@ services:
       - --port
       - "8000"
       - --model
-      - ${VLLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      - ${VLLM_MODEL:-Qwen/Qwen3-VL-14B}
+      - --quantization
+      - ${VLLM_QUANTIZATION:-nvfp4}
     profiles:
       - gpu
     networks:
