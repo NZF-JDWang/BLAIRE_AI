@@ -40,28 +40,28 @@ type Preferences = {
   retrievalK: number;
 };
 
-type SettingsTab = "identity" | "model" | "runtime" | "readiness" | "integrations";
+type SettingsTab = "wizard" | "identity" | "model" | "readiness" | "advanced";
 
 const SETTINGS_TAB_COPY: Record<SettingsTab, { title: string; detail: string }> = {
+  wizard: {
+    title: "First-run",
+    detail: "Step-by-step setup for key, local model, defaults, and readiness.",
+  },
   identity: {
-    title: "Identity and access",
-    detail: "Set your API key, verify connectivity, and control local UI theme behavior for this browser.",
+    title: "Identity",
+    detail: "API key, access check, and browser theme.",
   },
   model: {
-    title: "Model and retrieval defaults",
-    detail: "Define default model class, model override, and generation/retrieval parameters used by operations pages.",
-  },
-  runtime: {
-    title: "Runtime policy overrides",
-    detail: "Admin-only controls for policy and allowlists that affect approvals, tools, and MCP execution behavior.",
+    title: "Model defaults",
+    detail: "Default model class, optional override, and generation/retrieval behavior.",
   },
   readiness: {
-    title: "Dependency readiness",
-    detail: "Confirm MCP and runtime dependencies before using operations that depend on external systems.",
+    title: "Readiness",
+    detail: "Dependency health for MCP and external services.",
   },
-  integrations: {
-    title: "Integrations status",
-    detail: "Validate whether external integrations are configured and which host/endpoint is currently active.",
+  advanced: {
+    title: "Advanced",
+    detail: "Admin runtime policy and integrations status.",
   },
 };
 
@@ -93,7 +93,7 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState(false);
   const [pullingModel, setPullingModel] = useState(false);
   const [modelPullName, setModelPullName] = useState("");
-  const [activeTab, setActiveTab] = useState<SettingsTab>("identity");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("wizard");
 
   useEffect(() => {
     setApiKey(getBrowserApiKey());
@@ -246,6 +246,11 @@ export default function SettingsPage() {
   }
 
   const models = options?.model_allowlist[prefs.modelClass] ?? [];
+  const hasApiKey = apiKey.trim().length > 0;
+  const requiredDependencyHealthy = dependencies
+    ? dependencies.dependencies.filter((dep) => dep.required && dep.enabled).every((dep) => dep.ok)
+    : false;
+  const localModelInstalled = (modelsInfo?.installed_models.length ?? 0) > 0;
 
   return (
     <main className="page-wrap">
@@ -253,59 +258,163 @@ export default function SettingsPage() {
         <p className="page-kicker">Settings</p>
         <h1 className="page-title">Configure BLAIRE in one place before running operations.</h1>
         <p className="page-description">
-          This page is the central control surface. Update identity, defaults, policy, readiness, and integrations here,
-          then return to Operations to run tasks.
+          Start with First-run, then use the other tabs only as needed.
         </p>
-      </section>
-
-      <section className="surface stack" aria-label="Settings coverage">
-        <h2>Where each operation gets its settings</h2>
-        <div className="quick-links">
-          <article className="quick-link">
-            <p className="quick-link-title">Chat and Swarm</p>
-            <p className="quick-link-copy">Uses Model and retrieval defaults. Override at runtime only when needed.</p>
-          </article>
-          <article className="quick-link">
-            <p className="quick-link-title">Search</p>
-            <p className="quick-link-copy">Uses Search mode and policy defaults from Model defaults and Runtime policy.</p>
-          </article>
-          <article className="quick-link">
-            <p className="quick-link-title">Knowledge and Capabilities</p>
-            <p className="quick-link-copy">Depends on Dependency readiness and Integrations status.</p>
-          </article>
-          <article className="quick-link">
-            <p className="quick-link-title">Approvals and Tools</p>
-            <p className="quick-link-copy">Controlled by Runtime policy overrides and approval TTL settings.</p>
-          </article>
-          <article className="quick-link">
-            <p className="quick-link-title">Initial access</p>
-            <p className="quick-link-copy">Configured in Identity and access with API key plus connection test.</p>
-          </article>
-        </div>
       </section>
 
       <section className="surface stack" aria-label="Settings sections">
         <div className="toolbar">
+          <button className={activeTab === "wizard" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("wizard")}>
+            First-run wizard
+          </button>
           <button className={activeTab === "identity" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("identity")}>
             Identity and access
           </button>
           <button className={activeTab === "model" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("model")}>
             Model defaults
           </button>
-          <button className={activeTab === "runtime" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("runtime")}>
-            Runtime policy
-          </button>
           <button className={activeTab === "readiness" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("readiness")}>
-            MCP readiness
+            Readiness
           </button>
-          <button className={activeTab === "integrations" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("integrations")}>
-            Integrations
+          <button className={activeTab === "advanced" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("advanced")}>
+            Advanced
           </button>
         </div>
         <p className="help-text">
           <strong>{SETTINGS_TAB_COPY[activeTab].title}:</strong> {SETTINGS_TAB_COPY[activeTab].detail}
         </p>
       </section>
+
+      {activeTab === "wizard" ? (
+      <section className="surface stack" aria-label="First-run wizard">
+        <h2>First-run wizard</h2>
+        <p className="help-text">
+          Complete these three steps in order.
+        </p>
+        <div className="quick-links">
+          <article className="quick-link">
+            <p className="quick-link-title">1. API key and access</p>
+            <p className="quick-link-copy">
+              Add a user/admin API key, run a connection test, and confirm this browser can reach the backend.
+            </p>
+            <p className={hasApiKey ? "pill success" : "pill"}>{hasApiKey ? "configured" : "missing key"}</p>
+          </article>
+          <article className="quick-link">
+            <p className="quick-link-title">2. Local model setup</p>
+            <p className="quick-link-copy">
+              Pull at least one local model so chat defaults and model selection have a known baseline.
+            </p>
+            <p className={localModelInstalled ? "pill success" : "pill"}>{localModelInstalled ? "model detected" : "no local model detected"}</p>
+          </article>
+          <article className="quick-link">
+            <p className="quick-link-title">3. Defaults and readiness</p>
+            <p className="quick-link-copy">
+              Save model/search defaults, then check required dependencies before using operations workspaces.
+            </p>
+            <p className={requiredDependencyHealthy ? "pill success" : "pill warn"}>
+              {requiredDependencyHealthy ? "required dependencies healthy" : "dependency check needed"}
+            </p>
+          </article>
+        </div>
+
+        <h3>Step 1: API key and connection</h3>
+        <label className="field-label">
+          API key
+          <input
+            className="input"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Paste user or admin API key"
+          />
+        </label>
+        <div className="toolbar">
+          <button className="button button-primary" onClick={() => void testConnection()} disabled={testing}>
+            {testing ? "Testing..." : "Connection test"}
+          </button>
+          {status ? <span className="pill success">{status}</span> : null}
+        </div>
+        {error ? <p className="error-text">{error}</p> : null}
+
+        <h3>Step 2: Pull local model</h3>
+        <p className="help-text">
+          Enter a model name exactly as your local inference runtime expects (example: `llama3.2:3b`), then pull it.
+        </p>
+        <div className="toolbar">
+          <input
+            className="input mono"
+            value={modelPullName}
+            onChange={(e) => setModelPullName(e.target.value)}
+            placeholder="model to pull (admin)"
+            style={{ maxWidth: "320px" }}
+          />
+          <button className="button button-muted" onClick={() => void requestModelPull()} disabled={pullingModel}>
+            {pullingModel ? "Pulling..." : "Pull model"}
+          </button>
+        </div>
+        {modelsInfo ? (
+          <p className="help-text">Installed models detected: {modelsInfo.installed_models.length}</p>
+        ) : null}
+
+        <h3>Step 3: Save defaults and verify readiness</h3>
+        <div className="row">
+          <label className="field-label" style={{ minWidth: "180px" }}>
+            Search mode
+            <select
+              className="select"
+              value={prefs.searchMode}
+              onChange={(e) => setPrefs((prev) => ({ ...prev, searchMode: e.target.value }))}
+            >
+              {(options?.search_modes ?? ["searxng_only"]).map((mode) => (
+                <option key={mode} value={mode}>
+                  {mode}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field-label" style={{ minWidth: "180px" }}>
+            Model class
+            <select
+              className="select"
+              value={prefs.modelClass}
+              onChange={(e) =>
+                setPrefs((prev) => ({
+                  ...prev,
+                  modelClass: e.target.value,
+                  modelOverride: "",
+                }))
+              }
+            >
+              <option value="general">general</option>
+              <option value="vision">vision</option>
+              <option value="embedding">embedding</option>
+              <option value="code">code</option>
+            </select>
+          </label>
+          <label className="field-label" style={{ minWidth: "260px" }}>
+            Model override
+            <select
+              className="select"
+              value={prefs.modelOverride}
+              onChange={(e) => setPrefs((prev) => ({ ...prev, modelOverride: e.target.value }))}
+            >
+              <option value="">(none)</option>
+              {models.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="toolbar">
+          <button className="button button-primary" onClick={() => void save()} disabled={saving}>
+            {saving ? "Saving..." : "Save preferences"}
+          </button>
+          {status ? <span className="pill success">{status}</span> : null}
+        </div>
+        {error ? <p className="error-text">{error}</p> : null}
+      </section>
+      ) : null}
 
       {loadError ? (
         <section className="surface stack auth-banner" aria-label="Runtime load warning">
@@ -429,7 +538,7 @@ export default function SettingsPage() {
             value={prefs.modelOverride}
             onChange={(e) => setPrefs((prev) => ({ ...prev, modelOverride: e.target.value }))}
           >
-            <option value="">(class default)</option>
+            <option value="">(none)</option>
             {models.map((model) => (
               <option key={model} value={model}>
                 {model}
@@ -581,9 +690,9 @@ export default function SettingsPage() {
       </section>
       ) : null}
 
-      {activeTab === "runtime" ? (
-      <section className="surface stack" aria-label="Runtime policy overrides">
-        <h2>Admin runtime policy overrides</h2>
+      {activeTab === "advanced" ? (
+      <section className="surface stack" aria-label="Advanced settings">
+        <h2>Advanced (admin)</h2>
         {!runtimeConfig ? (
           <div className="empty-state">
             <p style={{ margin: 0 }}>
@@ -921,52 +1030,48 @@ export default function SettingsPage() {
                 </div>
               </>
             )}
+
+            <h3>Integrations status</h3>
+            {!integrationsStatus ? (
+              <div className="empty-state">
+                <p style={{ margin: 0 }}>Integrations status unavailable for this key.</p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Integration</th>
+                      <th>Configured</th>
+                      <th>Endpoint/Host</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Google OAuth</td>
+                      <td>{String(integrationsStatus.google_oauth_configured)}</td>
+                      <td className="mono">{integrationsStatus.google_api_base}</td>
+                    </tr>
+                    <tr>
+                      <td>IMAP</td>
+                      <td>{String(integrationsStatus.imap_configured)}</td>
+                      <td className="mono">{integrationsStatus.imap_host || "(unset)"}</td>
+                    </tr>
+                    <tr>
+                      <td>Home Assistant</td>
+                      <td>{String(integrationsStatus.home_assistant_configured)}</td>
+                      <td className="mono">{integrationsStatus.home_assistant_url}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="help-text">
+              Tokens/secrets are intentionally not returned by the API. Configure credentials in `.env` (restart required),
+              then verify here.
+            </p>
           </>
         )}
-      </section>
-      ) : null}
-
-      {activeTab === "integrations" ? (
-      <section className="surface stack" aria-label="Integrations status">
-        <h2>Integrations status</h2>
-        {!integrationsStatus ? (
-          <div className="empty-state">
-            <p style={{ margin: 0 }}>Integrations status unavailable for this key.</p>
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Integration</th>
-                  <th>Configured</th>
-                  <th>Endpoint/Host</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Google OAuth</td>
-                  <td>{String(integrationsStatus.google_oauth_configured)}</td>
-                  <td className="mono">{integrationsStatus.google_api_base}</td>
-                </tr>
-                <tr>
-                  <td>IMAP</td>
-                  <td>{String(integrationsStatus.imap_configured)}</td>
-                  <td className="mono">{integrationsStatus.imap_host || "(unset)"}</td>
-                </tr>
-                <tr>
-                  <td>Home Assistant</td>
-                  <td>{String(integrationsStatus.home_assistant_configured)}</td>
-                  <td className="mono">{integrationsStatus.home_assistant_url}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p className="help-text">
-          Tokens/secrets are intentionally not returned by the API. Configure credentials in `.env` (restart required),
-          then verify here.
-        </p>
       </section>
       ) : null}
     </main>

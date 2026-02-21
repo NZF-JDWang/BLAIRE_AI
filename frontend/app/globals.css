@@ -400,6 +400,11 @@ pre,
   gap: 10px;
 }
 
+.chat-layout {
+  display: grid;
+  gap: 12px;
+}
+
 .message-feed {
   display: grid;
   gap: 10px;
@@ -556,6 +561,11 @@ pre,
 @media (min-width: 1024px) {
   .stat-card {
     grid-column: span 4;
+  }
+
+  .chat-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+    align-items: start;
   }
 }
 

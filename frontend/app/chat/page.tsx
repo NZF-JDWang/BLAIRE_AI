@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
-import { apiFetch, formatApiError, getMyPreferences, getRuntimeOptionsTyped, RuntimeOptions } from "@/lib/api";
+import { apiFetch, formatApiError, getMyPreferences } from "@/lib/api";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -21,12 +21,9 @@ type Citation = {
 
 async function streamChat(params: {
   messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;
-  modelClass: string;
-  modelOverride?: string;
   temperature: number;
   topP: number;
   maxTokens: number | null;
-  contextWindowTokens: number | null;
   useRag: boolean;
   retrievalK: number;
   onToken: (token: string) => void;
@@ -38,13 +35,10 @@ async function streamChat(params: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       messages: params.messages,
-      model_class: params.modelClass,
-      model_override: params.modelOverride || null,
       stream: true,
       temperature: params.temperature,
       top_p: params.topP,
       max_tokens: params.maxTokens,
-      context_window_tokens: params.contextWindowTokens,
       use_rag: params.useRag,
       retrieval_k: params.retrievalK,
     }),
@@ -96,44 +90,38 @@ async function streamChat(params: {
   }
 }
 
+type ReasoningDepth = "fast" | "balanced" | "deep";
+
+function depthSettings(depth: ReasoningDepth): { temperature: number; topP: number; maxTokens: number | null } {
+  if (depth === "fast") {
+    return { temperature: 0.3, topP: 0.9, maxTokens: 768 };
+  }
+  if (depth === "deep") {
+    return { temperature: 0.6, topP: 0.95, maxTokens: 2048 };
+  }
+  return { temperature: 0.7, topP: 1.0, maxTokens: null };
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [runtimeOptions, setRuntimeOptions] = useState<RuntimeOptions | null>(null);
-  const [modelClass, setModelClass] = useState("general");
-  const [modelOverride, setModelOverride] = useState("");
-  const [temperature, setTemperature] = useState(0.7);
-  const [topP, setTopP] = useState(1.0);
-  const [maxTokens, setMaxTokens] = useState("");
-  const [contextWindowTokens, setContextWindowTokens] = useState("");
-  const [useRag, setUseRag] = useState(true);
   const [retrievalK, setRetrievalK] = useState(4);
+  const [reasoningDepth, setReasoningDepth] = useState<ReasoningDepth>("balanced");
+  const [toolsEnabled, setToolsEnabled] = useState(true);
+  const [approvalMode, setApprovalMode] = useState<"ask" | "auto_safe">("ask");
   const [citations, setCitations] = useState<Citation[]>([]);
   const [ragStatus, setRagStatus] = useState<string>("disabled");
   const [ragError, setRagError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([getRuntimeOptionsTyped(), getMyPreferences()])
-      .then(([runtime, prefs]) => {
-        setRuntimeOptions(runtime);
-        setModelClass(prefs.model_class ?? "general");
-        setModelOverride(prefs.model_override ?? "");
-        setTemperature(prefs.temperature ?? 0.7);
-        setTopP(prefs.top_p ?? 1.0);
-        setMaxTokens(prefs.max_tokens ? String(prefs.max_tokens) : "");
-        setContextWindowTokens(prefs.context_window_tokens ? String(prefs.context_window_tokens) : "");
-        setUseRag(prefs.use_rag ?? true);
+    getMyPreferences()
+      .then((prefs) => {
         setRetrievalK(prefs.retrieval_k ?? 4);
       })
-      .catch(() => setRuntimeOptions(null));
+      .catch(() => undefined);
   }, []);
-
-  const availableModels = useMemo(() => {
-    if (!runtimeOptions) return [];
-    return runtimeOptions.model_allowlist[modelClass] ?? [];
-  }, [runtimeOptions, modelClass]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -154,15 +142,13 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     try {
+      const depth = depthSettings(reasoningDepth);
       await streamChat({
         messages: nextMessages.map((message) => ({ role: message.role, content: message.content })),
-        modelClass,
-        modelOverride: modelOverride || undefined,
-        temperature,
-        topP,
-        maxTokens: maxTokens.trim() ? Number(maxTokens) : null,
-        contextWindowTokens: contextWindowTokens.trim() ? Number(contextWindowTokens) : null,
-        useRag,
+        temperature: depth.temperature,
+        topP: depth.topP,
+        maxTokens: depth.maxTokens,
+        useRag: true,
         retrievalK,
         onMeta: (meta) => {
           setCitations(meta.citations ?? []);
@@ -189,183 +175,131 @@ export default function ChatPage() {
   return (
     <main className="page-wrap">
       <section className="page-hero">
-        <p className="page-kicker">Chat Workspace</p>
-        <h1 className="page-title">Stream responses with model and RAG visibility.</h1>
+        <p className="page-kicker">Chat</p>
+        <h1 className="page-title">Single interface for normal work.</h1>
         <p className="page-description">
-          Select a model class, optionally override with a specific runtime model, and inspect citations from retrieval.
+          Model selection lives in Settings. RAG and citations are always on.
         </p>
       </section>
 
       <section className="surface stack" aria-label="Chat runtime controls">
         <div className="row">
-          <label className="field-label" style={{ minWidth: "210px" }}>
-            Model class
-            <select className="select" value={modelClass} onChange={(e) => setModelClass(e.target.value)}>
-              <option value="general">general</option>
-              <option value="vision">vision</option>
-              <option value="embedding">embedding</option>
-              <option value="code">code</option>
+          <label className="field-label" style={{ minWidth: "200px" }}>
+            Reasoning depth
+            <select className="select" value={reasoningDepth} onChange={(e) => setReasoningDepth(e.target.value as ReasoningDepth)}>
+              <option value="fast">fast</option>
+              <option value="balanced">balanced</option>
+              <option value="deep">deep</option>
             </select>
           </label>
-          <label className="field-label" style={{ minWidth: "260px" }}>
-            Model override
-            <select className="select" value={modelOverride} onChange={(e) => setModelOverride(e.target.value)}>
-              <option value="">(class default)</option>
-              {availableModels.map((model) => (
-                <option key={model} value={model}>
-                  {model}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field-label" style={{ minWidth: "130px" }}>
-            RAG
-            <select className="select" value={useRag ? "enabled" : "disabled"} onChange={(e) => setUseRag(e.target.value === "enabled")}>
+          <label className="field-label" style={{ minWidth: "180px" }}>
+            Tools
+            <select
+              className="select"
+              value={toolsEnabled ? "enabled" : "disabled"}
+              onChange={(e) => setToolsEnabled(e.target.value === "enabled")}
+              disabled
+            >
               <option value="enabled">enabled</option>
               <option value="disabled">disabled</option>
             </select>
           </label>
+          <label className="field-label" style={{ minWidth: "220px" }}>
+            Approval mode
+            <select
+              className="select"
+              value={approvalMode}
+              onChange={(e) => setApprovalMode(e.target.value as "ask" | "auto_safe")}
+              disabled
+            >
+              <option value="ask">ask before actions</option>
+              <option value="auto_safe">auto-safe actions</option>
+            </select>
+          </label>
+          <span className="pill success">RAG always on</span>
           <span className={ragError ? "pill error" : ragStatus === "used" ? "pill success" : "pill"}>
             RAG {ragStatus}
           </span>
         </div>
-        <div className="row">
-          <label className="field-label" style={{ minWidth: "120px" }}>
-            Retrieval K
-            <input
-              className="input"
-              type="number"
-              min={1}
-              max={12}
-              value={retrievalK}
-              onChange={(e) => setRetrievalK(Number(e.target.value))}
-            />
-          </label>
-          <label className="field-label" style={{ minWidth: "120px" }}>
-            Temp
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={2}
-              step={0.1}
-              value={temperature}
-              onChange={(e) => setTemperature(Number(e.target.value))}
-            />
-          </label>
-          <label className="field-label" style={{ minWidth: "120px" }}>
-            Top P
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={1}
-              step={0.05}
-              value={topP}
-              onChange={(e) => setTopP(Number(e.target.value))}
-            />
-          </label>
-          <label className="field-label" style={{ minWidth: "140px" }}>
-            Max tokens
-            <input
-              className="input"
-              type="number"
-              min={1}
-              max={8192}
-              value={maxTokens}
-              onChange={(e) => setMaxTokens(e.target.value)}
-              placeholder="default"
-            />
-          </label>
-          <label className="field-label" style={{ minWidth: "160px" }}>
-            Context tokens
-            <input
-              className="input"
-              type="number"
-              min={256}
-              max={262144}
-              value={contextWindowTokens}
-              onChange={(e) => setContextWindowTokens(e.target.value)}
-              placeholder="default"
-            />
-          </label>
-        </div>
+        <p className="help-text">Tools and approval-mode toggles are visible now, but backend chat tool execution wiring is still pending.</p>
         {ragError ? <p className="error-text">{ragError}</p> : null}
       </section>
 
-      <section className="surface stack" aria-label="Chat history">
-        <div className="message-feed">
-          {messages.length === 0 ? (
-            <div className="empty-state">
-              <p style={{ margin: 0 }}>No messages yet. Ask a question to start a streamed response.</p>
-            </div>
-          ) : null}
-          {messages.map((message, idx) => (
-            <article key={`${message.role}-${idx}`} className={message.role === "user" ? "message user" : "message"}>
-              <p className="message-role">{message.role}</p>
-              <p className="message-text">{message.content || (loading ? "..." : "(empty response)")}</p>
-            </article>
-          ))}
-        </div>
-
-        <form onSubmit={onSubmit} className="stack">
-          <label className="field-label">
-            Prompt
-            <textarea
-              className="textarea"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask BLAIRE to analyze, summarize, or reason through a task..."
-              disabled={loading}
-            />
-          </label>
-          <div className="toolbar">
-            <button type="submit" className="button button-primary" disabled={loading || !input.trim()}>
-              {loading ? "Streaming response..." : "Send message"}
-            </button>
-            <p className="help-text">Press Enter inside the field to submit.</p>
-          </div>
-        </form>
-        {error ? <p className="error-text">{error}</p> : null}
-      </section>
-
-      <section className="surface stack" aria-label="Citation panel">
-        <h2>Citations</h2>
-        {citations.length === 0 ? (
-          <div className="empty-state">
-            <p style={{ margin: 0 }}>No citations returned for the latest response.</p>
-          </div>
-        ) : (
-          <div className="panel-list">
-            {citations.map((citation, idx) => (
-              <article key={`${citation.source_name}-${citation.chunk_index}-${idx}`} className="surface" style={{ padding: "12px" }}>
-                <p style={{ marginBottom: "6px" }}>
-                  <strong>{citation.source_name ?? "Unknown source"}</strong> {citation.file_type ? `(${citation.file_type})` : ""}
-                </p>
-                <p className="help-text" style={{ marginBottom: "6px" }}>
-                  chunk #{citation.chunk_index ?? "n/a"} | score {typeof citation.score === "number" ? citation.score.toFixed(3) : "n/a"}
-                </p>
-                {citation.source_path ? (
-                  citation.source_path.startsWith("http://") || citation.source_path.startsWith("https://") ? (
-                    <a href={citation.source_path} target="_blank" rel="noreferrer" className="mono" style={{ fontSize: "0.82rem" }}>
-                      {citation.source_path}
-                    </a>
-                  ) : (
-                    <p className="mono" style={{ margin: "0 0 8px", fontSize: "0.82rem" }}>
-                      {citation.source_path}
-                    </p>
-                  )
-                ) : null}
-                {citation.ingested_at ? (
-                  <p className="help-text" style={{ marginBottom: "8px" }}>
-                    Ingested: {new Date(citation.ingested_at).toLocaleString()}
-                  </p>
-                ) : null}
-                <p style={{ margin: 0 }}>{String(citation.text ?? "").slice(0, 240)}</p>
+      <section className="chat-layout" aria-label="Chat and citations">
+        <div className="surface stack" aria-label="Chat history">
+          <div className="message-feed">
+            {messages.length === 0 ? (
+              <div className="empty-state">
+                <p style={{ margin: 0 }}>No messages yet. Ask a question to start a streamed response.</p>
+              </div>
+            ) : null}
+            {messages.map((message, idx) => (
+              <article key={`${message.role}-${idx}`} className={message.role === "user" ? "message user" : "message"}>
+                <p className="message-role">{message.role}</p>
+                <p className="message-text">{message.content || (loading ? "..." : "(empty response)")}</p>
               </article>
             ))}
           </div>
-        )}
+
+          <form onSubmit={onSubmit} className="stack">
+            <label className="field-label">
+              Prompt
+              <textarea
+                className="textarea"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask BLAIRE to analyze, summarize, or reason through a task..."
+                disabled={loading}
+              />
+            </label>
+            <div className="toolbar">
+              <button type="submit" className="button button-primary" disabled={loading || !input.trim()}>
+                {loading ? "Streaming response..." : "Send message"}
+              </button>
+              <p className="help-text">Press Enter inside the field to submit.</p>
+            </div>
+          </form>
+          {error ? <p className="error-text">{error}</p> : null}
+        </div>
+
+        <aside className="surface stack" aria-label="Citation panel">
+          <h2>Citations</h2>
+          {citations.length === 0 ? (
+            <div className="empty-state">
+              <p style={{ margin: 0 }}>No citations returned for the latest response.</p>
+            </div>
+          ) : (
+            <div className="panel-list">
+              {citations.map((citation, idx) => (
+                <article key={`${citation.source_name}-${citation.chunk_index}-${idx}`} className="surface" style={{ padding: "12px" }}>
+                  <p style={{ marginBottom: "6px" }}>
+                    <strong>{citation.source_name ?? "Unknown source"}</strong> {citation.file_type ? `(${citation.file_type})` : ""}
+                  </p>
+                  <p className="help-text" style={{ marginBottom: "6px" }}>
+                    chunk #{citation.chunk_index ?? "n/a"} | score {typeof citation.score === "number" ? citation.score.toFixed(3) : "n/a"}
+                  </p>
+                  {citation.source_path ? (
+                    citation.source_path.startsWith("http://") || citation.source_path.startsWith("https://") ? (
+                      <a href={citation.source_path} target="_blank" rel="noreferrer" className="mono" style={{ fontSize: "0.82rem" }}>
+                        {citation.source_path}
+                      </a>
+                    ) : (
+                      <p className="mono" style={{ margin: "0 0 8px", fontSize: "0.82rem" }}>
+                        {citation.source_path}
+                      </p>
+                    )
+                  ) : null}
+                  {citation.ingested_at ? (
+                    <p className="help-text" style={{ marginBottom: "8px" }}>
+                      Ingested: {new Date(citation.ingested_at).toLocaleString()}
+                    </p>
+                  ) : null}
+                  <p style={{ margin: 0 }}>{String(citation.text ?? "").slice(0, 240)}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </aside>
       </section>
     </main>
   );

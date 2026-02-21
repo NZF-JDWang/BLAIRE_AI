@@ -76,8 +76,8 @@ export function AppStatusStrip() {
     return (
       <div className="app-status-strip">
         <span className="pill warn">Auth required</span>
-        <Link href="/setup" className="button button-muted">
-          Open setup
+        <Link href="/settings" className="button button-muted">
+          Open settings
         </Link>
       </div>
     );
