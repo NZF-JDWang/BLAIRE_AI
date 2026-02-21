@@ -97,13 +97,13 @@ Use only profiles you need:
 
 ## 5) Initialize BLAIRE (required)
 
-After containers are up, run one-time init:
+If backend is exposed with `--profile dev`, run:
 
 ```bash
 curl -X POST http://localhost:8001/ops/init -H "X-API-Key: <ADMIN_API_KEY>"
 ```
 
-If backend is not exposed with `--profile dev`, run from inside backend container:
+If backend is internal-only (default `docker compose up -d`), run from inside backend container:
 
 ```bash
 docker compose exec backend sh -lc 'curl -s -X POST http://localhost:8000/ops/init -H "X-API-Key: <ADMIN_API_KEY>"'
@@ -113,7 +113,7 @@ docker compose exec backend sh -lc 'curl -s -X POST http://localhost:8000/ops/in
 
 ## 6) Verify installation
 
-Backend checks:
+Backend checks (if using `--profile dev`):
 
 ```bash
 curl -s http://localhost:8001/health
@@ -121,7 +121,7 @@ curl -s http://localhost:8001/health/dependencies -H "X-API-Key: <USER_API_KEY>"
 curl -s http://localhost:8001/runtime/options -H "X-API-Key: <USER_API_KEY>"
 ```
 
-If backend is internal-only:
+Backend checks (internal-only default):
 
 ```bash
 docker compose exec backend sh -lc 'curl -s http://localhost:8000/health'
