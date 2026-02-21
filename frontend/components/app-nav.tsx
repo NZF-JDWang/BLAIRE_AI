@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Operations" },
+  { href: "/chat", label: "Chat" },
   { href: "/settings", label: "Settings" },
 ] as const;
 
@@ -14,8 +14,7 @@ export function AppNav() {
   return (
     <nav className="app-nav" aria-label="Main navigation">
       {NAV_ITEMS.map((item) => {
-        const isSettingsRoute = pathname.startsWith("/settings");
-        const isActive = item.href === "/settings" ? isSettingsRoute : !isSettingsRoute;
+        const isActive = pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}

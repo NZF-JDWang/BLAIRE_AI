@@ -35,6 +35,7 @@ async function streamChat(params: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       messages: params.messages,
+      model_class: "general",
       stream: true,
       temperature: params.temperature,
       top_p: params.topP,

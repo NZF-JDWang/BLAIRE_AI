@@ -28,6 +28,7 @@ class Settings(BaseSettings):
         default="http://localai:8080",
         alias="INFERENCE_BASE_URL",
     )
+    localai_models_path: str = Field(default="/models", alias="LOCALAI_MODELS_PATH")
     vllm_base_url: str = Field(default="http://vllm:8000", alias="VLLM_BASE_URL")
 
     search_mode_default: str = Field(default="searxng_only", alias="SEARCH_MODE_DEFAULT")

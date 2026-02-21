@@ -30,7 +30,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 type Preferences = {
   searchMode: string;
-  modelClass: string;
   modelOverride: string;
   temperature: number;
   topP: number;
@@ -53,7 +52,7 @@ const SETTINGS_TAB_COPY: Record<SettingsTab, { title: string; detail: string }> 
   },
   model: {
     title: "Model defaults",
-    detail: "Default model class, optional override, and generation/retrieval behavior.",
+    detail: "Installed-model override plus generation/retrieval behavior.",
   },
   readiness: {
     title: "Readiness",
@@ -76,7 +75,6 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [prefs, setPrefs] = useState<Preferences>({
     searchMode: "searxng_only",
-    modelClass: "general",
     modelOverride: "",
     temperature: 0.7,
     topP: 1.0,
@@ -138,7 +136,6 @@ export default function SettingsPage() {
         setLoadError("");
         setPrefs({
           searchMode: current.search_mode,
-          modelClass: current.model_class,
           modelOverride: current.model_override ?? "",
           temperature: current.temperature,
           topP: current.top_p,
@@ -168,7 +165,7 @@ export default function SettingsPage() {
       setBrowserApiKey(apiKey);
       await updateMyPreferences({
         search_mode: prefs.searchMode,
-        model_class: prefs.modelClass,
+        model_class: "general",
         model_override: prefs.modelOverride || null,
         temperature: prefs.temperature,
         top_p: prefs.topP,
@@ -245,7 +242,9 @@ export default function SettingsPage() {
     }
   }
 
-  const models = options?.model_allowlist[prefs.modelClass] ?? [];
+  const allowedGeneralModels = options?.model_allowlist.general ?? [];
+  const installedModels = modelsInfo?.installed_models ?? [];
+  const models = allowedGeneralModels.filter((model) => installedModels.includes(model));
   const hasApiKey = apiKey.trim().length > 0;
   const requiredDependencyHealthy = dependencies
     ? dependencies.dependencies.filter((dep) => dep.required && dep.enabled).every((dep) => dep.ok)
@@ -256,7 +255,7 @@ export default function SettingsPage() {
     <main className="page-wrap">
       <section className="page-hero">
         <p className="page-kicker">Settings</p>
-        <h1 className="page-title">Configure BLAIRE in one place before running operations.</h1>
+        <h1 className="page-title">Configure BLAIRE in one place.</h1>
         <p className="page-description">
           Start with First-run, then use the other tabs only as needed.
         </p>
@@ -340,6 +339,7 @@ export default function SettingsPage() {
         <p className="help-text">
           Enter a model name exactly as your local inference runtime expects (example: `llama3.2:3b`), then pull it.
         </p>
+        <p className="help-text">Storage path: <span className="mono">{systemSummary?.localai_models_path ?? "set by LOCALAI_MODELS_PATH"}</span></p>
         <div className="toolbar">
           <input
             className="input mono"
@@ -372,25 +372,7 @@ export default function SettingsPage() {
               ))}
             </select>
           </label>
-          <label className="field-label" style={{ minWidth: "180px" }}>
-            Model class
-            <select
-              className="select"
-              value={prefs.modelClass}
-              onChange={(e) =>
-                setPrefs((prev) => ({
-                  ...prev,
-                  modelClass: e.target.value,
-                  modelOverride: "",
-                }))
-              }
-            >
-              <option value="general">general</option>
-              <option value="vision">vision</option>
-              <option value="embedding">embedding</option>
-              <option value="code">code</option>
-            </select>
-          </label>
+          <span className="pill">model class: auto/general</span>
           <label className="field-label" style={{ minWidth: "260px" }}>
             Model override
             <select
@@ -462,6 +444,7 @@ export default function SettingsPage() {
               Installed models: {modelsInfo.installed_models.length} | allow-any-inference:{" "}
               {String(modelsInfo.model_allow_any_inference)}
             </p>
+            <p className="help-text">Model storage path: <span className="mono">{systemSummary?.localai_models_path ?? "(admin key required)"}</span></p>
             <div className="table-wrap">
               <table className="table">
                 <thead>
@@ -512,25 +495,7 @@ export default function SettingsPage() {
           </select>
         </label>
 
-        <label className="field-label">
-          Model class
-          <select
-            className="select"
-            value={prefs.modelClass}
-            onChange={(e) =>
-              setPrefs((prev) => ({
-                ...prev,
-                modelClass: e.target.value,
-                modelOverride: "",
-              }))
-            }
-          >
-            <option value="general">general</option>
-            <option value="vision">vision</option>
-            <option value="embedding">embedding</option>
-            <option value="code">code</option>
-          </select>
-        </label>
+        <p className="help-text">Model class is handled automatically for chat defaults (general).</p>
 
         <label className="field-label">
           Model override
@@ -547,6 +512,7 @@ export default function SettingsPage() {
             ))}
           </select>
         </label>
+        {models.length === 0 ? <p className="help-text">No installed models match the allowed list yet. Pull a model first.</p> : null}
 
         <label className="field-label">
           Temperature
@@ -981,6 +947,10 @@ export default function SettingsPage() {
                       <tr>
                         <td className="mono">inference_base_url</td>
                         <td className="mono">{systemSummary.inference_base_url}</td>
+                      </tr>
+                      <tr>
+                        <td className="mono">localai_models_path</td>
+                        <td className="mono">{systemSummary.localai_models_path}</td>
                       </tr>
                       <tr>
                         <td className="mono">qdrant_url</td>

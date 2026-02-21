@@ -128,6 +128,7 @@ async def runtime_system_summary(
         enable_mcp_services=settings.enable_mcp_services,
         enable_vllm=settings.enable_vllm,
         inference_base_url=settings.inference_base_url,
+        localai_models_path=settings.localai_models_path,
         qdrant_url=settings.qdrant_url,
         searxng_url=settings.searxng_url,
         mcp_obsidian_url=settings.mcp_obsidian_url,

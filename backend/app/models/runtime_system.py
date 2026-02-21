@@ -7,6 +7,7 @@ class RuntimeSystemSummaryResponse(BaseModel):
     enable_mcp_services: bool
     enable_vllm: bool
     inference_base_url: str
+    localai_models_path: str
     qdrant_url: str
     searxng_url: str
     mcp_obsidian_url: str

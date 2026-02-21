@@ -79,6 +79,7 @@ export type RuntimeSystemSummary = {
   enable_mcp_services: boolean;
   enable_vllm: boolean;
   inference_base_url: string;
+  localai_models_path: string;
   qdrant_url: string;
   searxng_url: string;
   mcp_obsidian_url: string;
