@@ -1,23 +1,25 @@
-# BLAIRE Installation Guide
+# BLAIRE Installation and Setup Guide
 
-This guide is the full install path for a first-time setup.
+This is the single, complete first-time setup guide.
 
-If you want a shorter version, see `docs/quickstart.md`.
+## 1) Choose your install path
 
-## 1) What You Are Installing
+### Recommended: automated install (Linux/macOS)
+```bash
+bash ops/bootstrap.sh
+```
 
-BLAIRE runs as a multi-container stack:
-- `backend` (FastAPI)
-- `frontend` (Next.js)
-- `postgres`
-- `qdrant`
-- `localai`
+### Recommended: automated install (Windows PowerShell)
+```powershell
+./ops/bootstrap.ps1
+```
 
-Optional profiles:
-- `search` -> `searxng`
-- `mcp` -> `obsidian-mcp-server`, `ha-mcp-server`, `homelab-mcp`
-- `gpu` -> `vllm`
-- `ops` -> `watchtower`
+Use automated install if possible. It handles most setup steps for you.
+
+### Manual install
+If you prefer control over each step, continue below.
+
+---
 
 ## 2) Prerequisites
 
@@ -25,11 +27,11 @@ Required:
 - Docker Engine + Docker Compose plugin
 - Git
 
-Recommended for local validation:
+Optional (for local validation):
 - Python 3.12
 - Node.js 22 + npm
 
-Check tools:
+Quick checks:
 
 ```bash
 docker --version
@@ -37,30 +39,23 @@ docker compose version
 git --version
 ```
 
-## 3) Clone the Repository
+---
+
+## 3) Clone and prepare environment
 
 ```bash
 git clone https://github.com/NZF-JDWang/BLAIRE_AI.git
 cd BLAIRE_AI
-```
-
-## 4) Create Your Environment File
-
-Copy the example file:
-
-```bash
 cp .env.example .env
 ```
 
-On Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-## 5) Fill Required `.env` Values
-
-At minimum, set:
+Edit `.env` and set these required values:
 - `POSTGRES_PASSWORD`
 - `DATABASE_URL`
 - `ADMIN_API_KEYS`
@@ -68,28 +63,14 @@ At minimum, set:
 
 Important:
 - `DATABASE_URL` password must match `POSTGRES_PASSWORD`.
-- Current inference default is `INFERENCE_BASE_URL=http://localai:8080`.
 
-Useful hardening values before production:
-- `TELEGRAM_WEBHOOK_SECRET_TOKEN`
-- `ALLOWED_NETWORK_HOSTS`
-- `ALLOWED_NETWORK_TOOLS`
-- `ALLOWED_OBSIDIAN_PATHS`
-- `ALLOWED_HA_OPERATIONS`
-- `ALLOWED_HOMELAB_OPERATIONS`
+Helpful first-time toggles:
+- `API_DOCS_ENABLED=true` (enable `/docs` during setup)
+- `FRONTEND_HOST_PORT` / `BACKEND_HOST_PORT` (avoid local port conflicts)
 
-Helpful install toggles:
-- `API_DOCS_ENABLED=true` (temporary for setup/discovery)
-- `FRONTEND_HOST_PORT` / `BACKEND_HOST_PORT` (avoid host collisions)
-- `ENABLE_MCP_SERVICES=true` when using `--profile mcp`
-- `ENABLE_VLLM=true` when using `--profile gpu`
+---
 
-`API_ALLOWED_HOSTS` common setups:
-- Local-only: `localhost,127.0.0.1,backend`
-- Reverse proxy: `your-domain.com,backend`
-- Hybrid (proxy + local test): `your-domain.com,localhost,127.0.0.1,backend`
-
-## 6) Start the Stack
+## 4) Start services
 
 Base stack:
 
@@ -97,55 +78,50 @@ Base stack:
 docker compose up -d
 ```
 
-Dev stack (publishes backend through `backend-dev` proxy):
+Optional profiles:
 
 ```bash
 docker compose --profile dev up -d
+docker compose --profile search up -d
+docker compose --profile mcp up -d
+docker compose --profile gpu up -d
 ```
 
-With optional services:
+Use only profiles you need:
+- `dev`: publish backend to host
+- `search`: run local SearxNG sidecar
+- `mcp`: run MCP sidecars
+- `gpu`: run vLLM
+
+---
+
+## 5) Initialize BLAIRE (required)
+
+After containers are up, run one-time init:
 
 ```bash
-docker compose --profile search --profile mcp --profile gpu up -d
+curl -X POST http://localhost:8001/ops/init -H "X-API-Key: <ADMIN_API_KEY>"
 ```
 
-Notes:
-- `gpu` profile requires a host/GPU runtime that supports your `vllm` container.
-- Keep `mcp` disabled if you have not configured MCP-related env values yet.
-
-## 7) Host Access Defaults
-
-- Frontend is published by default on `FRONTEND_HOST_PORT` (default `3000`).
-- Backend is internal by default for safety.
-- Backend is published only when you run `--profile dev` on `BACKEND_HOST_PORT` (default `8001`).
-
-## 8) Initialize BLAIRE Metadata
-
-Run one-time init after startup.
-
-If backend is exposed (for example with `--profile dev`):
+If backend is not exposed with `--profile dev`, run from inside backend container:
 
 ```bash
-curl -X POST http://localhost:${BACKEND_HOST_PORT:-8001}/ops/init -H "X-API-Key: <ADMIN_API_KEY>"
+docker compose exec backend sh -lc 'curl -s -X POST http://localhost:8000/ops/init -H "X-API-Key: <ADMIN_API_KEY>"'
 ```
 
-If backend is not exposed, run from inside backend container:
+---
+
+## 6) Verify installation
+
+Backend checks:
 
 ```bash
-docker compose exec backend sh -lc 'curl -X POST http://localhost:8000/ops/init -H "X-API-Key: <ADMIN_API_KEY>"'
+curl -s http://localhost:8001/health
+curl -s http://localhost:8001/health/dependencies -H "X-API-Key: <USER_API_KEY>"
+curl -s http://localhost:8001/runtime/options -H "X-API-Key: <USER_API_KEY>"
 ```
 
-## 9) Verify Health
-
-If backend is exposed (for example with `--profile dev`):
-
-```bash
-curl http://localhost:${BACKEND_HOST_PORT:-8001}/health
-curl http://localhost:${BACKEND_HOST_PORT:-8001}/health/dependencies -H "X-API-Key: <USER_API_KEY>"
-curl http://localhost:${BACKEND_HOST_PORT:-8001}/runtime/options -H "X-API-Key: <USER_API_KEY>"
-```
-
-If not exposed:
+If backend is internal-only:
 
 ```bash
 docker compose exec backend sh -lc 'curl -s http://localhost:8000/health'
@@ -153,36 +129,43 @@ docker compose exec backend sh -lc 'curl -s http://localhost:8000/health/depende
 docker compose exec backend sh -lc 'curl -s http://localhost:8000/runtime/options -H "X-API-Key: <USER_API_KEY>"'
 ```
 
-## 10) First-Use Checklist
+Frontend:
+- open `http://localhost:${FRONTEND_HOST_PORT:-3000}`
 
-1. Open frontend (`http://localhost:${FRONTEND_HOST_PORT:-3000}`).
-2. Go to Settings and set your user API key.
-3. Send a test chat message.
-4. Upload one knowledge file in Knowledge page.
-5. Trigger one approval-required action and verify approval flow.
+---
 
-## 11) Logs and Basic Debugging
+## 7) Complete in-app setup
 
-See running services:
+1. Open `/setup`.
+2. Paste API key and click **Save and verify**.
+3. Confirm access level (`user` or `admin`).
+4. Review diagnostics and apply suggested fixes.
+5. Continue to `/settings` and `/chat`.
+
+Recommended first-use checks:
+1. Send a test chat message.
+2. Upload one file in Knowledge.
+3. Trigger one approval-required action and approve it.
+
+---
+
+## 8) Troubleshooting and maintenance
+
+Service status/logs:
 
 ```bash
 docker compose ps
-```
-
-Follow logs:
-
-```bash
 docker compose logs -f backend
 docker compose logs -f frontend
 ```
 
-Restart service:
+Restart backend:
 
 ```bash
 docker compose restart backend
 ```
 
-## 12) Update Procedure
+Update stack:
 
 ```bash
 git pull
@@ -190,55 +173,28 @@ docker compose pull
 docker compose up -d --remove-orphans
 ```
 
-If local Dockerfiles changed and you build locally:
+If local Dockerfiles changed:
 
 ```bash
 docker compose up -d --build --remove-orphans
 ```
 
-## Optional one-command bootstrap
+For known issues and fixes, see `docs/troubleshooting.md`.
 
-```bash
-bash ops/bootstrap.sh
-```
+---
 
-On Windows PowerShell:
+## 9) What automated bootstrap does
 
-```powershell
-./ops/bootstrap.ps1
-```
+`ops/bootstrap.sh` and `ops/bootstrap.ps1` automate installation and setup by:
+- running preflight checks
+- creating `.env` when missing
+- generating required secrets when empty
+- syncing `DATABASE_URL` password with `POSTGRES_PASSWORD` when placeholders are detected
+- auto-selecting compose profiles from env
+- starting the stack and waiting for backend readiness
+- running `POST /ops/init` automatically
+- running smoke checks automatically
 
-This script:
-- runs preflight checks (`ops/preflight.*`) before startup
-- creates `.env` from `.env.example` if missing
-- generates required secrets when empty
-- syncs `DATABASE_URL` password with `POSTGRES_PASSWORD` when default placeholders are present
-- auto-selects compose profiles from env (`gpu`, `mcp`, `search`)
-- warns if configured host ports are already in use
-- starts compose
-- waits for backend readiness
-- runs `/ops/init` automatically (with retry)
-- runs smoke checks (`ops/smoke-test.*`) after init
-
-Standalone checks:
-- Linux/macOS:
-  - `bash ops/preflight.sh`
-  - `bash ops/smoke-test.sh`
-- Windows PowerShell:
-  - `./ops/preflight.ps1`
-  - `./ops/smoke-test.ps1`
-
-## 13) Optional Automated Deployment
-
-For SSH-based automated deploys:
-- workflow: `.github/workflows/deploy-compose.yml`
-- script: `ops/deploy-compose.sh`
-- setup details: `docs/deployment.md`
-
-## 14) Known Common Mistakes
-
-1. `DATABASE_URL` password does not match `POSTGRES_PASSWORD`.
-2. Forgetting `POST /ops/init` after first startup.
-3. Missing API key in frontend settings.
-4. Starting `mcp` profile without configuring related env vars.
-5. Assuming a specific inference provider is required. Current stack uses LocalAI (`INFERENCE_BASE_URL`) and optional vLLM.
+Use standalone scripts when needed:
+- Linux/macOS: `bash ops/preflight.sh`, `bash ops/smoke-test.sh`
+- Windows PowerShell: `./ops/preflight.ps1`, `./ops/smoke-test.ps1`
