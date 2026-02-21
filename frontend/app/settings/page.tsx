@@ -327,6 +327,7 @@ export default function SettingsPage() {
             placeholder="Paste user or admin API key"
           />
         </label>
+        <p className="help-text">Tip: use one value from `USER_API_KEYS` in your `.env` file for normal browser usage.</p>
         <div className="toolbar">
           <button className="button button-primary" onClick={() => void testConnection()} disabled={testing}>
             {testing ? "Testing..." : "Connection test"}
@@ -441,7 +442,7 @@ export default function SettingsPage() {
           />
         </label>
         <p className="help-text">
-          Use `Connection test` to confirm key validity before changing other settings.
+          Use one value from `USER_API_KEYS` in `.env`, then run `Connection test` before changing other settings.
         </p>
         <div className="stack" style={{ maxWidth: "220px" }}>
           <p className="help-text" style={{ marginBottom: 0 }}>

@@ -2,18 +2,18 @@
 
 ## Login/auth model
 - BLAIRE uses API keys.
-- Use `/setup` for first-run key setup and verification.
+- Use `/settings` for first-run key setup and verification.
 - You can also set/update key in `Settings` page (`API key` field).
 - This key is sent on frontend API calls and required by backend routes when auth is enabled.
 - The header status strip shows current role, effective search mode, sensitive-action state, and dependency health summary.
 
 ## Chat
 1. Open `/chat`.
-2. Select model class and optional model override.
-3. Optionally set request-level controls (`temperature`, `top_p`, `max_tokens`, context window, RAG toggle, retrieval K).
+2. Set chat toggles as needed (reasoning depth, retrieval K).
+3. Model defaults/override are configured in `/settings`.
 4. Send prompt.
 5. Response streams token-by-token.
-6. RAG status and citations appear under the response.
+6. RAG status and citations appear with citations in the right-side panel.
 
 Model tips:
 - Overrides are validated against the backend allowlist for the selected class.
@@ -59,11 +59,11 @@ Open `/approvals` (admin key required) to:
   - approval TTL
   - network/obsidian/HA/homelab allowlists
 - Settings is tabbed into:
+  - `First-run wizard`
   - `Identity`
-  - `Model controls`
-  - `Runtime policy`
-  - `MCP readiness`
-  - `Integrations`
+  - `Model defaults`
+  - `Readiness`
+  - `Advanced`
 - Runtime policy tab includes a restart-required system config summary for `.env`-backed settings.
 - Model controls tab includes admin model pull action (for inference-provider compatible backends).
 - Integrations tab shows non-secret configuration status for Google/IMAP/Home Assistant.

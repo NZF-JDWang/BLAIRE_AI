@@ -1,5 +1,16 @@
 # Troubleshooting
 
+## Symptom: `python: command not found` during bootstrap
+- Cause: Some Linux systems (for example Ubuntu 24.04) ship `python3` but not `python`.
+- Fix:
+  - `sudo apt install -y python-is-python3` (Ubuntu), or
+  - use `python3` directly for manual commands.
+
+## Symptom: `ConnectionRefusedError` appears early in bootstrap, but bootstrap later succeeds
+- Cause: backend container was not ready on first health check.
+- Expected behavior: bootstrap retries readiness and then continues.
+- Current bootstrap logs a friendly retry line and only fails hard if retries are exhausted.
+
 ## Backend unreachable
 - Check `docker compose ps`
 - Check backend logs
@@ -17,6 +28,8 @@
 - Ensure `X-API-Key` is set
 - Confirm key belongs to correct role (user/admin)
 - In frontend, set API key on `/settings`
+- For UI login/setup, use a value from `USER_API_KEYS` (not `FRONTEND_PROXY_API_KEY`)
+- Remove accidental spaces/trailing commas from copied keys
 
 ## Startup init failures
 - Call `POST /ops/init` after stack startup

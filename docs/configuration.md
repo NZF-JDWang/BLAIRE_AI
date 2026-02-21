@@ -23,6 +23,18 @@ Runtime overrides currently cover:
 - `REQUIRE_AUTH`, `ADMIN_API_KEYS`, `USER_API_KEYS`
 - `FRONTEND_HOST_PORT`, `BACKEND_HOST_PORT`
 
+## API keys: who uses what?
+
+- `ADMIN_API_KEYS`
+  - Used for: admin and ops endpoints (for example `/ops/*`), bootstrap init, smoke tests, and admin CLI/curl calls.
+  - Recommended usage: admin automation and operator workflows.
+- `USER_API_KEYS`
+  - Used for: normal browser/app usage.
+  - When the web UI asks for an API key, paste one of these values.
+- `FRONTEND_PROXY_API_KEY`
+  - Used for: server-side Next.js proxy calls from `/api` to backend.
+  - Do not paste this in browser setup; keep it internal between frontend and backend.
+
 `API_ALLOWED_HOSTS` common patterns:
 - Local testing: `localhost,127.0.0.1,backend`
 - Reverse proxy + local: `your-domain.com,localhost,127.0.0.1,backend`
@@ -35,7 +47,7 @@ Runtime overrides currently cover:
 - `VLLM_BASE_URL` (used for dependency checks and direct vLLM ops)
 - `VLLM_MODEL` (default `Qwen/Qwen3-VL-14B` in `.env.example`)
 - `VLLM_QUANTIZATION` (default `nvfp4` in `.env.example`)
-- `SEARCH_MODE_DEFAULT`, `BRAVE_API_KEY`, `SEARXNG_URL`
+- `SEARCH_MODE_DEFAULT`, `ENABLE_SEARCH`, `BRAVE_API_KEY`, `SEARXNG_URL`
 - `ENABLE_MCP_SERVICES` (`true` when running `--profile mcp`)
 - `ENABLE_VLLM` (`true` when running `--profile gpu`)
 

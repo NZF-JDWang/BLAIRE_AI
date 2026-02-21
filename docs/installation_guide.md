@@ -15,6 +15,7 @@ bash ops/bootstrap.sh
 ```
 
 Use automated install if possible. It handles most setup steps for you.
+Bootstrap auto-selects compose profiles from `.env` values. Typical default behavior is enabling `search` and `mcp` when their internal URLs are configured.
 
 ### Manual install
 If you prefer control over each step, continue below.
@@ -26,10 +27,15 @@ If you prefer control over each step, continue below.
 Required:
 - Docker Engine + Docker Compose plugin
 - Git
+- Python 3 (`python3` on Linux, or `python` alias via `python-is-python3` on Ubuntu)
 
 Optional (for local validation):
 - Python 3.12
 - Node.js 22 + npm
+
+Recommended host resources (for LocalAI + SearxNG + app stack on one machine):
+- CPU: 4+ cores
+- RAM: 16 GB+ (8 GB minimum for lighter models)
 
 Quick checks:
 
@@ -37,6 +43,13 @@ Quick checks:
 docker --version
 docker compose version
 git --version
+python3 --version
+```
+
+If `python` is missing on Ubuntu:
+
+```bash
+sudo apt install -y python-is-python3
 ```
 
 ---
@@ -62,6 +75,7 @@ Manual `.env` edits are only needed when you want custom values (for example cus
 Helpful first-time toggles:
 - `API_DOCS_ENABLED=true` (enable `/docs` during setup)
 - `FRONTEND_HOST_PORT` / `BACKEND_HOST_PORT` (avoid local port conflicts)
+- `ENABLE_SEARCH=false` (force search profile off during bootstrap)
 
 ---
 
@@ -87,6 +101,15 @@ Use only profiles you need:
 - `search`: run local SearxNG sidecar
 - `mcp`: run MCP sidecars
 - `gpu`: run vLLM
+
+Default host ports:
+
+| Service | Host port |
+| --- | --- |
+| Frontend | `3000` |
+| Backend | `8001` |
+| LocalAI | `8082` |
+| SearxNG | `8080` |
 
 ---
 
@@ -131,11 +154,11 @@ Frontend:
 
 ## 7) Complete in-app setup
 
-1. Open `/setup`.
-2. Paste API key and click **Save and verify**.
+1. Open `/settings`.
+2. Paste API key and click **Connection test**.
 3. Confirm access level (`user` or `admin`).
 4. Review diagnostics and apply suggested fixes.
-5. Continue to `/settings` and `/chat`.
+5. Continue to `/chat`.
 
 Recommended first-use checks:
 1. Send a test chat message.

@@ -171,7 +171,12 @@ if ((-not [string]::IsNullOrWhiteSpace($enableMcp) -and (Is-Truthy $enableMcp)) 
 $searchModeDefault = Get-EnvValue "SEARCH_MODE_DEFAULT"
 if ([string]::IsNullOrWhiteSpace($searchModeDefault)) { $searchModeDefault = "searxng_only" }
 $searxngUrl = Get-EnvValue "SEARXNG_URL"
-if ($searchModeDefault -ne "brave_only" -and $searxngUrl.Contains("searxng")) {
+$enableSearch = Get-EnvValue "ENABLE_SEARCH"
+if (-not [string]::IsNullOrWhiteSpace($enableSearch)) {
+    if (Is-Truthy $enableSearch) {
+        $composeProfiles += "search"
+    }
+} elseif ($searchModeDefault -ne "brave_only" -and $searxngUrl.Contains("searxng")) {
     $composeProfiles += "search"
 }
 

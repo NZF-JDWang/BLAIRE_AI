@@ -4,6 +4,17 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+PYTHON_BIN=""
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+else
+  echo "Error: Python 3 is required for bootstrap secret/env helpers." >&2
+  echo "On Ubuntu run: sudo apt install -y python-is-python3" >&2
+  exit 1
+fi
+
 if [[ ! -f .env ]]; then
   cp .env.example .env
   echo "Created .env from .env.example"
@@ -14,7 +25,7 @@ generate_secret() {
     openssl rand -hex 24
     return
   fi
-  python - <<'PY'
+  "$PYTHON_BIN" - <<'PY'
 import secrets
 print(secrets.token_hex(24))
 PY
@@ -80,7 +91,7 @@ sync_database_url_password() {
     return
   fi
 
-  python - "$postgres_password" <<'PY'
+  "$PYTHON_BIN" - "$postgres_password" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -151,7 +162,12 @@ fi
 
 search_mode_default="$(get_env_value SEARCH_MODE_DEFAULT)"
 searxng_url="$(get_env_value SEARXNG_URL)"
-if [[ "${search_mode_default:-searxng_only}" != "brave_only" ]] && [[ "$searxng_url" == *"searxng"* ]]; then
+enable_search="$(get_env_value ENABLE_SEARCH)"
+if [[ -n "$enable_search" ]]; then
+  if is_truthy "$enable_search"; then
+    compose_profiles+=("search")
+  fi
+elif [[ "${search_mode_default:-searxng_only}" != "brave_only" ]] && [[ "$searxng_url" == *"searxng"* ]]; then
   compose_profiles+=("search")
 fi
 
@@ -187,8 +203,13 @@ if [[ -z "${admin_key}" ]]; then
 fi
 
 for attempt in {1..30}; do
-  if "${compose_cmd[@]}" exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/health', headers={'X-API-Key':'${admin_key}'}); urllib.request.urlopen(req, timeout=5).read()"; then
+  if "${compose_cmd[@]}" exec -T backend python -c "import sys, urllib.request; req=urllib.request.Request('http://localhost:8000/health', headers={'X-API-Key':'${admin_key}'}); 
+try: urllib.request.urlopen(req, timeout=5).read()
+except Exception: sys.exit(1)"; then
     break
+  fi
+  if [[ "$attempt" -eq 1 ]]; then
+    echo "Backend not ready yet (connection refused/startup race), retrying..."
   fi
   if [[ "$attempt" -eq 30 ]]; then
     echo "Backend did not become ready in time." >&2
@@ -198,8 +219,16 @@ for attempt in {1..30}; do
 done
 
 for attempt in {1..10}; do
-  if "${compose_cmd[@]}" exec -T backend python -c "import urllib.request; req=urllib.request.Request('http://localhost:8000/ops/init', method='POST', headers={'X-API-Key':'${admin_key}'}); urllib.request.urlopen(req, timeout=30).read(); print('ops/init completed')"; then
+  if "${compose_cmd[@]}" exec -T backend python -c "import sys, urllib.request; req=urllib.request.Request('http://localhost:8000/ops/init', method='POST', headers={'X-API-Key':'${admin_key}'});
+try:
+    urllib.request.urlopen(req, timeout=30).read()
+except Exception:
+    sys.exit(1)
+print('ops/init completed')"; then
     break
+  fi
+  if [[ "$attempt" -eq 1 ]]; then
+    echo "ops/init not ready yet, retrying..."
   fi
   if [[ "$attempt" -eq 10 ]]; then
     echo "Failed to call /ops/init after retries." >&2

@@ -31,10 +31,10 @@ Follow the single setup doc: `docs/installation_guide.md`.
 
 ## What to do after install
 1. Open the frontend (`http://localhost:3000` by default).
-2. Go to `/setup`.
+2. Go to `/settings`.
 3. Save your API key and verify access.
 4. Review dependency/runtime checks.
-5. Continue to `/settings` and `/chat`.
+5. Continue to `/chat`.
 
 ## Full docs map
 See `docs/README.md` for install, setup, configuration, operations, and troubleshooting docs.
