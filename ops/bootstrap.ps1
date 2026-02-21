@@ -44,6 +44,33 @@ function Ensure-EnvValue {
     Set-Content ".env" $lines
 }
 
+function Is-PlaceholderValue {
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $true }
+    $normalized = $Value.Trim().ToLowerInvariant()
+    return $normalized -eq "change_me" -or $normalized.StartsWith("change_me_") -or $normalized.StartsWith("your_")
+}
+
+function Ensure-EnvSecret {
+    param([string]$Key)
+    $current = Get-EnvValue $Key
+    if (Is-PlaceholderValue $current) {
+        $secret = New-SecretHex
+        Ensure-EnvValue $Key $secret
+        $lines = Get-Content ".env"
+        $prefix = "$Key="
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i].StartsWith($prefix)) {
+                $lines[$i] = "$Key=$secret"
+                break
+            }
+        }
+        Set-Content ".env" $lines
+        return
+    }
+    Ensure-EnvValue $Key (New-SecretHex)
+}
+
 function Get-EnvValue {
     param([string]$Key)
     $line = Select-String -Path ".env" -Pattern "^$Key=" | Select-Object -First 1
@@ -110,10 +137,18 @@ function Sync-DatabaseUrlPassword {
     Write-Host "Updated DATABASE_URL password to match POSTGRES_PASSWORD"
 }
 
-Ensure-EnvValue "POSTGRES_PASSWORD" (New-SecretHex)
-Ensure-EnvValue "ADMIN_API_KEYS" (New-SecretHex)
-Ensure-EnvValue "USER_API_KEYS" (New-SecretHex)
-Ensure-EnvValue "FRONTEND_PROXY_API_KEY" (New-SecretHex)
+Ensure-EnvSecret "POSTGRES_PASSWORD"
+Ensure-EnvSecret "ADMIN_API_KEYS"
+Ensure-EnvSecret "USER_API_KEYS"
+Ensure-EnvSecret "FRONTEND_PROXY_API_KEY"
+Ensure-EnvValue "QDRANT_URL" "http://qdrant:6333"
+Ensure-EnvValue "MCP_OBSIDIAN_URL" "http://obsidian-mcp-server:3000"
+Ensure-EnvValue "MCP_HA_URL" "http://ha-mcp-server:3000"
+Ensure-EnvValue "MCP_HOMELAB_URL" "http://homelab-mcp:3000"
+Ensure-EnvValue "MODEL_GENERAL_DEFAULT" "qwen3-vl:14b-q4_K_M"
+Ensure-EnvValue "MODEL_VISION_DEFAULT" "qwen3-vl:14b-q4_K_M"
+Ensure-EnvValue "MODEL_EMBEDDING_DEFAULT" "nomic-embed-text:v1.5"
+Ensure-EnvValue "DATABASE_URL" "postgresql+psycopg://blaire:change_me@postgres:5432/blaire"
 Sync-DatabaseUrlPassword
 
 $composeProfiles = @()

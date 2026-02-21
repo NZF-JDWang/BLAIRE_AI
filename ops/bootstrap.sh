@@ -35,10 +35,43 @@ ensure_env_value() {
   printf "\n%s=%s\n" "$key" "$value" >> .env
 }
 
-ensure_env_value "POSTGRES_PASSWORD" "$(generate_secret)"
-ensure_env_value "ADMIN_API_KEYS" "$(generate_secret)"
-ensure_env_value "USER_API_KEYS" "$(generate_secret)"
-ensure_env_value "FRONTEND_PROXY_API_KEY" "$(generate_secret)"
+is_placeholder_value() {
+  local value="$1"
+  local normalized
+  normalized="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+  if [[ -z "$normalized" ]]; then
+    return 0
+  fi
+  [[ "$normalized" == "change_me" || "$normalized" == change_me_* || "$normalized" == your_* ]]
+}
+
+ensure_env_secret() {
+  local key="$1"
+  local current
+  current="$(grep -E "^${key}=" .env | head -n 1 | cut -d= -f2- || true)"
+  if is_placeholder_value "$current"; then
+    if grep -qE "^${key}=" .env; then
+      sed -i "s|^${key}=.*|${key}=$(generate_secret)|" .env
+    else
+      printf "\n%s=%s\n" "$key" "$(generate_secret)" >> .env
+    fi
+    return
+  fi
+  ensure_env_value "$key" "$(generate_secret)"
+}
+
+ensure_env_secret "POSTGRES_PASSWORD"
+ensure_env_secret "ADMIN_API_KEYS"
+ensure_env_secret "USER_API_KEYS"
+ensure_env_secret "FRONTEND_PROXY_API_KEY"
+ensure_env_value "QDRANT_URL" "http://qdrant:6333"
+ensure_env_value "MCP_OBSIDIAN_URL" "http://obsidian-mcp-server:3000"
+ensure_env_value "MCP_HA_URL" "http://ha-mcp-server:3000"
+ensure_env_value "MCP_HOMELAB_URL" "http://homelab-mcp:3000"
+ensure_env_value "MODEL_GENERAL_DEFAULT" "qwen3-vl:14b-q4_K_M"
+ensure_env_value "MODEL_VISION_DEFAULT" "qwen3-vl:14b-q4_K_M"
+ensure_env_value "MODEL_EMBEDDING_DEFAULT" "nomic-embed-text:v1.5"
+ensure_env_value "DATABASE_URL" "postgresql+psycopg://blaire:change_me@postgres:5432/blaire"
 
 sync_database_url_password() {
   local postgres_password

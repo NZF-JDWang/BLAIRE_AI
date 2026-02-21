@@ -19,7 +19,7 @@ Windows PowerShell:
 The bootstrap flow does all first-time setup for you:
 - checks required tools and `.env` completeness
 - creates `.env` from `.env.example` if missing
-- generates required secrets if empty
+- auto-replaces placeholder secrets and fills required defaults
 - auto-selects compatible Docker compose profiles
 - starts containers
 - waits for backend readiness

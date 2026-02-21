@@ -55,14 +55,9 @@ Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
-Edit `.env` and set these required values:
-- `POSTGRES_PASSWORD`
-- `DATABASE_URL`
-- `ADMIN_API_KEYS`
-- `USER_API_KEYS`
+No manual edits are required for first run if you use bootstrap. It will auto-fill placeholders and required defaults.
 
-Important:
-- `DATABASE_URL` password must match `POSTGRES_PASSWORD`.
+Manual `.env` edits are only needed when you want custom values (for example custom ports, external endpoints, or pre-defined API keys).
 
 Helpful first-time toggles:
 - `API_DOCS_ENABLED=true` (enable `/docs` during setup)
@@ -188,7 +183,7 @@ For known issues and fixes, see `docs/troubleshooting.md`.
 `ops/bootstrap.sh` and `ops/bootstrap.ps1` automate installation and setup by:
 - running preflight checks
 - creating `.env` when missing
-- generating required secrets when empty
+- generating required secrets when empty or placeholder values are detected
 - syncing `DATABASE_URL` password with `POSTGRES_PASSWORD` when placeholders are detected
 - auto-selecting compose profiles from env
 - starting the stack and waiting for backend readiness
