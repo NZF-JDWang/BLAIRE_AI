@@ -26,6 +26,7 @@ import {
   updateRuntimeConfig,
   updateMyPreferences,
 } from "@/lib/api";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Preferences = {
   searchMode: string;
@@ -40,6 +41,29 @@ type Preferences = {
 };
 
 type SettingsTab = "identity" | "model" | "runtime" | "readiness" | "integrations";
+
+const SETTINGS_TAB_COPY: Record<SettingsTab, { title: string; detail: string }> = {
+  identity: {
+    title: "Identity and access",
+    detail: "Set your API key, verify connectivity, and control local UI theme behavior for this browser.",
+  },
+  model: {
+    title: "Model and retrieval defaults",
+    detail: "Define default model class, model override, and generation/retrieval parameters used by operations pages.",
+  },
+  runtime: {
+    title: "Runtime policy overrides",
+    detail: "Admin-only controls for policy and allowlists that affect approvals, tools, and MCP execution behavior.",
+  },
+  readiness: {
+    title: "Dependency readiness",
+    detail: "Confirm MCP and runtime dependencies before using operations that depend on external systems.",
+  },
+  integrations: {
+    title: "Integrations status",
+    detail: "Validate whether external integrations are configured and which host/endpoint is currently active.",
+  },
+};
 
 export default function SettingsPage() {
   const [options, setOptions] = useState<RuntimeOptions | null>(null);
@@ -226,20 +250,47 @@ export default function SettingsPage() {
   return (
     <main className="page-wrap">
       <section className="page-hero">
-        <p className="page-kicker">Runtime Preferences</p>
-        <h1 className="page-title">Tune search behavior and model defaults per user.</h1>
+        <p className="page-kicker">Settings</p>
+        <h1 className="page-title">Configure BLAIRE in one place before running operations.</h1>
         <p className="page-description">
-          API key is stored in the browser for proxy calls. Preferences are synced through backend user preference APIs.
+          This page is the central control surface. Update identity, defaults, policy, readiness, and integrations here,
+          then return to Operations to run tasks.
         </p>
+      </section>
+
+      <section className="surface stack" aria-label="Settings coverage">
+        <h2>Where each operation gets its settings</h2>
+        <div className="quick-links">
+          <article className="quick-link">
+            <p className="quick-link-title">Chat and Swarm</p>
+            <p className="quick-link-copy">Uses Model and retrieval defaults. Override at runtime only when needed.</p>
+          </article>
+          <article className="quick-link">
+            <p className="quick-link-title">Search</p>
+            <p className="quick-link-copy">Uses Search mode and policy defaults from Model defaults and Runtime policy.</p>
+          </article>
+          <article className="quick-link">
+            <p className="quick-link-title">Knowledge and Capabilities</p>
+            <p className="quick-link-copy">Depends on Dependency readiness and Integrations status.</p>
+          </article>
+          <article className="quick-link">
+            <p className="quick-link-title">Approvals and Tools</p>
+            <p className="quick-link-copy">Controlled by Runtime policy overrides and approval TTL settings.</p>
+          </article>
+          <article className="quick-link">
+            <p className="quick-link-title">Initial access</p>
+            <p className="quick-link-copy">Configured in Identity and access with API key plus connection test.</p>
+          </article>
+        </div>
       </section>
 
       <section className="surface stack" aria-label="Settings sections">
         <div className="toolbar">
           <button className={activeTab === "identity" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("identity")}>
-            Identity
+            Identity and access
           </button>
           <button className={activeTab === "model" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("model")}>
-            Model controls
+            Model defaults
           </button>
           <button className={activeTab === "runtime" ? "button button-primary" : "button button-muted"} onClick={() => setActiveTab("runtime")}>
             Runtime policy
@@ -251,6 +302,9 @@ export default function SettingsPage() {
             Integrations
           </button>
         </div>
+        <p className="help-text">
+          <strong>{SETTINGS_TAB_COPY[activeTab].title}:</strong> {SETTINGS_TAB_COPY[activeTab].detail}
+        </p>
       </section>
 
       {loadError ? (
@@ -264,6 +318,10 @@ export default function SettingsPage() {
       {activeTab === "identity" ? (
       <section className="surface stack" aria-label="Identity and access">
         <h2>Identity and access</h2>
+        <p className="help-text">
+          Purpose: set who you are, verify access, and choose your visual theme. This is the first section to configure
+          on a new browser.
+        </p>
         <label className="field-label">
           API key
           <input
@@ -276,6 +334,12 @@ export default function SettingsPage() {
         <p className="help-text">
           Use `Connection test` to confirm key validity before changing other settings.
         </p>
+        <div className="stack" style={{ maxWidth: "220px" }}>
+          <p className="help-text" style={{ marginBottom: 0 }}>
+            Theme preference
+          </p>
+          <ThemeToggle />
+        </div>
       </section>
       ) : null}
 

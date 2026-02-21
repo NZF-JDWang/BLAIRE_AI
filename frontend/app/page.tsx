@@ -42,11 +42,11 @@ export default async function HomePage() {
   return (
     <main className="page-wrap">
       <section className="page-hero">
-        <p className="page-kicker">Operational Dashboard</p>
-        <h1 className="page-title">Run BLAIRE with clear runtime visibility.</h1>
+        <p className="page-kicker">Operations</p>
+        <h1 className="page-title">Run work in one place, with status visible before you start.</h1>
         <p className="page-description">
-          Core services are connected. Use the workspace routes below for chat, swarm orchestration, knowledge
-          ingestion, approvals, and runtime tuning.
+          This page is your operational launcher. Pick the task you want to run, open the matching workspace, and use
+          the status cards below to confirm runtime readiness first.
         </p>
       </section>
 
@@ -74,44 +74,65 @@ export default async function HomePage() {
       </section>
 
       <section className="surface stack" aria-label="Primary routes">
-        <h2>Primary workspaces</h2>
-        <p className="help-text">Each route is production-connected to existing backend contracts.</p>
+        <h2>Choose an operation</h2>
+        <p className="help-text">
+          Workspaces stay separate because they trigger different backend systems, but this screen is the single place
+          to choose and understand them.
+        </p>
         <div className="quick-links">
           <Link href="/setup" className="quick-link">
             <p className="quick-link-title">Setup</p>
-            <p className="quick-link-copy">Validate auth, confirm role, and check dependency readiness.</p>
+            <p className="quick-link-copy">
+              First-time only. Add your API key, confirm your role, and verify dependency health.
+            </p>
           </Link>
           <Link href="/chat" className="quick-link">
             <p className="quick-link-title">Chat</p>
-            <p className="quick-link-copy">Streaming responses, model class selection, and citations.</p>
+            <p className="quick-link-copy">
+              Everyday assistant work. Ask questions, stream responses, and inspect retrieval citations.
+            </p>
           </Link>
           <Link href="/swarm" className="quick-link">
             <p className="quick-link-title">Swarm</p>
-            <p className="quick-link-copy">Run multi-agent research tasks and monitor live traces.</p>
+            <p className="quick-link-copy">
+              Parallel research mode. Run multi-agent tasks and review supervisor plus worker traces.
+            </p>
           </Link>
           <Link href="/knowledge" className="quick-link">
             <p className="quick-link-title">Knowledge</p>
-            <p className="quick-link-copy">Upload docs and reindex your Obsidian vault.</p>
+            <p className="quick-link-copy">
+              Corpus maintenance. Upload files, refresh index status, and run Obsidian reindex operations.
+            </p>
           </Link>
           <Link href="/approvals" className="quick-link">
             <p className="quick-link-title">Approvals</p>
-            <p className="quick-link-copy">Approve, execute, reject, and audit sensitive actions.</p>
-          </Link>
-          <Link href="/settings" className="quick-link">
-            <p className="quick-link-title">Settings</p>
-            <p className="quick-link-copy">Control API key, preferred search mode, and model defaults.</p>
+            <p className="quick-link-copy">
+              Safety checkpoint. Review pending actions, issue approval tokens, and execute audited operations.
+            </p>
           </Link>
           <Link href="/search" className="quick-link">
             <p className="quick-link-title">Search</p>
-            <p className="quick-link-copy">Direct search endpoint testing with provider mode control.</p>
+            <p className="quick-link-copy">
+              Provider diagnostics. Test search behavior directly and compare mode-specific output.
+            </p>
           </Link>
           <Link href="/capabilities" className="quick-link">
             <p className="quick-link-title">Capabilities</p>
-            <p className="quick-link-copy">Inspect tools, MCP connectivity, and dependency readiness.</p>
+            <p className="quick-link-copy">
+              Runtime visibility. Check MCP availability, policy snapshot, and actionable dependency issues.
+            </p>
           </Link>
           <Link href="/tools" className="quick-link">
             <p className="quick-link-title">Tools</p>
-            <p className="quick-link-copy">Review tool action classes, approval needs, and policy allowlists.</p>
+            <p className="quick-link-copy">
+              Execution contracts. Inspect registered tools, action classes, and approval requirements.
+            </p>
+          </Link>
+          <Link href="/settings" className="quick-link">
+            <p className="quick-link-title">Settings</p>
+            <p className="quick-link-copy">
+              All configuration in one screen: identity, model defaults, runtime policy, readiness, and integrations.
+            </p>
           </Link>
         </div>
       </section>
