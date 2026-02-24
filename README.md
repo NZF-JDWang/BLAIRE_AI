@@ -32,6 +32,18 @@ Optional overrides:
 python -m blaire_core.main --env dev --llm-model llama3.1 --heartbeat-interval 0 --data-path ./data
 ```
 
+## .env Support
+You can place local secrets and overrides in `.env` (auto-loaded on startup).
+
+1. Copy template:
+```powershell
+Copy-Item .env.example .env
+```
+2. Set values (especially `BLAIRE_BRAVE_API_KEY`).
+3. Run CLI normally.
+
+Existing shell environment variables still win over `.env` values.
+
 ## Environment Overrides
 - `BLAIRE_LLM_BASE_URL`
 - `BLAIRE_LLM_MODEL`

@@ -24,3 +24,6 @@ Thumbs.db
 # Runtime artifacts
 data/logs/
 data/identity/
+
+# Local environment files
+.env

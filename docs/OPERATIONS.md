@@ -2,6 +2,7 @@
 
 ## Config Model
 Config files are loaded from `config/<env>.json` (`dev` or `prod`) and merged with env/CLI overrides.
+Startup also loads `.env` in repo root (if present) before config snapshot read.
 
 Validation returns a `ConfigSnapshot`:
 - `path`

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from pathlib import Path
 
 from blaire_core.config import ensure_runtime_config, read_config_snapshot
 from blaire_core.interfaces.cli import run_cli
@@ -21,7 +23,26 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _load_dotenv(path: Path) -> None:
+    """Load .env key/value pairs into process env without overriding existing env vars."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        raw = line.strip()
+        if not raw or raw.startswith("#") or "=" not in raw:
+            continue
+        key, value = raw.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        if value and ((value[0] == value[-1]) and value[0] in {'"', "'"}):
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
 def main() -> int:
+    _load_dotenv(Path(".env"))
     args = parse_args()
     overrides: dict[str, str] = {}
     if args.data_path:
