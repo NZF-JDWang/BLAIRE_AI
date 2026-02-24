@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 import re
+import os
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.loop import HeartbeatLoop
@@ -12,6 +13,7 @@ from blaire_core.learning.routine import apply_learning_updates
 from blaire_core.learning.soul_growth import apply_soul_growth_updates
 from blaire_core.llm.client import OllamaClient
 from blaire_core.memory.store import MemoryStore, clean_stale_locks
+from blaire_core.notifications import notify_user
 from blaire_core.prompting.composer import build_system_prompt
 from blaire_core.tools.builtin_tools import (
     check_disk_space,
@@ -81,7 +83,7 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
         memory=memory,
         llm=llm,
         tools=registry,
-        heartbeat=HeartbeatLoop(interval_seconds=config.heartbeat.interval_seconds, tick_fn=lambda: run_heartbeat_tick(memory)),
+        heartbeat=HeartbeatLoop(interval_seconds=config.heartbeat.interval_seconds, tick_fn=lambda: run_heartbeat_tick(config, memory)),
     )
     return context
 
@@ -130,9 +132,11 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
     return answer
 
 
-def run_heartbeat_tick(memory: MemoryStore) -> None:
+def run_heartbeat_tick(config: AppConfig, memory: MemoryStore) -> None:
     """Run one heartbeat tick."""
     memory.append_episodic("Heartbeat tick")
+    if os.getenv("BLAIRE_HEARTBEAT_NOTIFY", "").strip().lower() == "true":
+        notify_user(config, "Heartbeat tick executed", level="info")
 
 
 def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
