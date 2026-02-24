@@ -8,8 +8,8 @@
   },
   "llm": {
     "base_url": "http://192.168.0.10:11434",
-    "model": "",
-    "timeout_seconds": 30
+    "model": "qwen3:14b",
+    "timeout_seconds": 90
   },
   "heartbeat": {
     "interval_seconds": 0
@@ -40,4 +40,3 @@
     "level": "info"
   }
 }
-
