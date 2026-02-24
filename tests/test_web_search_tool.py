@@ -34,6 +34,8 @@ def _config(api_key: str = "") -> AppConfig:
                 cache_ttl_minutes=15,
                 result_count=10,
                 safesearch="off",
+                auto_use=True,
+                auto_count=3,
             )
         ),
         prompt=PromptSection(soul_rules="x"),

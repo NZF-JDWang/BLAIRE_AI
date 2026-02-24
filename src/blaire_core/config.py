@@ -43,6 +43,8 @@ class WebSearchSection:
     cache_ttl_minutes: int
     result_count: int
     safesearch: str
+    auto_use: bool
+    auto_count: int
 
 
 @dataclass(slots=True)
@@ -208,6 +210,11 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
             safesearch = str(ws.get("safesearch", "off")).lower()
             if safesearch not in {"off", "moderate", "strict"}:
                 issues.append("tools.web_search.safesearch must be off|moderate|strict")
+            if not isinstance(ws.get("auto_use"), bool):
+                issues.append("tools.web_search.auto_use must be a boolean")
+            auto_count = ws.get("auto_count")
+            if not isinstance(auto_count, int) or auto_count < 1 or auto_count > 10:
+                issues.append("tools.web_search.auto_count must be an integer between 1 and 10")
     else:
         issues.append("tools must be an object")
 
@@ -249,6 +256,8 @@ def _to_config(raw: dict[str, Any]) -> AppConfig:
                 cache_ttl_minutes=int(ws["cache_ttl_minutes"]),
                 result_count=int(ws["result_count"]),
                 safesearch=str(ws["safesearch"]),
+                auto_use=bool(ws.get("auto_use", True)),
+                auto_count=int(ws.get("auto_count", 3)),
             )
         ),
         prompt=PromptSection(soul_rules=str(raw["prompt"]["soul_rules"])),
@@ -288,6 +297,8 @@ def _bootstrap_config(env: str) -> AppConfig:
                 cache_ttl_minutes=15,
                 result_count=10,
                 safesearch="off",
+                auto_use=True,
+                auto_count=3,
             )
         ),
         prompt=PromptSection(soul_rules="You are BLAIRE Core. Be concise, safe, and practical."),

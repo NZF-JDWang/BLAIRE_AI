@@ -24,7 +24,9 @@
       "timeout_seconds": 10,
       "cache_ttl_minutes": 15,
       "result_count": 10,
-      "safesearch": "off"
+      "safesearch": "off",
+      "auto_use": true,
+      "auto_count": 3
     }
   },
   "prompt": {

@@ -35,6 +35,10 @@ python -m blaire_core.main --env dev --llm-model llama3.1 --heartbeat-interval 0
 ## Environment Overrides
 - `BLAIRE_LLM_BASE_URL`
 - `BLAIRE_LLM_MODEL`
+- `BLAIRE_LLM_TEMPERATURE`
+- `BLAIRE_LLM_TOP_P`
+- `BLAIRE_LLM_REPEAT_PENALTY`
+- `BLAIRE_LLM_NUM_CTX`
 - `BLAIRE_DATA_PATH`
 - `BLAIRE_HEARTBEAT_INTERVAL`
 - `BLAIRE_BRAVE_API_KEY`
@@ -86,5 +90,11 @@ Template files are in `docs/reference/templates/` and are used to compose the sy
 - project cards
 - todo focus
 - long-term snippets
+
+## Auto Web Search
+`web_search` can run automatically during normal chat when the message appears time-sensitive or external-knowledge dependent.
+Control this in `tools.web_search`:
+- `auto_use` (default `true`)
+- `auto_count` (default `3`)
 
 See [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime behavior and reliability details.

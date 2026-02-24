@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Any
+import re
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.loop import HeartbeatLoop
@@ -29,6 +30,38 @@ class AppContext:
     llm: OllamaClient
     tools: ToolRegistry
     heartbeat: HeartbeatLoop
+
+
+_AUTO_WEB_SEARCH_PATTERNS = [
+    r"\b(latest|most recent|today|news|breaking)\b",
+    r"\b(current|currently|as of)\b",
+    r"\b(price|stock|market|weather|score)\b",
+    r"\b(version|release|changelog)\b",
+]
+
+
+def _should_auto_web_search(user_message: str) -> bool:
+    text = user_message.strip().lower()
+    if not text:
+        return False
+    if any(re.search(pattern, text) for pattern in _AUTO_WEB_SEARCH_PATTERNS):
+        return True
+    return text.startswith(("who is", "what is", "when is", "where is", "how to")) and text.endswith("?")
+
+
+def _build_web_context(web_result: dict[str, Any]) -> str:
+    if not web_result.get("ok"):
+        error = web_result.get("error", {})
+        return f"Web search unavailable: {error.get('code', 'unknown')} - {error.get('message', '')}"
+    data = web_result.get("data", {})
+    query = data.get("query", "")
+    provider = data.get("provider", "brave")
+    rows: list[str] = [f"Web search context ({provider}) for query: {query}"]
+    for item in data.get("results", [])[:3]:
+        rows.append(f"- {item.get('title', '')} | {item.get('url', '')}")
+        snippet = str(item.get("snippet", "")).replace("\n", " ")
+        rows.append(f"  snippet: {snippet[:280]}")
+    return "\n".join(rows)
 
 
 def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
@@ -73,6 +106,12 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         recent_pairs=context.config.session.recent_pairs,
         soul_rules=context.config.prompt.soul_rules,
     )
+    if context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
+        tool = context.tools.get("web_search")
+        if tool:
+            web_result = tool.fn({"query": user_message, "count": context.config.tools.web_search.auto_count})
+            messages.insert(0, {"role": "system", "content": _build_web_context(web_result)})
+
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
     context.memory.append_session_message(session_id=session_id, role="assistant", content=answer)
     learning = apply_learning_updates(context.memory, user_message=user_message, assistant_message=answer)

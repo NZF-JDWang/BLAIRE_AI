@@ -122,6 +122,12 @@ Reliability behavior:
   - `source=web_search`
   - `wrapped=true`
 
+Automatic usage behavior:
+- enabled by `tools.web_search.auto_use=true`,
+- trigger-based for time-sensitive/external-knowledge user prompts,
+- injects summarized search context into the LLM message stack,
+- bounded by `tools.web_search.auto_count` results.
+
 ## Tool Inventory
 Registered tools:
 - `local_search`
