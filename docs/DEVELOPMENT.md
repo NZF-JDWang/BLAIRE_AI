@@ -28,6 +28,8 @@ pytest -q
 - session cleanup dry-run/enforce behavior
 - `web_search` missing-key and cache behavior
 - quick vs deep diagnostics responses
+- prompt composer section ordering and template substitution
+- learning routine updates to `profile.json` / `preferences.json`
 
 ## Commit Guidance
 Use focused commits by concern:

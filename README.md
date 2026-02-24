@@ -4,6 +4,8 @@ BLAIRE Core is a local-first assistant runtime with:
 - config snapshot validation and diagnostics-only startup mode when config is invalid,
 - file-backed session/memory persistence with stale-reclaim lock files,
 - Ollama chat orchestration,
+- template-driven prompt composition for soul/identity/user context,
+- conservative learning updates from explicit user statements,
 - hardened Brave web search tool behavior,
 - quick and deep health diagnostics,
 - session maintenance preview/enforce controls.
@@ -73,5 +75,14 @@ pytest -q
 - `/doctor` is intentionally not included.
 - Config repair is manual (edit config files), not automatic.
 - Docker checks are currently a stub tool.
+
+## Prompt Templates
+Template files are in `docs/reference/templates/` and are used to compose the system prompt each turn:
+- soul rules
+- identity card (profile)
+- user preferences card
+- project cards
+- todo focus
+- long-term snippets
 
 See [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime behavior and reliability details.

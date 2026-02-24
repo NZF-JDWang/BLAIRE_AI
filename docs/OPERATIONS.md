@@ -13,6 +13,22 @@ Validation returns a `ConfigSnapshot`:
 
 If invalid, runtime uses a bootstrap-safe config and CLI command gating is enforced.
 
+## Identity and Prompt Templates
+System prompt assembly now uses templates in `docs/reference/templates/`:
+- `soul_rules.md`
+- `identity_card.md`
+- `user_preferences_card.md`
+- `project_cards.md`
+- `todo_cards.md`
+- `long_term_snippets.md`
+
+Composer behavior:
+- includes profile + preferences cards every turn,
+- includes up to 2 project cards,
+- includes top open todos (up to 5),
+- includes long-term facts/lessons snippets (up to 10 total),
+- appends current session summary.
+
 ## Health and Diagnostics
 Quick health:
 ```text
@@ -77,6 +93,14 @@ Execution order:
 3. optional disk budget eviction (oldest-first until high-water target)
 
 `warn` mode previews only. `enforce` mode applies deletions.
+
+## Learning Routine
+After each user turn, a conservative learning routine can update memory only on explicit statements:
+- `my name is ...` updates `profile.name` and appends a `user_fact`,
+- `my goal is ...` appends to `profile.long_term_goals` and appends a `user_fact`,
+- `please be detailed/concise` updates `preferences.response_style`.
+
+Applied updates are logged to the daily episodic file.
 
 ## Web Search Hardening
 Tool: `web_search` (Brave)

@@ -160,6 +160,22 @@ def _read_json(path: Path, default: Any) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not path.exists():
+        return rows
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            raw = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(raw, dict):
+            rows.append(raw)
+    return rows
+
+
 class MemoryStore:
     """Memory store backed by JSON/JSONL/Markdown under data root."""
 
@@ -212,6 +228,32 @@ class MemoryStore:
 
     def load_todos(self) -> list[dict[str, Any]]:
         return _read_json(self.data_root / "todos.json", [])
+
+    def save_profile(self, profile: dict[str, Any]) -> None:
+        path = self.data_root / "profile.json"
+        lock = acquire_file_lock(str(path))
+        try:
+            _atomic_write_json(path, profile)
+        finally:
+            release_file_lock(lock)
+
+    def save_preferences(self, preferences: dict[str, Any]) -> None:
+        path = self.data_root / "preferences.json"
+        lock = acquire_file_lock(str(path))
+        try:
+            _atomic_write_json(path, preferences)
+        finally:
+            release_file_lock(lock)
+
+    def load_facts(self, limit: int = 10) -> list[dict[str, Any]]:
+        rows = _read_jsonl(self.long_term_dir / "facts.jsonl")
+        rows.sort(key=lambda item: float(item.get("importance", 0.0)), reverse=True)
+        return rows[: max(0, limit)]
+
+    def load_lessons(self, limit: int = 10) -> list[dict[str, Any]]:
+        rows = _read_jsonl(self.long_term_dir / "lessons.jsonl")
+        rows.sort(key=lambda item: float(item.get("importance", 0.0)), reverse=True)
+        return rows[: max(0, limit)]
 
     def _session_path(self, session_id: str) -> Path:
         return self.sessions_dir / f"session-{session_id}.json"
@@ -282,6 +324,25 @@ class MemoryStore:
             "last_used": None,
         }
         path = self.long_term_dir / "facts.jsonl"
+        lock = acquire_file_lock(str(path))
+        try:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry) + "\n")
+        finally:
+            release_file_lock(lock)
+        return entry
+
+    def append_lesson(self, text: str, tags: list[str], importance: float) -> dict[str, Any]:
+        entry = {
+            "id": str(uuid.uuid4()),
+            "type": "lesson",
+            "text": text,
+            "tags": tags,
+            "importance": importance,
+            "created_at": now_iso_local(),
+            "last_used": None,
+        }
+        path = self.long_term_dir / "lessons.jsonl"
         lock = acquire_file_lock(str(path))
         try:
             with path.open("a", encoding="utf-8") as handle:

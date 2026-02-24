@@ -7,8 +7,10 @@ from typing import Any
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.loop import HeartbeatLoop
+from blaire_core.learning.routine import apply_learning_updates
 from blaire_core.llm.client import OllamaClient
 from blaire_core.memory.store import MemoryStore, clean_stale_locks
+from blaire_core.prompting.composer import build_system_prompt
 from blaire_core.tools.builtin_tools import (
     check_disk_space,
     check_docker_containers_stub,
@@ -52,15 +54,9 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
 
 def _build_messages_for_llm(memory: MemoryStore, session_id: str, user_message: str, recent_pairs: int, soul_rules: str) -> tuple[str, list[dict[str, str]]]:
     session = memory.load_or_create_session(session_id)
-    profile = memory.load_profile()
-    preferences = memory.load_preferences()
     recent = session.messages[-(recent_pairs * 2) :]
-    system_prompt = (
-        f"{soul_rules}\n\n"
-        f"Profile: {profile}\n"
-        f"Preferences: {preferences}\n"
-        f"Session summary: {session.running_summary}\n"
-    )
+    system_prompt = build_system_prompt(memory=memory, soul_rules=soul_rules, session_id=session_id)
+    system_prompt = f"{system_prompt}\n\n# Session Summary\n{session.running_summary or '(none)'}"
     messages = [{"role": m.role, "content": m.content} for m in recent]
     messages.append({"role": "user", "content": user_message})
     return system_prompt, messages
@@ -78,6 +74,9 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
     )
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
     context.memory.append_session_message(session_id=session_id, role="assistant", content=answer)
+    learning = apply_learning_updates(context.memory, user_message=user_message, assistant_message=answer)
+    if learning["profile_updates"] or learning["preferences_updates"] or learning["facts_added"]:
+        context.memory.append_episodic(f"Learning updates: {learning}")
     maint = context.config.session.maintenance
     context.memory.run_session_maintenance(
         mode=maint.mode,
