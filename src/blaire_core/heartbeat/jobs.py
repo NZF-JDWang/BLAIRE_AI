@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from blaire_core.config import AppConfig
@@ -23,15 +23,14 @@ def _parse_iso(value: str) -> datetime | None:
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
     try:
-        return datetime.fromisoformat(text)
+        parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
-
-
-def _coerce_timezone(value: datetime, now: datetime) -> datetime:
-    if value.tzinfo is not None:
-        return value
-    return value.replace(tzinfo=now.tzinfo)
+    if parsed.tzinfo is None:
+        # Treat naive timestamps as UTC so comparison against aware datetimes
+        # remains safe and deterministic.
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def _ensure_memory_namespace(store: JsonMemoryStore) -> None:
@@ -50,7 +49,6 @@ def _check_due_predictions(store: JsonMemoryStore, now: datetime) -> None:
         check_after = _parse_iso(str(item.get("check_after", "")))
         if check_after is None:
             continue
-        check_after = _coerce_timezone(check_after, now)
         if check_after > now:
             continue
         item["last_checked_at"] = _now_iso()
