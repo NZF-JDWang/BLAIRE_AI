@@ -28,6 +28,12 @@ def _parse_iso(value: str) -> datetime | None:
         return None
 
 
+def _coerce_timezone(value: datetime, now: datetime) -> datetime:
+    if value.tzinfo is not None:
+        return value
+    return value.replace(tzinfo=now.tzinfo)
+
+
 def _ensure_memory_namespace(store: JsonMemoryStore) -> None:
     store.ensure_memory_namespace()
     logger.info("heartbeat: ensured memory namespace")
@@ -42,7 +48,10 @@ def _check_due_predictions(store: JsonMemoryStore, now: datetime) -> None:
         if str(item.get("outcome", "pending")) != "pending":
             continue
         check_after = _parse_iso(str(item.get("check_after", "")))
-        if check_after is None or check_after > now:
+        if check_after is None:
+            continue
+        check_after = _coerce_timezone(check_after, now)
+        if check_after > now:
             continue
         item["last_checked_at"] = _now_iso()
         due_count += 1

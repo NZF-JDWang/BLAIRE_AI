@@ -95,3 +95,35 @@ def test_heartbeat_jobs_marks_due_predictions(tmp_path: Path) -> None:
     predictions = json.loads((memory_dir / "predictions.json").read_text(encoding="utf-8"))
     assert predictions[0]["id"] == "pred-due"
     assert "last_checked_at" in predictions[0]
+
+
+def test_heartbeat_jobs_handles_naive_check_after_timestamps(tmp_path: Path) -> None:
+    config = _config_for_path(tmp_path)
+    memory_dir = tmp_path / "memory"
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    (memory_dir / "projects.json").write_text("[]", encoding="utf-8")
+    (memory_dir / "todo.json").write_text("[]", encoding="utf-8")
+    (memory_dir / "debates.json").write_text("[]", encoding="utf-8")
+    (memory_dir / "patterns.json").write_text("[]", encoding="utf-8")
+    (memory_dir / "predictions.json").write_text(
+        json.dumps(
+            [
+                {
+                    "id": "pred-naive",
+                    "statement": "something else",
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "check_after": "2000-01-01T00:00:00",
+                    "outcome": "pending",
+                    "notes": None,
+                    "related_debate_id": None,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    run_heartbeat_jobs(config)
+
+    predictions = json.loads((memory_dir / "predictions.json").read_text(encoding="utf-8"))
+    assert predictions[0]["id"] == "pred-naive"
+    assert "last_checked_at" in predictions[0]
