@@ -1,0 +1,43 @@
+{
+  "app": {
+    "env": "prod"
+  },
+  "paths": {
+    "data_root": "./data",
+    "log_dir": "data/logs"
+  },
+  "llm": {
+    "base_url": "http://192.168.0.10:11434",
+    "model": "",
+    "timeout_seconds": 30
+  },
+  "heartbeat": {
+    "interval_seconds": 0
+  },
+  "tools": {
+    "web_search": {
+      "api_key": "",
+      "timeout_seconds": 10,
+      "cache_ttl_minutes": 15,
+      "result_count": 10,
+      "safesearch": "off"
+    }
+  },
+  "prompt": {
+    "soul_rules": "You are BLAIRE Core. Be concise, safe, and practical."
+  },
+  "session": {
+    "recent_pairs": 6,
+    "maintenance": {
+      "mode": "warn",
+      "prune_after": "30d",
+      "max_entries": 500,
+      "max_disk_bytes": null,
+      "high_water_ratio": 0.8
+    }
+  },
+  "logging": {
+    "level": "info"
+  }
+}
+

@@ -1,0 +1,11 @@
+{
+  "response_style": "concise",
+  "autonomy_level": "observe",
+  "quiet_hours": [
+    "23:00",
+    "08:00"
+  ],
+  "notification_limits": {
+    "max_per_day": 5
+  }
+}
