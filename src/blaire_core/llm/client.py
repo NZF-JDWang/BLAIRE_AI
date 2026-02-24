@@ -16,6 +16,10 @@ class OllamaClient:
         self._base_url = config.llm.base_url.rstrip("/")
         self._model = config.llm.model
         self._timeout = config.llm.timeout_seconds
+        self._temperature = config.llm.temperature
+        self._top_p = config.llm.top_p
+        self._repeat_penalty = config.llm.repeat_penalty
+        self._num_ctx = config.llm.num_ctx
 
     @property
     def base_url(self) -> str:
@@ -39,7 +43,13 @@ class OllamaClient:
             "model": self._model,
             "messages": [{"role": "system", "content": system_prompt}, *messages],
             "stream": False,
-            "options": {"num_predict": max_tokens},
+            "options": {
+                "num_predict": max_tokens,
+                "temperature": self._temperature,
+                "top_p": self._top_p,
+                "repeat_penalty": self._repeat_penalty,
+                "num_ctx": self._num_ctx,
+            },
         }
         request = urllib.request.Request(
             url=url,

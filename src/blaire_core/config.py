@@ -25,6 +25,10 @@ class LLMSection:
     base_url: str
     model: str
     timeout_seconds: int
+    temperature: float = 0.75
+    top_p: float = 0.9
+    repeat_penalty: float = 1.1
+    num_ctx: int = 8192
 
 
 @dataclass(slots=True)
@@ -144,6 +148,10 @@ def _env_overrides() -> dict[str, Any]:
     mapping = {
         "BLAIRE_LLM_BASE_URL": "llm.base_url",
         "BLAIRE_LLM_MODEL": "llm.model",
+        "BLAIRE_LLM_TEMPERATURE": "llm.temperature",
+        "BLAIRE_LLM_TOP_P": "llm.top_p",
+        "BLAIRE_LLM_REPEAT_PENALTY": "llm.repeat_penalty",
+        "BLAIRE_LLM_NUM_CTX": "llm.num_ctx",
         "BLAIRE_DATA_PATH": "paths.data_root",
         "BLAIRE_HEARTBEAT_INTERVAL": "heartbeat.interval_seconds",
         "BLAIRE_BRAVE_API_KEY": "tools.web_search.api_key",
@@ -172,6 +180,16 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
     llm_model = str(raw.get("llm", {}).get("model", "")).strip() if isinstance(raw.get("llm"), dict) else ""
     if not llm_model:
         issues.append("llm.model is required and cannot be empty")
+    if isinstance(raw.get("llm"), dict):
+        llm = raw["llm"]
+        if not isinstance(llm.get("timeout_seconds"), int):
+            issues.append("llm.timeout_seconds must be an integer")
+        for key in ("temperature", "top_p", "repeat_penalty"):
+            value = llm.get(key)
+            if not isinstance(value, (int, float)):
+                issues.append(f"llm.{key} must be a number")
+        if not isinstance(llm.get("num_ctx"), int):
+            issues.append("llm.num_ctx must be an integer")
 
     hb = raw.get("heartbeat", {})
     if isinstance(hb, dict):
@@ -218,6 +236,10 @@ def _to_config(raw: dict[str, Any]) -> AppConfig:
             base_url=str(raw["llm"]["base_url"]),
             model=str(raw["llm"]["model"]),
             timeout_seconds=int(raw["llm"]["timeout_seconds"]),
+            temperature=float(raw["llm"].get("temperature", 0.75)),
+            top_p=float(raw["llm"].get("top_p", 0.9)),
+            repeat_penalty=float(raw["llm"].get("repeat_penalty", 1.1)),
+            num_ctx=int(raw["llm"].get("num_ctx", 8192)),
         ),
         heartbeat=HeartbeatSection(interval_seconds=int(raw["heartbeat"]["interval_seconds"])),
         tools=ToolsSection(
@@ -249,7 +271,15 @@ def _bootstrap_config(env: str) -> AppConfig:
     return AppConfig(
         app=AppSection(env=env),
         paths=PathsSection(data_root="./data", log_dir="data/logs"),
-        llm=LLMSection(base_url="http://192.168.0.10:11434", model="bootstrap-fallback", timeout_seconds=30),
+        llm=LLMSection(
+            base_url="http://192.168.0.10:11434",
+            model="bootstrap-fallback",
+            timeout_seconds=30,
+            temperature=0.75,
+            top_p=0.9,
+            repeat_penalty=1.1,
+            num_ctx=8192,
+        ),
         heartbeat=HeartbeatSection(interval_seconds=0),
         tools=ToolsSection(
             web_search=WebSearchSection(
