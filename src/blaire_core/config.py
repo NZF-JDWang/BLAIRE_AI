@@ -244,6 +244,37 @@ def _to_config(raw: dict[str, Any]) -> AppConfig:
     )
 
 
+def _bootstrap_config(env: str) -> AppConfig:
+    """Minimal runtime-safe config used when file config is invalid."""
+    return AppConfig(
+        app=AppSection(env=env),
+        paths=PathsSection(data_root="./data", log_dir="data/logs"),
+        llm=LLMSection(base_url="http://192.168.0.10:11434", model="bootstrap-fallback", timeout_seconds=30),
+        heartbeat=HeartbeatSection(interval_seconds=0),
+        tools=ToolsSection(
+            web_search=WebSearchSection(
+                api_key="",
+                timeout_seconds=10,
+                cache_ttl_minutes=15,
+                result_count=10,
+                safesearch="off",
+            )
+        ),
+        prompt=PromptSection(soul_rules="You are BLAIRE Core. Be concise, safe, and practical."),
+        session=SessionSection(
+            recent_pairs=6,
+            maintenance=SessionMaintenanceSection(
+                mode="warn",
+                prune_after="30d",
+                max_entries=500,
+                max_disk_bytes=None,
+                high_water_ratio=0.8,
+            ),
+        ),
+        logging=LoggingSection(level="info"),
+    )
+
+
 def read_config_snapshot(env: str, cli_overrides: dict[str, str] | None = None) -> ConfigSnapshot:
     """Read config file and return validity snapshot."""
     path = _default_config_path(env)
@@ -307,3 +338,9 @@ def read_config_snapshot(env: str, cli_overrides: dict[str, str] | None = None) 
         effective_config=_to_config(merged),
     )
 
+
+def ensure_runtime_config(snapshot: ConfigSnapshot, env: str) -> AppConfig:
+    """Return valid runtime config; fallback to bootstrap config when snapshot invalid."""
+    if snapshot.effective_config is not None:
+        return snapshot.effective_config
+    return _bootstrap_config(env)

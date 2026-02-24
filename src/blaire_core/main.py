@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from blaire_core.config import read_config_snapshot
+from blaire_core.config import ensure_runtime_config, read_config_snapshot
 from blaire_core.interfaces.cli import run_cli
 from blaire_core.orchestrator import build_context
 
@@ -38,13 +38,9 @@ def main() -> int:
         print("Config is invalid. CLI will run in diagnostics-only mode.")
         for issue in snapshot.issues:
             print(f"- {issue}")
-        # Use fallback by trying dev config again without overrides for context creation.
-        fallback_snapshot = read_config_snapshot(env=args.env, cli_overrides={})
-        if fallback_snapshot.effective_config is None:
-            return 1
-        context = build_context(config=fallback_snapshot.effective_config, snapshot=snapshot)
-    else:
-        context = build_context(config=snapshot.effective_config, snapshot=snapshot)
+
+    runtime_config = ensure_runtime_config(snapshot, env=args.env)
+    context = build_context(config=runtime_config, snapshot=snapshot)
 
     run_cli(context, initial_session_id=args.session_id)
     return 0
@@ -52,4 +48,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

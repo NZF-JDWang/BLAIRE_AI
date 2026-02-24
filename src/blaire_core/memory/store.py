@@ -322,3 +322,26 @@ class MemoryStore:
                     path.unlink()
                     removed.append(path_str)
         return {"removed": removed, "count": len(removed)}
+
+    def run_session_maintenance(
+        self,
+        mode: str,
+        prune_after: str,
+        max_entries: int,
+        max_disk_bytes: int | None,
+        high_water_ratio: float,
+        active_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Run maintenance according to configured mode."""
+        preview = self.preview_session_cleanup(
+            mode=mode,
+            prune_after=prune_after,
+            max_entries=max_entries,
+            max_disk_bytes=max_disk_bytes,
+            high_water_ratio=high_water_ratio,
+            active_key=active_key,
+        )
+        if mode == "enforce":
+            applied = self.enforce_session_cleanup(preview)
+            return {"mode": mode, "preview": preview, "applied": applied}
+        return {"mode": mode, "preview": preview, "applied": None}

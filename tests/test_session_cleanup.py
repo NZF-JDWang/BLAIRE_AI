@@ -41,3 +41,29 @@ def test_session_cleanup_dry_run_and_enforce(tmp_path: Path) -> None:
     assert recent.exists()
     assert not stale.exists()
 
+
+def test_session_maintenance_warn_and_enforce_modes(tmp_path: Path) -> None:
+    store = MemoryStore(str(tmp_path))
+    store.initialize()
+    stale = store.sessions_dir / "session-stale.json"
+    _touch(stale, 40 * 24 * 60 * 60)
+
+    warn_result = store.run_session_maintenance(
+        mode="warn",
+        prune_after="30d",
+        max_entries=500,
+        max_disk_bytes=None,
+        high_water_ratio=0.8,
+    )
+    assert warn_result["applied"] is None
+    assert stale.exists()
+
+    enforce_result = store.run_session_maintenance(
+        mode="enforce",
+        prune_after="30d",
+        max_entries=500,
+        max_disk_bytes=None,
+        high_water_ratio=0.8,
+    )
+    assert enforce_result["applied"] is not None
+    assert not stale.exists()

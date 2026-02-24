@@ -8,7 +8,7 @@ from typing import Any
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.loop import HeartbeatLoop
 from blaire_core.llm.client import OllamaClient
-from blaire_core.memory.store import MemoryStore
+from blaire_core.memory.store import MemoryStore, clean_stale_locks
 from blaire_core.tools.builtin_tools import (
     check_disk_space,
     check_docker_containers_stub,
@@ -78,6 +78,15 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
     )
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
     context.memory.append_session_message(session_id=session_id, role="assistant", content=answer)
+    maint = context.config.session.maintenance
+    context.memory.run_session_maintenance(
+        mode=maint.mode,
+        prune_after=maint.prune_after,
+        max_entries=maint.max_entries,
+        max_disk_bytes=maint.max_disk_bytes,
+        high_water_ratio=maint.high_water_ratio,
+        active_key=session_id,
+    )
     return answer
 
 
@@ -115,13 +124,38 @@ def diagnostics(context: AppContext, deep: bool = False) -> dict[str, Any]:
     llm_timeout = 10 if deep else 3
     llm_ok, llm_detail = context.llm.check_reachable(timeout_seconds=llm_timeout)
     brave_key = bool(context.config.tools.web_search.api_key or __import__("os").getenv("BLAIRE_BRAVE_API_KEY"))
-    lock_scan = context.memory and {"status": "not_run"}
+    lock_scan = {"status": "not_run"}
+    brave_probe: dict[str, Any] = {"checked": False}
+    if deep:
+        scanned = clean_stale_locks(context.config.paths.data_root)
+        lock_scan = {"status": "ok", **asdict(scanned)}
+        if brave_key:
+            import urllib.request
+
+            url = "https://api.search.brave.com/res/v1/web/search?q=blaire+health&count=1"
+            request = urllib.request.Request(
+                url=url,
+                method="GET",
+                headers={
+                    "Accept": "application/json",
+                    "X-Subscription-Token": context.config.tools.web_search.api_key
+                    or __import__("os").getenv("BLAIRE_BRAVE_API_KEY", ""),
+                },
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310
+                    brave_probe = {"checked": True, "ok": 200 <= response.status < 300, "status": response.status}
+            except Exception as exc:  # noqa: BLE001
+                brave_probe = {"checked": True, "ok": False, "error": str(exc)}
+        else:
+            brave_probe = {"checked": True, "ok": False, "error": "missing_key"}
     return {
         "config_valid": context.config_snapshot.valid,
         "config_issues": context.config_snapshot.issues,
         "data_root": context.config.paths.data_root,
         "llm": {"ok": llm_ok, "detail": llm_detail, "timeout_seconds": llm_timeout},
         "brave": {"ready": brave_key},
+        "brave_probe": brave_probe,
         "heartbeat": asdict(context.heartbeat.status()),
         "deep": deep,
         "locks": lock_scan,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from blaire_core.config import read_config_snapshot
+from blaire_core.config import ensure_runtime_config, read_config_snapshot
 from blaire_core.interfaces.cli import _is_allowed_restricted
 
 
@@ -29,4 +29,5 @@ def test_invalid_config_snapshot(tmp_path: Path, monkeypatch) -> None:
     assert not snapshot.valid
     assert snapshot.effective_config is None
     assert snapshot.issues
-
+    runtime_cfg = ensure_runtime_config(snapshot, env="dev")
+    assert runtime_cfg.llm.model == "bootstrap-fallback"
