@@ -22,8 +22,8 @@ Thumbs.db
 .idea/
 
 # Runtime artifacts
-data/logs/
-data/identity/
+data/
+*.egg-info/
 
 # Local environment files
 .env
