@@ -57,11 +57,15 @@ def test_prompt_composer_includes_template_sections(tmp_path: Path) -> None:
     prompt = build_system_prompt(store, soul_rules="Be useful.", session_id="s1")
 
     assert "# Soul Rules" in prompt
+    assert "# Soul Core Persona" in prompt
+    assert "# Persona Intelligence Contract" in prompt
+    assert "# Anti-Chatbot Contract" in prompt
     assert "# Evolving Soul (Living Layer)" in prompt
     assert "# Identity Card" in prompt
     assert "# Project Cards" in prompt
     assert "# Todo Focus" in prompt
     assert "# Long-Term Memory Snippets" in prompt
+    assert "# Soul Living Persona" in prompt
     assert "Ship BLAIRE v0.1" in prompt
     assert "Add templates" in prompt
 

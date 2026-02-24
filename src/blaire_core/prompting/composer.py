@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from blaire_core.memory.store import MemoryStore
 
 
+logger = logging.getLogger(__name__)
+
+
 _TEMPLATE_FILES = {
     "soul": "soul_rules.md",
     "evolving_soul": "evolving_soul.md",
+    "core_persona": "soul_core_persona.md",
+    "intelligence_contract": "persona_intelligence_contract.md",
+    "anti_chatbot_contract": "anti_chatbot_contract.md",
+    "living_persona": "soul_living_persona.md",
     "identity": "identity_card.md",
     "prefs": "user_preferences_card.md",
     "projects": "project_cards.md",
@@ -27,6 +35,7 @@ def _template_root() -> Path:
 def _read_template(name: str) -> str:
     path = _template_root() / _TEMPLATE_FILES[name]
     if not path.exists():
+        logger.warning("prompt template missing: %s", path)
         return ""
     return path.read_text(encoding="utf-8")
 
@@ -121,6 +130,9 @@ def build_system_prompt(memory: MemoryStore, soul_rules: str, session_id: str) -
 
     sections: list[str] = []
     sections.append(_render(_read_template("soul"), {"soul_rules": soul_rules}))
+    sections.append(_read_template("core_persona").strip())
+    sections.append(_read_template("intelligence_contract").strip())
+    sections.append(_read_template("anti_chatbot_contract").strip())
     sections.append(_evolving_soul_card(memory))
     sections.append(
         _render(
@@ -149,5 +161,6 @@ def build_system_prompt(memory: MemoryStore, soul_rules: str, session_id: str) -
     sections.append(_render(_read_template("projects"), {"project_cards": _project_cards(projects)}))
     sections.append(_render(_read_template("todos"), {"todo_cards": _todo_cards(todos)}))
     sections.append(_render(_read_template("facts"), {"fact_snippets": _fact_snippets(memory)}))
+    sections.append(_read_template("living_persona").strip())
 
     return "\n\n".join(section for section in sections if section)
