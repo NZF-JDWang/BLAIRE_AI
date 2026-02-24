@@ -184,11 +184,13 @@ class MemoryStore:
         self.sessions_dir = self.data_root / "sessions"
         self.episodic_dir = self.data_root / "episodic"
         self.long_term_dir = self.data_root / "long_term"
+        self.identity_dir = self.data_root / "identity"
 
     def initialize(self) -> None:
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.episodic_dir.mkdir(parents=True, exist_ok=True)
         self.long_term_dir.mkdir(parents=True, exist_ok=True)
+        self.identity_dir.mkdir(parents=True, exist_ok=True)
         defaults = {
             "profile.json": {
                 "name": "",
@@ -213,9 +215,23 @@ class MemoryStore:
             path = self.long_term_dir / filename
             if not path.exists():
                 path.write_text("", encoding="utf-8")
+        evolving = self.identity_dir / "evolving_soul.json"
+        if not evolving.exists():
+            _atomic_write_json(evolving, self._default_evolving_soul())
         today = self.episodic_dir / f"{date.today().isoformat()}.md"
         if not today.exists():
             today.write_text(f"# {date.today().isoformat()}\n\n", encoding="utf-8")
+
+    def _default_evolving_soul(self) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "last_updated": now_iso_local(),
+            "traits": ["pragmatic", "safe", "helpful"],
+            "user_alignment_notes": [],
+            "growth_notes": [],
+            "style_preferences": {"response_style": "concise"},
+            "guardrails": ["Do not claim certainty without evidence.", "Prefer clear, actionable responses."],
+        }
 
     def load_profile(self) -> dict[str, Any]:
         return _read_json(self.data_root / "profile.json", {})
@@ -228,6 +244,23 @@ class MemoryStore:
 
     def load_todos(self) -> list[dict[str, Any]]:
         return _read_json(self.data_root / "todos.json", [])
+
+    def load_evolving_soul(self) -> dict[str, Any]:
+        return _read_json(self.identity_dir / "evolving_soul.json", self._default_evolving_soul())
+
+    def save_evolving_soul(self, soul: dict[str, Any]) -> None:
+        path = self.identity_dir / "evolving_soul.json"
+        lock = acquire_file_lock(str(path))
+        try:
+            soul["last_updated"] = now_iso_local()
+            _atomic_write_json(path, soul)
+        finally:
+            release_file_lock(lock)
+
+    def reset_evolving_soul(self) -> dict[str, Any]:
+        soul = self._default_evolving_soul()
+        self.save_evolving_soul(soul)
+        return soul
 
     def save_profile(self, profile: dict[str, Any]) -> None:
         path = self.data_root / "profile.json"

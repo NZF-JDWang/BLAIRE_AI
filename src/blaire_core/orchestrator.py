@@ -8,6 +8,7 @@ from typing import Any
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.loop import HeartbeatLoop
 from blaire_core.learning.routine import apply_learning_updates
+from blaire_core.learning.soul_growth import apply_soul_growth_updates
 from blaire_core.llm.client import OllamaClient
 from blaire_core.memory.store import MemoryStore, clean_stale_locks
 from blaire_core.prompting.composer import build_system_prompt
@@ -75,8 +76,9 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
     context.memory.append_session_message(session_id=session_id, role="assistant", content=answer)
     learning = apply_learning_updates(context.memory, user_message=user_message, assistant_message=answer)
-    if learning["profile_updates"] or learning["preferences_updates"] or learning["facts_added"]:
-        context.memory.append_episodic(f"Learning updates: {learning}")
+    soul_growth = apply_soul_growth_updates(context.memory, user_message=user_message, assistant_message=answer)
+    if learning["profile_updates"] or learning["preferences_updates"] or learning["facts_added"] or soul_growth["updated"]:
+        context.memory.append_episodic(f"Learning updates: {learning}; soul_growth: {soul_growth}")
     maint = context.config.session.maintenance
     context.memory.run_session_maintenance(
         mode=maint.mode,

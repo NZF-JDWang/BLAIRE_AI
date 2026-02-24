@@ -41,7 +41,7 @@ def _print_help() -> None:
     print("/tool <name> <json_args>")
     print("/session new|list|use|current")
     print("/session cleanup --dry-run|--enforce [--active-key <id>]")
-    print("/admin status|config|diagnostics [--deep]|memory")
+    print("/admin status|config|diagnostics [--deep]|memory|soul [--reset]")
 
 
 def _handle_heartbeat(context: AppContext, tokens: list[str]) -> None:
@@ -67,7 +67,7 @@ def _handle_heartbeat(context: AppContext, tokens: list[str]) -> None:
 
 def _handle_admin(context: AppContext, tokens: list[str]) -> None:
     if len(tokens) < 2:
-        print("Usage: /admin status|config|diagnostics|memory")
+        print("Usage: /admin status|config|diagnostics|memory|soul [--reset]")
         return
     sub = tokens[1].lower()
     if sub == "status":
@@ -89,6 +89,12 @@ def _handle_admin(context: AppContext, tokens: list[str]) -> None:
             "long_term_total_bytes": sum(p.stat().st_size for p in long_term_files),
         }
         print(json.dumps(summary, indent=2))
+    elif sub == "soul":
+        if any(token.lower() == "--reset" for token in tokens[2:]):
+            soul = context.memory.reset_evolving_soul()
+            print(json.dumps({"reset": True, "soul": soul}, indent=2))
+            return
+        print(json.dumps(context.memory.load_evolving_soul(), indent=2))
     else:
         print("Unknown admin subcommand.")
 
@@ -222,4 +228,3 @@ def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
         scan = clean_stale_locks(context.config.paths.data_root)
         if scan.removed:
             print(f"Cleaned stale locks: {scan.removed}")
-

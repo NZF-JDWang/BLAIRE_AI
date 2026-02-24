@@ -30,6 +30,8 @@ pytest -q
 - quick vs deep diagnostics responses
 - prompt composer section ordering and template substitution
 - learning routine updates to `profile.json` / `preferences.json`
+- evolving soul persistence updates in `data/identity/evolving_soul.json`
+- `/admin soul` inspect/reset behavior
 
 ## Commit Guidance
 Use focused commits by concern:

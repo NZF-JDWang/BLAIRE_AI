@@ -16,6 +16,7 @@ If invalid, runtime uses a bootstrap-safe config and CLI command gating is enfor
 ## Identity and Prompt Templates
 System prompt assembly now uses templates in `docs/reference/templates/`:
 - `soul_rules.md`
+- `evolving_soul.md`
 - `identity_card.md`
 - `user_preferences_card.md`
 - `project_cards.md`
@@ -23,6 +24,7 @@ System prompt assembly now uses templates in `docs/reference/templates/`:
 - `long_term_snippets.md`
 
 Composer behavior:
+- includes evolving soul living-layer notes each turn,
 - includes profile + preferences cards every turn,
 - includes up to 2 project cards,
 - includes top open todos (up to 5),
@@ -101,6 +103,11 @@ After each user turn, a conservative learning routine can update memory only on 
 - `please be detailed/concise` updates `preferences.response_style`.
 
 Applied updates are logged to the daily episodic file.
+
+Evolving soul growth:
+- persisted at `data/identity/evolving_soul.json`,
+- updated with bounded, deduplicated notes from explicit user feedback signals,
+- inspect/reset via `/admin soul` and `/admin soul --reset`.
 
 ## Web Search Hardening
 Tool: `web_search` (Brave)

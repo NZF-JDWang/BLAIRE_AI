@@ -48,6 +48,7 @@ python -m blaire_core.main --env dev --llm-model llama3.1 --heartbeat-interval 0
 - `/admin config`
 - `/admin diagnostics [--deep]`
 - `/admin memory`
+- `/admin soul [--reset]`
 - `/heartbeat tick|start|stop|status`
 - `/tool <name> <json_args>`
 - `/session new|list|use|current`
@@ -79,6 +80,7 @@ pytest -q
 ## Prompt Templates
 Template files are in `docs/reference/templates/` and are used to compose the system prompt each turn:
 - soul rules
+- evolving soul (living layer)
 - identity card (profile)
 - user preferences card
 - project cards

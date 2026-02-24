@@ -11,6 +11,7 @@ from blaire_core.memory.store import MemoryStore
 
 _TEMPLATE_FILES = {
     "soul": "soul_rules.md",
+    "evolving_soul": "evolving_soul.md",
     "identity": "identity_card.md",
     "prefs": "user_preferences_card.md",
     "projects": "project_cards.md",
@@ -93,6 +94,23 @@ def _fact_snippets(memory: MemoryStore) -> str:
     return "\n".join(rows[:10])
 
 
+def _evolving_soul_card(memory: MemoryStore) -> str:
+    soul = memory.load_evolving_soul()
+    traits = [str(v) for v in soul.get("traits", []) if isinstance(v, str)]
+    align = [str(v) for v in soul.get("user_alignment_notes", []) if isinstance(v, str)]
+    growth = [str(v) for v in soul.get("growth_notes", []) if isinstance(v, str)]
+    style = soul.get("style_preferences", {})
+    return _render(
+        _read_template("evolving_soul"),
+        {
+            "traits": _list_to_bullets(traits),
+            "user_alignment_notes": _list_to_bullets(align[-5:]),
+            "growth_notes": _list_to_bullets(growth[-5:]),
+            "style_preferences": json.dumps(style),
+        },
+    )
+
+
 def build_system_prompt(memory: MemoryStore, soul_rules: str, session_id: str) -> str:
     """Build full system prompt from templates and persisted memory."""
     _ = session_id
@@ -103,6 +121,7 @@ def build_system_prompt(memory: MemoryStore, soul_rules: str, session_id: str) -
 
     sections: list[str] = []
     sections.append(_render(_read_template("soul"), {"soul_rules": soul_rules}))
+    sections.append(_evolving_soul_card(memory))
     sections.append(
         _render(
             _read_template("identity"),
