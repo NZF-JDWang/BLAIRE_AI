@@ -29,6 +29,20 @@ class LockScanResult:
     errors: list[str]
 
 
+class FileLockTimeoutError(TimeoutError):
+    """Timeout while acquiring a file lock, with structured details."""
+
+    def __init__(self, lock_path: str, timeout_seconds: int, attempts: int) -> None:
+        self.error = {
+            "code": "lock_timeout",
+            "message": f"Timed out waiting for lock: {lock_path}",
+            "lock_path": lock_path,
+            "timeout_seconds": timeout_seconds,
+            "attempts": attempts,
+        }
+        super().__init__(json.dumps(self.error))
+
+
 def _pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
@@ -85,7 +99,7 @@ def acquire_file_lock(
                 except OSError:
                     pass
             if time.monotonic() - started >= timeout_seconds:
-                raise TimeoutError(f"timeout waiting for lock: {lock_path}")
+                raise FileLockTimeoutError(str(lock_path), timeout_seconds=timeout_seconds, attempts=attempt)
             attempt += 1
             time.sleep(min(1.0, 0.05 * attempt))
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import replace
+import urllib.request
 
 from blaire_core.config import (
     AppConfig,
@@ -17,6 +17,7 @@ from blaire_core.config import (
     ToolsSection,
     WebSearchSection,
 )
+import blaire_core.tools.builtin_tools as builtin_tools
 from blaire_core.tools.builtin_tools import make_web_search_tool
 
 
@@ -54,3 +55,57 @@ def test_web_search_missing_key() -> None:
     assert result["ok"] is False
     assert result["error"]["code"] == "missing_brave_api_key"
 
+
+class _FakeResponse:
+    def __init__(self, payload: dict) -> None:
+        self.status = 200
+        self._payload = payload
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        _ = (exc_type, exc, tb)
+
+
+def test_web_search_wraps_external_content_and_caches(monkeypatch) -> None:
+    call_count = {"n": 0}
+
+    def _fake_urlopen(request: urllib.request.Request, timeout: int = 0):  # noqa: ARG001
+        _ = request
+        call_count["n"] += 1
+        return _FakeResponse(
+            {
+                "web": {
+                    "results": [
+                        {
+                            "title": "Example",
+                            "url": "https://example.com",
+                            "description": "A snippet from the web.",
+                        }
+                    ]
+                }
+            }
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    builtin_tools._WEB_CACHE.clear()
+
+    tool = make_web_search_tool(_config(api_key="test-key"))
+    first = tool({"query": "hello world", "count": 1})
+    second = tool({"query": "hello world", "count": 1})
+
+    assert first["ok"] is True
+    assert first["metadata"]["cached"] is False
+    assert second["ok"] is True
+    assert second["metadata"]["cached"] is True
+    assert call_count["n"] == 1
+    snippet = first["data"]["results"][0]["snippet"]
+    ext = first["data"]["results"][0]["external_content"]
+    assert "BLAIRE_UNTRUSTED_CONTENT" in snippet
+    assert ext["untrusted"] is True
+    assert ext["source"] == "web_search"
+    assert ext["wrapped"] is True

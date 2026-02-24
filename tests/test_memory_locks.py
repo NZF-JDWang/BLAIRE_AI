@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 import json
-import threading
-import time
 from pathlib import Path
 
 import pytest
 
-from blaire_core.memory.store import acquire_file_lock, clean_stale_locks, release_file_lock
+from blaire_core.memory.store import FileLockTimeoutError, acquire_file_lock, clean_stale_locks, release_file_lock
 
 
 def test_lock_timeout_when_held(tmp_path: Path) -> None:
     target = str(tmp_path / "x.json")
     handle = acquire_file_lock(target)
     try:
-        with pytest.raises(TimeoutError):
+        with pytest.raises(FileLockTimeoutError) as exc:
             acquire_file_lock(target, timeout_seconds=1, stale_after_seconds=9999)
+        assert exc.value.error["code"] == "lock_timeout"
+        assert str(tmp_path / "x.json.lock") in exc.value.error["lock_path"]
     finally:
         release_file_lock(handle)
 

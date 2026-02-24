@@ -56,5 +56,5 @@ class OllamaClient:
                 return content
             return "I could not generate a response right now."
         except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError):
-            return "I’m having trouble reaching the local model right now. Please try again."
+            return "I'm having trouble reaching the local model right now. Please try again."
 
