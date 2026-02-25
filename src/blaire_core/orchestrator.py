@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass
 from typing import Any
 import re
 import os
+import json
+import time
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.jobs import run_heartbeat_jobs
@@ -33,6 +35,16 @@ class AppContext:
     llm: OllamaClient
     tools: ToolRegistry
     heartbeat: HeartbeatLoop
+
+
+@dataclass(slots=True)
+class PlannerAction:
+    action: str
+    confidence: float = 0.0
+    tool_name: str | None = None
+    tool_args: dict[str, Any] | None = None
+    final_answer: str = ""
+    reason: str = ""
 
 
 _AUTO_WEB_SEARCH_PATTERNS = [
@@ -122,25 +134,68 @@ def _memory_recall_answer_looks_invalid(answer: str) -> bool:
     )
 
 
-def _capability_safe_fallback(user_message: str, web_attempted: bool) -> str:
+def _capability_safe_fallback(user_message: str, web_attempted: bool, tool_errors: list[str] | None = None) -> str:
     lowered = user_message.strip().lower()
     asks_web = bool(re.search(r"\b(search|look up|lookup)\b.{0,40}\b(web|internet)\b", lowered)) or _should_auto_web_search(
         user_message
     )
     if asks_web:
         if web_attempted:
-            return (
+            base = (
                 "Yes. I have persistent memory in this runtime and I can use the web-search tool here. "
                 "Share the exact query and I will run it now."
             )
-        return (
+            if tool_errors:
+                return f"{base} Tool issue details: {'; '.join(tool_errors)}"
+            return base
+        base = (
             "Yes. I have persistent memory in this runtime and can run web search when configured. "
             "Give me the exact query and I will search it now."
         )
-    return (
+        if tool_errors:
+            return f"{base} Tool issue details: {'; '.join(tool_errors)}"
+        return base
+    base = (
         "I have persistent memory in this runtime and I can use configured tools (including web search). "
         "Tell me the next task and I will execute it."
     )
+    if tool_errors:
+        return f"{base} Tool issue details: {'; '.join(tool_errors)}"
+    return base
+
+
+def _format_tool_result(tool_name: str, result: dict[str, Any]) -> str:
+    return f"Tool result ({tool_name}):\n{json.dumps(result, ensure_ascii=False, default=str)}"
+
+
+def _summarize_tool_error(tool_name: str, result: dict[str, Any]) -> str:
+    error = result.get("error", {}) if isinstance(result, dict) else {}
+    code = error.get("code", "unknown")
+    message = error.get("message", "")
+    return f"{tool_name} failed [{code}] {message}".strip()
+
+
+def _plan_next_action(
+    context: AppContext,
+    user_message: str,
+    tool_results: list[dict[str, Any]],
+    step: int,
+    max_steps: int,
+    deadline: float,
+) -> PlannerAction:
+    if step >= max_steps or time.monotonic() >= deadline:
+        return PlannerAction(action="finalize", confidence=1.0, reason="budget_exhausted")
+    if tool_results and tool_results[-1].get("ok") is False:
+        return PlannerAction(action="finalize", confidence=0.95, reason="tool_failed")
+    if not tool_results and context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
+        return PlannerAction(
+            action="tool",
+            confidence=0.8,
+            tool_name="web_search",
+            tool_args={"query": user_message, "count": context.config.tools.web_search.auto_count},
+            reason="auto_web_search",
+        )
+    return PlannerAction(action="finalize", confidence=0.9, reason="default_finalize")
 
 
 def _build_web_context(web_result: dict[str, Any]) -> str:
@@ -219,14 +274,47 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         soul_rules=context.config.prompt.soul_rules,
     )
     web_attempted = False
-    if context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
-        tool = context.tools.get("web_search")
-        if tool:
-            web_result = tool.fn({"query": user_message, "count": context.config.tools.web_search.auto_count})
-            messages.insert(0, {"role": "system", "content": _build_web_context(web_result)})
-            web_attempted = True
+    tool_errors: list[str] = []
+    tool_results: list[dict[str, Any]] = []
+    max_tool_steps = 3
+    timeout_budget_seconds = 8.0
+    deadline = time.monotonic() + timeout_budget_seconds
+    planner_final_answer = ""
+    answer = ""
 
-    answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
+    for step in range(max_tool_steps):
+        action = _plan_next_action(
+            context=context,
+            user_message=user_message,
+            tool_results=tool_results,
+            step=step,
+            max_steps=max_tool_steps,
+            deadline=deadline,
+        )
+        if action.action == "finalize":
+            planner_final_answer = action.final_answer.strip()
+            if action.confidence >= 0.9 and planner_final_answer:
+                answer = planner_final_answer
+                break
+            break
+        if action.action != "tool" or not action.tool_name:
+            break
+
+        result = call_tool(context, name=action.tool_name, args=action.tool_args or {})
+        tool_results.append(result)
+        web_attempted = web_attempted or action.tool_name == "web_search"
+        if action.tool_name == "web_search":
+            messages.insert(0, {"role": "system", "content": _build_web_context(result)})
+        else:
+            messages.insert(0, {"role": "system", "content": _format_tool_result(action.tool_name, result)})
+        if not result.get("ok"):
+            tool_errors.append(_summarize_tool_error(action.tool_name, result))
+        if time.monotonic() >= deadline:
+            break
+    else:
+        planner_final_answer = ""
+    if not answer:
+        answer = planner_final_answer or context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
     if _has_capability_drift(answer):
         context.memory.log_event(
             event_type="capability_drift_detected",
@@ -246,9 +334,9 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
                 if recall_fallback:
                     answer = recall_fallback
                 else:
-                    answer = _capability_safe_fallback(user_message, web_attempted=web_attempted)
+                    answer = _capability_safe_fallback(user_message, web_attempted=web_attempted, tool_errors=tool_errors)
             else:
-                answer = _capability_safe_fallback(user_message, web_attempted=web_attempted)
+                answer = _capability_safe_fallback(user_message, web_attempted=web_attempted, tool_errors=tool_errors)
     if _is_memory_recall_prompt(user_message) and _memory_recall_answer_looks_invalid(answer):
         fallback = _memory_recall_fallback(context.memory, user_message)
         if fallback:
