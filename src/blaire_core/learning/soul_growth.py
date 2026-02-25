@@ -33,7 +33,13 @@ def _append_unique_bounded(target: list[str], note: str, max_items: int) -> bool
     return True
 
 
-def apply_soul_growth_updates(memory: MemoryStore, user_message: str, assistant_message: str) -> dict[str, Any]:
+def apply_soul_growth_updates(
+    memory: MemoryStore,
+    user_message: str,
+    assistant_message: str,
+    *,
+    auto_apply: bool = True,
+) -> dict[str, Any]:
     """Update evolving soul notes from explicit feedback signals."""
     soul = memory.load_evolving_soul()
     growth_notes = [str(v) for v in soul.get("growth_notes", []) if isinstance(v, str)]
@@ -74,7 +80,9 @@ def apply_soul_growth_updates(memory: MemoryStore, user_message: str, assistant_
     if changed:
         soul["growth_notes"] = growth_notes
         soul["user_alignment_notes"] = align_notes
-        memory.save_evolving_soul(soul)
+        if auto_apply:
+            memory.save_evolving_soul(soul)
+        updates["proposed_soul"] = soul
 
     updates["updated"] = changed
     return updates

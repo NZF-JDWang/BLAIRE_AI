@@ -50,6 +50,7 @@ def _print_help() -> None:
     print("/telegram send-audio <path> [caption]")
     print("/telegram send-file <path> [caption]")
     print("/tool <name> <json_args>")
+    print("/brain soul|rules|user|memory|heartbeat|style|edit <file>")
     print("/session new|list|use|current")
     print("/session cleanup --dry-run|--enforce [--active-key <id>]")
     print("/admin status|config [--effective]|diagnostics [--deep]|selfcheck|memory [stats|recent|patterns|search]|soul [state|--reset]")
@@ -212,6 +213,43 @@ def _handle_admin(context: AppContext, tokens: list[str]) -> None:
     else:
         print("Unknown admin subcommand.")
 
+
+
+_BRAIN_FILE_MAP = {
+    "soul": "SOUL.md",
+    "rules": "RULES.md",
+    "user": "USER.md",
+    "memory": "MEMORY.md",
+    "heartbeat": "HEARTBEAT.md",
+    "style": "STYLE.md",
+}
+
+
+def _handle_brain(context: AppContext, tokens: list[str]) -> None:
+    if len(tokens) < 2:
+        print("Usage: /brain soul|rules|user|memory|heartbeat|style|edit <file>")
+        return
+
+    command = tokens[1].lower()
+    if command == "edit":
+        if len(tokens) < 3:
+            print("Usage: /brain edit <file>")
+            return
+        command = tokens[2].lower()
+
+    filename = _BRAIN_FILE_MAP.get(command)
+    if not filename:
+        print("Unknown brain file. Use: soul, rules, user, memory, heartbeat, style")
+        return
+
+    context.brain_composer.ensure_brain_files()
+    path = context.brain_composer.brain_dir / filename
+    if not path.exists():
+        print(f"Brain file missing: {path}")
+        return
+
+    print(f"# {filename} ({path})")
+    print(path.read_text(encoding="utf-8"))
 
 def _handle_tool(context: AppContext, tokens: list[str]) -> None:
     if len(tokens) < 2:
@@ -398,6 +436,9 @@ def execute_single_command(context: AppContext, command_line: str, initial_sessi
     if command == "/tool":
         _handle_tool(context, tokens)
         return 0
+    if command == "/brain":
+        _handle_brain(context, tokens)
+        return 0
     if command == "/help":
         _print_help()
         return 0
@@ -432,6 +473,7 @@ def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
         "/heartbeat": lambda tokens: _handle_heartbeat(context, tokens),
         "/admin": lambda tokens: _handle_admin(context, tokens),
         "/tool": lambda tokens: _handle_tool(context, tokens),
+        "/brain": lambda tokens: _handle_brain(context, tokens),
         "/session": lambda tokens: _handle_session(context, state, tokens),
         "/telegram": lambda tokens: _handle_telegram(context, tokens, telegram_bridge),
     }
