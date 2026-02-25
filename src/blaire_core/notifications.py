@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from pathlib import Path
 
 from blaire_core.config import AppConfig
@@ -20,7 +20,7 @@ def _outbox_path(config: AppConfig) -> Path:
 
 def notify_user(config: AppConfig, message: str, *, level: str = "info") -> bool:
     """Always log outbound message locally; optionally fan out to Telegram."""
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     outbox = _outbox_path(config)
     outbox.parent.mkdir(parents=True, exist_ok=True)
 
@@ -55,7 +55,7 @@ def notify_user_media(
     caption: str | None = None,
     level: str = "info",
 ) -> bool:
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     outbox = _outbox_path(config)
     outbox.parent.mkdir(parents=True, exist_ok=True)
     record = {
