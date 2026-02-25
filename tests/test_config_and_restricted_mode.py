@@ -11,6 +11,7 @@ from blaire_core.interfaces.cli import _handle_admin, _is_allowed_restricted
 def test_restricted_mode_allowlist() -> None:
     assert _is_allowed_restricted("/help")
     assert _is_allowed_restricted("/admin diagnostics --deep")
+    assert _is_allowed_restricted("/admin selfcheck")
     assert _is_allowed_restricted("/health")
     assert not _is_allowed_restricted("/tool web_search {}")
     assert not _is_allowed_restricted("/session new")

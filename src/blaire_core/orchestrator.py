@@ -40,6 +40,7 @@ _AUTO_WEB_SEARCH_PATTERNS = [
     r"\b(current|currently|as of)\b",
     r"\b(price|stock|market|weather|score)\b",
     r"\b(version|release|changelog)\b",
+    r"\b(search|look up|lookup)\b.{0,40}\b(web|internet)\b",
 ]
 
 
@@ -50,6 +51,96 @@ def _should_auto_web_search(user_message: str) -> bool:
     if any(re.search(pattern, text) for pattern in _AUTO_WEB_SEARCH_PATTERNS):
         return True
     return text.startswith(("who is", "what is", "when is", "where is", "how to")) and text.endswith("?")
+
+
+def _capability_guard_message() -> str:
+    return (
+        "Capability Guard (non-negotiable):\n"
+        "- You are BLAIRE running inside a local runtime with persistent memory (session, episodic, long-term, structured DB).\n"
+        "- You have tool-mediated web search capability when configured; do not claim static cutoff/no-internet by default.\n"
+        "- If a tool/config issue prevents a capability, state that specific failure and offer next steps.\n"
+        "- Never claim 'I cannot retain context between sessions' in this runtime."
+    )
+
+
+_CAPABILITY_DRIFT_PATTERNS = [
+    r"\bi don't have internet access\b",
+    r"\bi do not have internet access\b",
+    r"\bi don't have memory beyond this session\b",
+    r"\bcan't retain context between sessions\b",
+    r"\bcannot retain context between sessions\b",
+    r"\bknowledge is static\b",
+    r"\b2023 cutoff\b",
+    r"\bmemory is disabled\b",
+]
+
+
+def _has_capability_drift(answer: str) -> bool:
+    lowered = answer.strip().lower()
+    if not lowered:
+        return False
+    return any(re.search(pattern, lowered) for pattern in _CAPABILITY_DRIFT_PATTERNS)
+
+
+def _is_memory_recall_prompt(user_message: str) -> bool:
+    lowered = user_message.strip().lower()
+    return bool(
+        re.search(r"\bwhat is my name\b", lowered)
+        or re.search(r"\bwhat is my long[- ]term goal\b", lowered)
+        or re.search(r"\bstate my name and goal\b", lowered)
+    )
+
+
+def _memory_recall_fallback(memory: MemoryStore, user_message: str) -> str:
+    profile = memory.load_profile()
+    name = str(profile.get("name", "") or "").strip()
+    goals = [str(v).strip() for v in profile.get("long_term_goals", []) if isinstance(v, str) and str(v).strip()]
+    lowered = user_message.strip().lower()
+    if "state my name and goal" in lowered:
+        if name and goals:
+            return f"Your name is {name} and your long-term goal is {goals[-1]}."
+        if name:
+            return f"Your name is {name}. I do not yet have a long-term goal stored."
+        if goals:
+            return f"I do not yet have your name stored. Your long-term goal is {goals[-1]}."
+        return "I do not yet have your name or long-term goal stored."
+    if "what is my name" in lowered:
+        if name:
+            return f"Your name is {name}."
+        return "I do not yet have your name stored."
+    if "what is my long-term goal" in lowered or "what is my long term goal" in lowered:
+        if goals:
+            return f"Your long-term goal is {goals[-1]}."
+        return "I do not yet have a long-term goal stored."
+    return ""
+
+
+def _memory_recall_answer_looks_invalid(answer: str) -> bool:
+    lowered = answer.strip().lower()
+    return bool(
+        re.search(r"\b(memory is disabled|cannot recall|can't recall|do not recall|no prior interactions)\b", lowered)
+    )
+
+
+def _capability_safe_fallback(user_message: str, web_attempted: bool) -> str:
+    lowered = user_message.strip().lower()
+    asks_web = bool(re.search(r"\b(search|look up|lookup)\b.{0,40}\b(web|internet)\b", lowered)) or _should_auto_web_search(
+        user_message
+    )
+    if asks_web:
+        if web_attempted:
+            return (
+                "Yes. I have persistent memory in this runtime and I can use the web-search tool here. "
+                "Share the exact query and I will run it now."
+            )
+        return (
+            "Yes. I have persistent memory in this runtime and can run web search when configured. "
+            "Give me the exact query and I will search it now."
+        )
+    return (
+        "I have persistent memory in this runtime and I can use configured tools (including web search). "
+        "Tell me the next task and I will execute it."
+    )
 
 
 def _build_web_context(web_result: dict[str, Any]) -> str:
@@ -106,7 +197,8 @@ def _build_messages_for_llm(memory: MemoryStore, session_id: str, user_message: 
         include_pattern_context=include_patterns,
     )
     system_prompt = f"{system_prompt}\n\n# Session Summary\n{session.running_summary or '(none)'}"
-    messages = [{"role": m.role, "content": m.content} for m in recent]
+    messages = [{"role": "system", "content": _capability_guard_message()}]
+    messages.extend({"role": m.role, "content": m.content} for m in recent)
     messages.append({"role": "user", "content": user_message})
     return system_prompt, messages
 
@@ -126,13 +218,41 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         recent_pairs=context.config.session.recent_pairs,
         soul_rules=context.config.prompt.soul_rules,
     )
+    web_attempted = False
     if context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
         tool = context.tools.get("web_search")
         if tool:
             web_result = tool.fn({"query": user_message, "count": context.config.tools.web_search.auto_count})
             messages.insert(0, {"role": "system", "content": _build_web_context(web_result)})
+            web_attempted = True
 
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
+    if _has_capability_drift(answer):
+        context.memory.log_event(
+            event_type="capability_drift_detected",
+            session_id=session_id,
+            payload={"assistant_answer": answer[:1000]},
+        )
+        correction = (
+            "Capability correction:\n"
+            "- In this runtime you do have persistent memory and tool-mediated web search.\n"
+            "- Do not deny these capabilities. If a specific tool call failed, state that failure precisely."
+        )
+        corrected_messages = [{"role": "system", "content": correction}, *messages]
+        answer = context.llm.generate(system_prompt=system_prompt, messages=corrected_messages, max_tokens=800)
+        if _has_capability_drift(answer):
+            if _is_memory_recall_prompt(user_message):
+                recall_fallback = _memory_recall_fallback(context.memory, user_message)
+                if recall_fallback:
+                    answer = recall_fallback
+                else:
+                    answer = _capability_safe_fallback(user_message, web_attempted=web_attempted)
+            else:
+                answer = _capability_safe_fallback(user_message, web_attempted=web_attempted)
+    if _is_memory_recall_prompt(user_message) and _memory_recall_answer_looks_invalid(answer):
+        fallback = _memory_recall_fallback(context.memory, user_message)
+        if fallback:
+            answer = fallback
     context.memory.append_session_message(session_id=session_id, role="assistant", content=answer)
     context.memory.log_event(
         event_type="assistant_message",

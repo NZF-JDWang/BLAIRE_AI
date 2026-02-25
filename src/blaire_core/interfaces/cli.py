@@ -23,6 +23,7 @@ RESTRICTED_ALLOWED_PREFIXES = {
     "/admin status",
     "/admin config",
     "/admin diagnostics",
+    "/admin selfcheck",
 }
 
 
@@ -51,7 +52,7 @@ def _print_help() -> None:
     print("/tool <name> <json_args>")
     print("/session new|list|use|current")
     print("/session cleanup --dry-run|--enforce [--active-key <id>]")
-    print("/admin status|config [--effective]|diagnostics [--deep]|memory [stats|recent|patterns|search]|soul [state|--reset]")
+    print("/admin status|config [--effective]|diagnostics [--deep]|selfcheck|memory [stats|recent|patterns|search]|soul [state|--reset]")
 
 
 def _parse_limit(tokens: list[str], default: int) -> int:
@@ -138,6 +139,37 @@ def _handle_admin(context: AppContext, tokens: list[str]) -> None:
     elif sub == "diagnostics":
         deep = any(token.lower() == "--deep" for token in tokens[2:])
         print(json.dumps(diagnostics(context, deep=deep), indent=2))
+    elif sub == "selfcheck":
+        llm_ok, llm_detail = context.llm.check_reachable(timeout_seconds=3)
+        heartbeat_status = context.heartbeat.status()
+        telegram = context.config.telegram
+        web_tool = context.tools.get("web_search")
+        web_ready = bool(context.config.tools.web_search.api_key or __import__("os").getenv("BLAIRE_BRAVE_API_KEY"))
+        web_probe: dict[str, object] = {"checked": False}
+        if web_tool and web_ready:
+            try:
+                probe = web_tool.fn({"query": "BLAIRE selfcheck", "count": 1})
+                web_probe = {
+                    "checked": True,
+                    "ok": bool(probe.get("ok")),
+                    "error": probe.get("error"),
+                }
+            except Exception as exc:  # noqa: BLE001
+                web_probe = {"checked": True, "ok": False, "error": str(exc)}
+        payload = {
+            "config_valid": context.config_snapshot.valid,
+            "llm": {"ok": llm_ok, "detail": llm_detail},
+            "heartbeat": {"running": heartbeat_status.running, "interval_seconds": heartbeat_status.interval_seconds},
+            "memory": context.memory.structured.get_stats(),
+            "telegram": {
+                "enabled": telegram.enabled,
+                "polling_enabled": telegram.polling_enabled,
+                "has_bot_token": bool(telegram.bot_token),
+                "has_chat_id": bool(telegram.chat_id),
+            },
+            "web_search": {"ready": web_ready, "probe": web_probe},
+        }
+        print(json.dumps(payload, indent=2))
     elif sub == "memory":
         if len(tokens) == 2 or tokens[2].lower() == "stats":
             sessions = list(context.memory.sessions_dir.glob("session-*.json"))

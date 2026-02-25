@@ -9,6 +9,7 @@ from blaire_core.orchestrator import _should_auto_web_search, build_context, han
 def test_should_auto_web_search_patterns() -> None:
     assert _should_auto_web_search("latest ollama release notes")
     assert _should_auto_web_search("What is the current weather in Wellington?")
+    assert _should_auto_web_search("can you search the web for qwen release notes?")
     assert not _should_auto_web_search("rewrite this paragraph")
 
 
@@ -52,3 +53,74 @@ def test_auto_web_search_injected_into_messages(monkeypatch) -> None:
     assert captured["messages"]
     assert captured["messages"][0]["role"] == "system"
     assert "Web search context" in captured["messages"][0]["content"]
+
+
+def test_capability_drift_triggers_single_regeneration(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    calls = {"count": 0, "messages": []}
+
+    def _fake_generate(system_prompt: str, messages: list[dict], max_tokens: int) -> str:
+        _ = (system_prompt, max_tokens)
+        calls["count"] += 1
+        calls["messages"].append(messages)
+        if calls["count"] == 1:
+            return "I don't have internet access, memory beyond this session, and my knowledge is static (2023 cutoff)."
+        return "I can use persistent memory and tools here. Tell me the query and I will run web search."
+
+    monkeypatch.setattr(context.llm, "generate", _fake_generate)
+
+    answer = handle_user_message(context, session_id="s-drift", user_message="Can you search the web?")
+
+    assert calls["count"] == 2
+    assert "persistent memory" in answer.lower()
+    assert any(m.get("role") == "system" and "Capability correction" in m.get("content", "") for m in calls["messages"][1])
+
+
+def test_capability_drift_falls_back_when_regen_still_denies(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    calls = {"count": 0}
+
+    def _fake_generate(system_prompt: str, messages: list[dict], max_tokens: int) -> str:
+        _ = (system_prompt, messages, max_tokens)
+        calls["count"] += 1
+        return "I don't have internet access, memory beyond this session, and my knowledge is static (2023 cutoff)."
+
+    monkeypatch.setattr(context.llm, "generate", _fake_generate)
+
+    answer = handle_user_message(context, session_id="s-drift-hard", user_message="Can you search the web?")
+
+    assert calls["count"] == 2
+    assert "i don't have internet access" not in answer.lower()
+    assert "memory beyond this session" not in answer.lower()
+    assert "yes." in answer.lower()
+
+
+def test_memory_recall_prompt_uses_profile_fallback_when_model_claims_memory_disabled(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+    context.memory.save_profile(
+        {
+            "name": "JD",
+            "environment_summary": "",
+            "long_term_goals": ["ship BLAIRE"],
+            "behavioral_constraints": [],
+        }
+    )
+
+    monkeypatch.setattr(
+        context.llm,
+        "generate",
+        lambda system_prompt, messages, max_tokens: "Memory is disabled. I cannot recall your name or prior interactions.",
+    )
+
+    answer = handle_user_message(context, session_id="s-recall-fallback", user_message="State my name and goal from memory in one line.")
+
+    assert "your name is jd" in answer.lower()
+    assert "ship blaire" in answer.lower()
