@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Any
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from collections import deque
+import json
 import re
 import os
+import time
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.jobs import run_heartbeat_jobs
@@ -33,6 +38,69 @@ class AppContext:
     llm: OllamaClient
     tools: ToolRegistry
     heartbeat: HeartbeatLoop
+    tool_runtime: dict[str, ToolRuntimeStats]
+
+
+@dataclass(slots=True)
+class ToolRuntimeStats:
+    selection_count: int = 0
+    success_count: int = 0
+    failure_count: int = 0
+    fallback_count: int = 0
+    total_latency_ms: float = 0.0
+    last_latency_ms: float | None = None
+    last_error_code: str | None = None
+    last_called_at: float | None = None
+    cooldown_until: float = 0.0
+    call_timestamps: deque[float] | None = None
+
+    def __post_init__(self) -> None:
+        if self.call_timestamps is None:
+            self.call_timestamps = deque()
+
+    @property
+    def success_rate(self) -> float:
+        if self.selection_count == 0:
+            return 0.0
+        return self.success_count / self.selection_count
+
+    @property
+    def failure_rate(self) -> float:
+        if self.selection_count == 0:
+            return 0.0
+        return self.failure_count / self.selection_count
+
+    @property
+    def average_latency_ms(self) -> float:
+        if self.selection_count == 0:
+            return 0.0
+        return self.total_latency_ms / self.selection_count
+
+
+def _tool_stats(context: AppContext, tool_name: str) -> ToolRuntimeStats:
+    if tool_name not in context.tool_runtime:
+        context.tool_runtime[tool_name] = ToolRuntimeStats()
+    return context.tool_runtime[tool_name]
+
+
+def _log_tool_telemetry(context: AppContext, tool_name: str, stats: ToolRuntimeStats, status: str, payload: dict[str, Any]) -> None:
+    context.memory.log_event(
+        event_type="tool_telemetry",
+        payload={
+            "tool": tool_name,
+            "status": status,
+            "selection_count": stats.selection_count,
+            "success_count": stats.success_count,
+            "failure_count": stats.failure_count,
+            "fallback_count": stats.fallback_count,
+            "success_rate": round(stats.success_rate, 4),
+            "failure_rate": round(stats.failure_rate, 4),
+            "average_latency_ms": round(stats.average_latency_ms, 2),
+            "last_latency_ms": None if stats.last_latency_ms is None else round(stats.last_latency_ms, 2),
+            **payload,
+        },
+        session_id=None,
+    )
 
 
 _AUTO_WEB_SEARCH_PATTERNS = [
@@ -179,6 +247,7 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
             interval_seconds=config.heartbeat.interval_seconds,
             tick_fn=lambda: run_heartbeat_tick(memory, config, llm),
         ),
+        tool_runtime={name: ToolRuntimeStats() for name in registry.names()},
     )
     return context
 
@@ -290,8 +359,167 @@ def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
     """Call registered tool by name."""
     tool = context.tools.get(name)
     if not tool:
+        context.memory.log_event(
+            event_type="tool_telemetry",
+            payload={"tool": name, "status": "not_found", "selection_count": 1, "success_count": 0, "failure_count": 1},
+            session_id=None,
+        )
         return {"ok": False, "tool": name, "data": None, "error": {"code": "not_found", "message": f"Unknown tool: {name}"}, "metadata": {}}
-    return tool.fn(args)
+    stats = _tool_stats(context, name)
+    stats.selection_count += 1
+    now = time.monotonic()
+    stats.last_called_at = now
+
+    payload_size = len(json.dumps(args, ensure_ascii=False).encode("utf-8"))
+    if tool.max_payload_bytes is not None and payload_size > tool.max_payload_bytes:
+        stats.failure_count += 1
+        stats.fallback_count += 1
+        stats.last_error_code = "payload_too_large"
+        _log_tool_telemetry(
+            context,
+            name,
+            stats,
+            status="blocked",
+            payload={"error_code": "payload_too_large", "payload_bytes": payload_size, "max_payload_bytes": tool.max_payload_bytes},
+        )
+        return {
+            "ok": False,
+            "tool": name,
+            "data": None,
+            "error": {
+                "code": "payload_too_large",
+                "message": f"Payload size {payload_size} exceeds max {tool.max_payload_bytes} bytes",
+            },
+            "metadata": {"payload_bytes": payload_size, "max_payload_bytes": tool.max_payload_bytes},
+        }
+
+    if tool.calls_per_minute is not None:
+        window_start = now - 60.0
+        while stats.call_timestamps and stats.call_timestamps[0] < window_start:
+            stats.call_timestamps.popleft()
+        if len(stats.call_timestamps) >= tool.calls_per_minute:
+            stats.failure_count += 1
+            stats.fallback_count += 1
+            stats.last_error_code = "rate_limited"
+            _log_tool_telemetry(
+                context,
+                name,
+                stats,
+                status="blocked",
+                payload={"error_code": "rate_limited", "calls_per_minute": tool.calls_per_minute},
+            )
+            return {
+                "ok": False,
+                "tool": name,
+                "data": None,
+                "error": {"code": "rate_limited", "message": f"Tool '{name}' exceeded calls_per_minute={tool.calls_per_minute}"},
+                "metadata": {"calls_per_minute": tool.calls_per_minute},
+            }
+
+    if tool.cooldown_seconds is not None and now < stats.cooldown_until:
+        retry_after = max(0.0, stats.cooldown_until - now)
+        stats.failure_count += 1
+        stats.fallback_count += 1
+        stats.last_error_code = "cooldown_active"
+        _log_tool_telemetry(
+            context,
+            name,
+            stats,
+            status="blocked",
+            payload={"error_code": "cooldown_active", "retry_after_seconds": round(retry_after, 3)},
+        )
+        return {
+            "ok": False,
+            "tool": name,
+            "data": None,
+            "error": {"code": "cooldown_active", "message": f"Tool '{name}' is cooling down"},
+            "metadata": {"retry_after_seconds": retry_after},
+        }
+
+    started = time.monotonic()
+    try:
+        if tool.timeout_seconds is not None:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(tool.fn, args)
+                result = future.result(timeout=tool.timeout_seconds)
+        else:
+            result = tool.fn(args)
+    except FutureTimeoutError:
+        latency_ms = (time.monotonic() - started) * 1000.0
+        stats.failure_count += 1
+        stats.fallback_count += 1
+        stats.total_latency_ms += latency_ms
+        stats.last_latency_ms = latency_ms
+        stats.last_error_code = "timeout"
+        if tool.cooldown_seconds is not None:
+            stats.cooldown_until = time.monotonic() + tool.cooldown_seconds
+        _log_tool_telemetry(
+            context,
+            name,
+            stats,
+            status="failure",
+            payload={"error_code": "timeout", "timeout_seconds": tool.timeout_seconds},
+        )
+        return {
+            "ok": False,
+            "tool": name,
+            "data": None,
+            "error": {"code": "timeout", "message": f"Tool '{name}' exceeded timeout of {tool.timeout_seconds} seconds"},
+            "metadata": {"timeout_seconds": tool.timeout_seconds},
+        }
+    except Exception as exc:  # noqa: BLE001
+        latency_ms = (time.monotonic() - started) * 1000.0
+        stats.failure_count += 1
+        stats.fallback_count += 1
+        stats.total_latency_ms += latency_ms
+        stats.last_latency_ms = latency_ms
+        stats.last_error_code = "execution_failed"
+        if tool.cooldown_seconds is not None:
+            stats.cooldown_until = time.monotonic() + tool.cooldown_seconds
+        _log_tool_telemetry(
+            context,
+            name,
+            stats,
+            status="failure",
+            payload={"error_code": "execution_failed", "error": str(exc)[:500]},
+        )
+        return {
+            "ok": False,
+            "tool": name,
+            "data": None,
+            "error": {"code": "execution_failed", "message": str(exc)},
+            "metadata": {},
+        }
+
+    latency_ms = (time.monotonic() - started) * 1000.0
+    stats.total_latency_ms += latency_ms
+    stats.last_latency_ms = latency_ms
+    if tool.calls_per_minute is not None:
+        stats.call_timestamps.append(time.monotonic())
+    if tool.cooldown_seconds is not None:
+        stats.cooldown_until = time.monotonic() + tool.cooldown_seconds
+
+    if isinstance(result, dict) and bool(result.get("ok", True)):
+        stats.success_count += 1
+        stats.last_error_code = None
+        _log_tool_telemetry(context, name, stats, status="success", payload={"latency_ms": round(latency_ms, 2)})
+        return result
+
+    stats.failure_count += 1
+    stats.fallback_count += 1
+    stats.last_error_code = "tool_returned_failure"
+    _log_tool_telemetry(context, name, stats, status="failure", payload={"latency_ms": round(latency_ms, 2), "error_code": "tool_returned_failure"})
+    if isinstance(result, dict):
+        result.setdefault("tool", name)
+        result.setdefault("metadata", {})
+        return result
+    return {
+        "ok": False,
+        "tool": name,
+        "data": None,
+        "error": {"code": "invalid_response", "message": "Tool returned a non-dict response"},
+        "metadata": {},
+    }
 
 
 def health_summary_quick(context: AppContext) -> str:
@@ -340,6 +568,38 @@ def diagnostics(context: AppContext, deep: bool = False) -> dict[str, Any]:
                 brave_probe = {"checked": True, "ok": False, "error": str(exc)}
         else:
             brave_probe = {"checked": True, "ok": False, "error": "missing_key"}
+    tool_trends: dict[str, Any] = {}
+    now = time.monotonic()
+    for tool_name in context.tools.names():
+        tool = context.tools.get(tool_name)
+        if tool is None:
+            continue
+        stats = _tool_stats(context, tool_name)
+        tool_trends[tool_name] = {
+            "limits": {
+                "calls_per_minute": tool.calls_per_minute,
+                "timeout_seconds": tool.timeout_seconds,
+                "cooldown_seconds": tool.cooldown_seconds,
+                "max_payload_bytes": tool.max_payload_bytes,
+            },
+            "usage": {
+                "selection_count": stats.selection_count,
+                "success_count": stats.success_count,
+                "failure_count": stats.failure_count,
+                "fallback_count": stats.fallback_count,
+                "success_rate": round(stats.success_rate, 4),
+                "failure_rate": round(stats.failure_rate, 4),
+            },
+            "latency": {
+                "average_ms": round(stats.average_latency_ms, 2),
+                "last_ms": None if stats.last_latency_ms is None else round(stats.last_latency_ms, 2),
+            },
+            "health": {
+                "last_error_code": stats.last_error_code,
+                "cooldown_active": now < stats.cooldown_until,
+                "cooldown_remaining_seconds": max(0.0, round(stats.cooldown_until - now, 3)),
+            },
+        }
     return {
         "config_valid": context.config_snapshot.valid,
         "config_issues": context.config_snapshot.issues,
@@ -348,6 +608,7 @@ def diagnostics(context: AppContext, deep: bool = False) -> dict[str, Any]:
         "brave": {"ready": brave_key},
         "brave_probe": brave_probe,
         "heartbeat": asdict(context.heartbeat.status()),
+        "tools": tool_trends,
         "deep": deep,
         "locks": lock_scan,
     }

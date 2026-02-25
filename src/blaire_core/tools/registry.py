@@ -15,6 +15,10 @@ class Tool:
     description: str
     risk_level: str
     fn: ToolCallable
+    calls_per_minute: int | None = None
+    timeout_seconds: float | None = None
+    cooldown_seconds: float | None = None
+    max_payload_bytes: int | None = None
 
 
 class ToolRegistry:
@@ -33,4 +37,3 @@ class ToolRegistry:
 
     def names(self) -> list[str]:
         return sorted(self._tools.keys())
-
