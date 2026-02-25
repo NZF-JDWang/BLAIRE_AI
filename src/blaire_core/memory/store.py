@@ -12,6 +12,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from blaire_core.memory_store import StructuredMemoryStore
+
 from .models import SessionMessage, SessionRecord, now_iso_local
 
 
@@ -185,12 +187,14 @@ class MemoryStore:
         self.episodic_dir = self.data_root / "episodic"
         self.long_term_dir = self.data_root / "long_term"
         self.identity_dir = self.data_root / "identity"
+        self.structured = StructuredMemoryStore(self.data_root)
 
     def initialize(self) -> None:
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.episodic_dir.mkdir(parents=True, exist_ok=True)
         self.long_term_dir.mkdir(parents=True, exist_ok=True)
         self.identity_dir.mkdir(parents=True, exist_ok=True)
+        self.structured.initialize()
         defaults = {
             "profile.json": {
                 "name": "",
@@ -345,6 +349,50 @@ class MemoryStore:
             today.write_text(f"# {date.today().isoformat()}\n\n", encoding="utf-8")
         with today.open("a", encoding="utf-8") as handle:
             handle.write(f"- [{now_iso_local()}] {line}\n")
+
+    def log_event(self, event_type: str, payload: dict[str, Any] | None = None, session_id: str | None = None) -> int:
+        return self.structured.log_event(event_type=event_type, payload=payload, session_id=session_id)
+
+    def add_or_update_memory(
+        self,
+        *,
+        memory_type: str,
+        text: str,
+        tags: list[str] | str | None = None,
+        importance: int = 3,
+        stability: str = "evolving",
+    ) -> int:
+        return self.structured.add_or_update_memory(
+            memory_type=memory_type,
+            text=text,
+            tags=tags,
+            importance=importance,
+            stability=stability,
+        )
+
+    def get_memories(self, *, memory_type: str | None = None, tags: list[str] | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        return self.structured.get_memories(memory_type=memory_type, tags=tags, limit=limit)
+
+    def add_or_update_pattern(
+        self,
+        *,
+        text: str,
+        source_window: str,
+        tags: list[str] | str | None = None,
+        importance: int = 3,
+    ) -> int:
+        return self.structured.add_or_update_pattern(
+            text=text,
+            source_window=source_window,
+            tags=tags,
+            importance=importance,
+        )
+
+    def retrieve_relevant_memories(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
+        return self.structured.retrieve_relevant_memories(query=query, limit=limit)
+
+    def get_top_patterns(self, limit: int = 10, tags: list[str] | None = None) -> list[dict[str, Any]]:
+        return self.structured.get_top_patterns(limit=limit, tags=tags)
 
     def append_fact(self, fact_type: str, text: str, tags: list[str], importance: float) -> dict[str, Any]:
         entry = {

@@ -115,6 +115,7 @@ class ConfigSnapshot:
     issues: list[str]
     warnings: list[str]
     effective_config: AppConfig | None
+    effective_raw: dict[str, Any] | None = None
 
 
 def _repo_root() -> Path:
@@ -123,6 +124,10 @@ def _repo_root() -> Path:
 
 def _default_config_path(env: str) -> Path:
     return _repo_root() / "config" / f"{env}.json"
+
+
+def _local_config_path() -> Path:
+    return _repo_root() / "config" / "local.json"
 
 
 def _deep_update(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -398,6 +403,7 @@ def read_config_snapshot(env: str, cli_overrides: dict[str, str] | None = None) 
             issues=[f"Config file does not exist: {path}"],
             warnings=[],
             effective_config=None,
+            effective_raw=None,
         )
 
     try:
@@ -410,6 +416,7 @@ def read_config_snapshot(env: str, cli_overrides: dict[str, str] | None = None) 
             issues=[f"Failed to parse config JSON: {exc}"],
             warnings=[],
             effective_config=None,
+            effective_raw=None,
         )
     if not isinstance(file_raw, dict):
         return ConfigSnapshot(
@@ -419,9 +426,36 @@ def read_config_snapshot(env: str, cli_overrides: dict[str, str] | None = None) 
             issues=["Top-level config must be an object"],
             warnings=[],
             effective_config=None,
+            effective_raw=None,
         )
 
     merged = dict(file_raw)
+    local_path = _local_config_path()
+    if local_path.exists():
+        try:
+            local_raw = json.loads(local_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            return ConfigSnapshot(
+                path=str(path),
+                exists=True,
+                valid=False,
+                issues=[f"Failed to parse local config JSON ({local_path}): {exc}"],
+                warnings=[],
+                effective_config=None,
+                effective_raw=None,
+            )
+        if not isinstance(local_raw, dict):
+            return ConfigSnapshot(
+                path=str(path),
+                exists=True,
+                valid=False,
+                issues=[f"Local config must be a JSON object: {local_path}"],
+                warnings=[],
+                effective_config=None,
+                effective_raw=None,
+            )
+        merged = _deep_update(merged, local_raw)
+        warnings.append(f"Applied local config overrides from {local_path}")
     merged = _deep_update(merged, _env_overrides())
     if cli_overrides:
         cli_tree: dict[str, Any] = {}
@@ -438,6 +472,7 @@ def read_config_snapshot(env: str, cli_overrides: dict[str, str] | None = None) 
             issues=issues,
             warnings=warnings,
             effective_config=None,
+            effective_raw=None,
         )
     return ConfigSnapshot(
         path=str(path),
@@ -446,6 +481,7 @@ def read_config_snapshot(env: str, cli_overrides: dict[str, str] | None = None) 
         issues=[],
         warnings=warnings,
         effective_config=_to_config(merged),
+        effective_raw=merged,
     )
 
 

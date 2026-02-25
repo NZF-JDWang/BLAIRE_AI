@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shlex
 import uuid
+from dataclasses import asdict
 from dataclasses import dataclass
 from typing import Callable
 
@@ -50,7 +51,48 @@ def _print_help() -> None:
     print("/tool <name> <json_args>")
     print("/session new|list|use|current")
     print("/session cleanup --dry-run|--enforce [--active-key <id>]")
-    print("/admin status|config|diagnostics [--deep]|memory|soul [--reset]")
+    print("/admin status|config [--effective]|diagnostics [--deep]|memory [stats|recent|patterns|search]|soul [state|--reset]")
+
+
+def _parse_limit(tokens: list[str], default: int) -> int:
+    lowered = [token.lower() for token in tokens]
+    if "--limit" not in lowered:
+        return default
+    try:
+        idx = lowered.index("--limit")
+        if idx + 1 < len(tokens):
+            return max(1, int(tokens[idx + 1]))
+    except (ValueError, TypeError):
+        return default
+    return default
+
+
+def _build_soul_state(context: AppContext) -> dict[str, object]:
+    soul = context.memory.load_evolving_soul()
+    traits = [str(v) for v in soul.get("traits", []) if isinstance(v, str)]
+    alignment_notes = [str(v) for v in soul.get("user_alignment_notes", []) if isinstance(v, str)]
+    growth_notes = [str(v) for v in soul.get("growth_notes", []) if isinstance(v, str)]
+    capability_memories = context.memory.get_memories(tags=["system", "capability"], limit=5)
+    preference_memories = context.memory.get_memories(memory_type="preference", limit=5)
+    top_patterns = context.memory.get_top_patterns(limit=3)
+    return {
+        "traits": traits[:8],
+        "style_preferences": soul.get("style_preferences", {}),
+        "recent_alignment_notes": alignment_notes[-5:],
+        "recent_growth_notes": growth_notes[-5:],
+        "recent_capability_memories": [
+            {"text": str(item.get("text", "")), "tags": item.get("tags", []), "importance": item.get("importance", 0)}
+            for item in capability_memories[:5]
+        ],
+        "recent_preference_memories": [
+            {"text": str(item.get("text", "")), "tags": item.get("tags", []), "importance": item.get("importance", 0)}
+            for item in preference_memories[:5]
+        ],
+        "top_patterns": [
+            {"text": str(item.get("text", "")), "tags": item.get("tags", []), "importance": item.get("importance", 0)}
+            for item in top_patterns[:3]
+        ],
+    }
 
 
 def _handle_heartbeat(context: AppContext, tokens: list[str]) -> None:
@@ -84,21 +126,52 @@ def _handle_admin(context: AppContext, tokens: list[str]) -> None:
     elif sub == "config":
         redacted = context.config_snapshot.path
         issues = context.config_snapshot.issues
-        print(json.dumps({"path": redacted, "valid": context.config_snapshot.valid, "issues": issues}, indent=2))
+        payload: dict[str, object] = {"path": redacted, "valid": context.config_snapshot.valid, "issues": issues}
+        if any(token.lower() == "--effective" for token in tokens[2:]):
+            if context.config_snapshot.effective_raw is not None:
+                payload["effective_config"] = context.config_snapshot.effective_raw
+                payload["effective_source"] = "snapshot_merged"
+            else:
+                payload["effective_config"] = asdict(context.config)
+                payload["effective_source"] = "runtime_fallback"
+        print(json.dumps(payload, indent=2))
     elif sub == "diagnostics":
         deep = any(token.lower() == "--deep" for token in tokens[2:])
         print(json.dumps(diagnostics(context, deep=deep), indent=2))
     elif sub == "memory":
-        sessions = list(context.memory.sessions_dir.glob("session-*.json"))
-        long_term_files = list(context.memory.long_term_dir.glob("*.jsonl"))
-        summary = {
-            "sessions_count": len(sessions),
-            "session_total_bytes": sum(p.stat().st_size for p in sessions),
-            "long_term_files": [str(p) for p in long_term_files],
-            "long_term_total_bytes": sum(p.stat().st_size for p in long_term_files),
-        }
-        print(json.dumps(summary, indent=2))
+        if len(tokens) == 2 or tokens[2].lower() == "stats":
+            sessions = list(context.memory.sessions_dir.glob("session-*.json"))
+            long_term_files = list(context.memory.long_term_dir.glob("*.jsonl"))
+            summary = {
+                "sessions_count": len(sessions),
+                "session_total_bytes": sum(p.stat().st_size for p in sessions),
+                "long_term_files": [str(p) for p in long_term_files],
+                "long_term_total_bytes": sum(p.stat().st_size for p in long_term_files),
+                "structured": context.memory.structured.get_stats(),
+            }
+            print(json.dumps(summary, indent=2))
+            return
+        memory_sub = tokens[2].lower()
+        if memory_sub == "recent":
+            limit = _parse_limit(tokens[3:], default=10)
+            print(json.dumps(context.memory.get_memories(limit=limit), indent=2))
+            return
+        if memory_sub == "patterns":
+            limit = _parse_limit(tokens[3:], default=5)
+            print(json.dumps(context.memory.get_top_patterns(limit=limit), indent=2))
+            return
+        if memory_sub == "search":
+            query = " ".join(tokens[3:]).strip()
+            if not query:
+                print("Usage: /admin memory search <query>")
+                return
+            print(json.dumps(context.memory.retrieve_relevant_memories(query=query, limit=10), indent=2))
+            return
+        print("Usage: /admin memory stats|recent [--limit N]|patterns [--limit N]|search <query>")
     elif sub == "soul":
+        if len(tokens) >= 3 and tokens[2].lower() == "state":
+            print(json.dumps(_build_soul_state(context), indent=2))
+            return
         if any(token.lower() == "--reset" for token in tokens[2:]):
             soul = context.memory.reset_evolving_soul()
             print(json.dumps({"reset": True, "soul": soul}, indent=2))
@@ -278,6 +351,24 @@ def execute_single_command(context: AppContext, command_line: str, initial_sessi
     command = tokens[0].lower()
     if command == "/telegram":
         return _handle_telegram(context, tokens, None)
+    if command == "/admin":
+        _handle_admin(context, tokens)
+        return 0
+    if command == "/health":
+        _handle_health(context)
+        return 0
+    if command == "/heartbeat":
+        _handle_heartbeat(context, tokens)
+        return 0
+    if command == "/session":
+        _handle_session(context, state, tokens)
+        return 0
+    if command == "/tool":
+        _handle_tool(context, tokens)
+        return 0
+    if command == "/help":
+        _print_help()
+        return 0
     print("Unsupported one-shot command.")
     return 2
 

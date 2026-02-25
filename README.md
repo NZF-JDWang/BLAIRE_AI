@@ -44,6 +44,18 @@ Copy-Item .env.example .env
 
 Existing shell environment variables still win over `.env` values.
 
+## Config Precedence (Single Place Strategy)
+Recommended setup:
+- Keep shared defaults in `config/dev.json` or `config/prod.json`.
+- Keep machine-local, non-secret overrides in `config/local.json` (gitignored).
+- Keep secrets in `.env`.
+
+Precedence order (lowest to highest):
+1. `config/<env>.json`
+2. `config/local.json` (optional)
+3. environment variables / `.env`
+4. CLI overrides (`--llm-model`, `--heartbeat-interval`, etc.)
+
 ## Environment Overrides
 - `BLAIRE_LLM_BASE_URL`
 - `BLAIRE_LLM_MODEL`
@@ -60,6 +72,10 @@ Existing shell environment variables still win over `.env` values.
 - `BLAIRE_TELEGRAM_CHAT_ID`
 - `BLAIRE_TELEGRAM_POLLING_ENABLED`
 - `BLAIRE_TELEGRAM_POLLING_TIMEOUT_SECONDS`
+- `BLAIRE_EMBEDDING_PROVIDER` (`local` or `hash`; default `local` with fallback)
+- `BLAIRE_EMBEDDING_MODEL` (default `sentence-transformers/all-MiniLM-L6-v2`)
+- `BLAIRE_EVENT_RETENTION_DAYS` (default `30`)
+- `BLAIRE_DEEP_CUT_ENABLED` (`true|false`)
 
 ## Core CLI Commands
 - `/help`
@@ -67,8 +83,12 @@ Existing shell environment variables still win over `.env` values.
 - `/health`
 - `/admin status`
 - `/admin config`
+- `/admin config --effective`
 - `/admin diagnostics [--deep]`
-- `/admin memory`
+- `/admin memory stats`
+- `/admin memory recent --limit <N>`
+- `/admin memory patterns --limit <N>`
+- `/admin memory search <query>`
 - `/admin soul [--reset]`
 - `/heartbeat tick|start|stop|status`
 - `/telegram test "<message>"`
@@ -140,3 +160,9 @@ Control this in `tools.web_search`:
 - `auto_count` (default `3`)
 
 See [docs/OPERATIONS.md](docs/OPERATIONS.md) for runtime behavior and reliability details.
+
+## Structured Memory and Heartbeat Notes
+- Structured memory DB is created at `data/memory/blaire_memory.db` (or under `BLAIRE_DATA_PATH`).
+- Heartbeat runs daily summarisation at most once every 24 hours and writes journal artifacts under `data/journal/`.
+- Event retention pruning runs on heartbeat using `BLAIRE_EVENT_RETENTION_DAYS`.
+- Deep-cut journal output is optional and controlled by `BLAIRE_DEEP_CUT_ENABLED=true`.

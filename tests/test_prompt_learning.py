@@ -58,6 +58,7 @@ def test_prompt_composer_includes_template_sections(tmp_path: Path) -> None:
 
     assert "# Soul Rules" in prompt
     assert "# Soul Core Persona" in prompt
+    assert "### Runtime Self-Model (internal)" in prompt
     assert "# Persona Intelligence Contract" in prompt
     assert "# Anti-Chatbot Contract" in prompt
     assert "# Evolving Soul (Living Layer)" in prompt
@@ -89,3 +90,19 @@ def test_learning_updates_profile_and_preferences(tmp_path: Path) -> None:
     assert prefs["response_style"] == "detailed"
     assert result["facts_added"] >= 2
     assert any("User name is Kris" in f.get("text", "") for f in facts)
+
+
+def test_learning_updates_capture_system_upgrade_statements(tmp_path: Path) -> None:
+    store = MemoryStore(str(tmp_path))
+    store.initialize()
+
+    result = apply_learning_updates(
+        store,
+        user_message="We just upgraded your memory functions and enabled retrieval context.",
+        assistant_message="ok",
+    )
+
+    memories = store.get_memories(memory_type="decision", limit=20)
+    assert result["facts_added"] >= 1
+    assert any("system update noted" in m.get("text", "").lower() for m in memories)
+    assert any("memory functions" in m.get("text", "").lower() for m in memories)

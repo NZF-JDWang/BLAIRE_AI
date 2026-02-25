@@ -54,7 +54,7 @@ def test_process_telegram_updates_handles_text_and_replies(monkeypatch, tmp_path
 
     assert handled == 1
     assert calls["handle"] == [("telegram-42", "hello there")]
-    assert calls["notify"] == [("assistant reply", "info", True)]
+    assert calls["notify"] == []
 
 
 def test_process_telegram_updates_ignores_other_chats_and_bots(monkeypatch, tmp_path: Path) -> None:

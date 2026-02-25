@@ -120,7 +120,52 @@ def _evolving_soul_card(memory: MemoryStore) -> str:
     )
 
 
-def build_system_prompt(memory: MemoryStore, soul_rules: str, session_id: str) -> str:
+def _runtime_self_model_block(memory: MemoryStore) -> str:
+    capability_rows = memory.get_memories(tags=["system", "capability"], limit=5)
+    lines = [
+        "### Runtime Self-Model (internal)",
+        "- You are BLAIRE running in a local runtime with persistent memory (files + structured SQLite memory).",
+        "- Treat user references to upgrades/features as runtime capabilities unless the user clearly means hardware/system RAM.",
+        "- Do not deny available capabilities; if uncertain, ask a short clarifying question.",
+    ]
+    if capability_rows:
+        lines.append("- Recent known runtime changes:")
+        for row in capability_rows[:3]:
+            lines.append(f"  - {row.get('text', '')}")
+    return "\n".join(lines)
+
+
+def _memory_context_block(memory: MemoryStore, query: str | None, limit: int = 10) -> str:
+    if not query:
+        return ""
+    rows = memory.retrieve_relevant_memories(query=query, limit=limit)
+    if not rows:
+        return ""
+    lines = ["### Memory Context (internal)"]
+    for row in rows:
+        tags = ", ".join(row.get("tags", [])) if isinstance(row.get("tags"), list) else ""
+        lines.append(f"- [{row.get('type', 'fact')}] {row.get('text', '')} (tags: {tags})")
+    return "\n".join(lines)
+
+
+def _pattern_context_block(memory: MemoryStore, limit: int = 5) -> str:
+    rows = memory.get_top_patterns(limit=limit)
+    if not rows:
+        return ""
+    lines = ["### Pattern Context (internal)"]
+    for row in rows:
+        tags = ", ".join(row.get("tags", [])) if isinstance(row.get("tags"), list) else ""
+        lines.append(f"- {row.get('text', '')} (tags: {tags})")
+    return "\n".join(lines)
+
+
+def build_system_prompt(
+    memory: MemoryStore,
+    soul_rules: str,
+    session_id: str,
+    memory_query: str | None = None,
+    include_pattern_context: bool = False,
+) -> str:
     """Build full system prompt from templates and persisted memory."""
     _ = session_id
     profile = memory.load_profile()
@@ -131,6 +176,7 @@ def build_system_prompt(memory: MemoryStore, soul_rules: str, session_id: str) -
     sections: list[str] = []
     sections.append(_render(_read_template("soul"), {"soul_rules": soul_rules}))
     sections.append(_read_template("core_persona").strip())
+    sections.append(_runtime_self_model_block(memory))
     sections.append(_read_template("intelligence_contract").strip())
     sections.append(_read_template("anti_chatbot_contract").strip())
     sections.append(_evolving_soul_card(memory))
@@ -162,5 +208,8 @@ def build_system_prompt(memory: MemoryStore, soul_rules: str, session_id: str) -
     sections.append(_render(_read_template("todos"), {"todo_cards": _todo_cards(todos)}))
     sections.append(_render(_read_template("facts"), {"fact_snippets": _fact_snippets(memory)}))
     sections.append(_read_template("living_persona").strip())
+    sections.append(_memory_context_block(memory, query=memory_query, limit=10))
+    if include_pattern_context:
+        sections.append(_pattern_context_block(memory, limit=5))
 
     return "\n\n".join(section for section in sections if section)

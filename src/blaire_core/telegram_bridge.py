@@ -59,7 +59,7 @@ def process_telegram_updates(context: AppContext, updates: list[dict[str, object
                 logger.exception("telegram: inbound text handling failed")
                 notify_user(context.config, f"Inbound Telegram processing failed: {exc}", level="error", via_telegram=True)
             else:
-                notify_user(context.config, reply, level="info", via_telegram=True)
+                _ = reply
             handled += 1
             continue
 

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 
 from blaire_core.config import AppConfig
-from blaire_core.memory_store import JsonMemoryStore
+from blaire_core.heartbeat.journal import run_deep_cut_job, run_night_log_job
+from blaire_core.heartbeat.summarise_events import run_daily_summariser, should_run_daily_summariser
+from blaire_core.memory_store import JsonMemoryStore, StructuredMemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +81,42 @@ def _update_patterns_heartbeat_marker(store: JsonMemoryStore, now: datetime) -> 
     logger.info("heartbeat: updated patterns heartbeat_last_run")
 
 
-def run_heartbeat_jobs(config: AppConfig) -> None:
+def run_heartbeat_jobs(config: AppConfig, llm_client: Any | None = None) -> None:
     """Run lightweight jobs for one heartbeat tick."""
     now = datetime.now().astimezone()
     store = JsonMemoryStore(config.paths.data_root)
     _ensure_memory_namespace(store)
     _check_due_predictions(store, now)
     _update_patterns_heartbeat_marker(store, now)
+    structured = StructuredMemoryStore(config.paths.data_root)
+    try:
+        keep_days = int(os.getenv("BLAIRE_EVENT_RETENTION_DAYS", "30"))
+    except ValueError:
+        keep_days = 30
+    try:
+        deleted = structured.prune_old_events(keep_days=max(1, keep_days))
+        if deleted:
+            logger.info("heartbeat: pruned old events", extra={"deleted": deleted, "keep_days": keep_days})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("heartbeat: event retention pruning failed: %s", exc)
+    try:
+        if should_run_daily_summariser(config.paths.data_root):
+            summary = run_daily_summariser(config.paths.data_root, llm_client=llm_client)
+            logger.info("heartbeat: daily summariser ran", extra=summary)
+        else:
+            logger.debug("heartbeat: daily summariser skipped (not due)")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("heartbeat: daily summariser failed: %s", exc)
+    try:
+        path = run_night_log_job(config.paths.data_root)
+        if path:
+            logger.info("heartbeat: night log written", extra={"path": path})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("heartbeat: night log failed: %s", exc)
+    deep_cut_enabled = os.getenv("BLAIRE_DEEP_CUT_ENABLED", "").strip().lower() == "true"
+    try:
+        path = run_deep_cut_job(config.paths.data_root, enabled=deep_cut_enabled)
+        if path:
+            logger.info("heartbeat: deep cut written", extra={"path": path})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("heartbeat: deep cut failed: %s", exc)

@@ -84,7 +84,10 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
         memory=memory,
         llm=llm,
         tools=registry,
-        heartbeat=HeartbeatLoop(interval_seconds=config.heartbeat.interval_seconds, tick_fn=lambda: run_heartbeat_tick(memory, config)),
+        heartbeat=HeartbeatLoop(
+            interval_seconds=config.heartbeat.interval_seconds,
+            tick_fn=lambda: run_heartbeat_tick(memory, config, llm),
+        ),
     )
     return context
 
@@ -92,7 +95,16 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
 def _build_messages_for_llm(memory: MemoryStore, session_id: str, user_message: str, recent_pairs: int, soul_rules: str) -> tuple[str, list[dict[str, str]]]:
     session = memory.load_or_create_session(session_id)
     recent = session.messages[-(recent_pairs * 2) :]
-    system_prompt = build_system_prompt(memory=memory, soul_rules=soul_rules, session_id=session_id)
+    recent_lines = [f"{m.role}: {m.content}" for m in recent[-6:]]
+    memory_query = "\n".join([*recent_lines, f"user: {user_message}"])
+    include_patterns = bool(re.search(r"\b(pattern|behavio[u]?r|audit|introspect)\b", user_message, re.IGNORECASE))
+    system_prompt = build_system_prompt(
+        memory=memory,
+        soul_rules=soul_rules,
+        session_id=session_id,
+        memory_query=memory_query,
+        include_pattern_context=include_patterns,
+    )
     system_prompt = f"{system_prompt}\n\n# Session Summary\n{session.running_summary or '(none)'}"
     messages = [{"role": m.role, "content": m.content} for m in recent]
     messages.append({"role": "user", "content": user_message})
@@ -102,6 +114,11 @@ def _build_messages_for_llm(memory: MemoryStore, session_id: str, user_message: 
 def handle_user_message(context: AppContext, session_id: str, user_message: str) -> str:
     """Handle user message and persist session updates."""
     context.memory.append_session_message(session_id=session_id, role="user", content=user_message)
+    context.memory.log_event(
+        event_type="user_message",
+        session_id=session_id,
+        payload={"content": user_message},
+    )
     system_prompt, messages = _build_messages_for_llm(
         memory=context.memory,
         session_id=session_id,
@@ -117,6 +134,12 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
 
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
     context.memory.append_session_message(session_id=session_id, role="assistant", content=answer)
+    context.memory.log_event(
+        event_type="assistant_message",
+        session_id=session_id,
+        payload={"content": answer},
+    )
+    notify_user(context.config, answer, level="info", via_telegram=True)
     learning = apply_learning_updates(context.memory, user_message=user_message, assistant_message=answer)
     soul_growth = apply_soul_growth_updates(context.memory, user_message=user_message, assistant_message=answer)
     if learning["profile_updates"] or learning["preferences_updates"] or learning["facts_added"] or soul_growth["updated"]:
@@ -133,11 +156,12 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
     return answer
 
 
-def run_heartbeat_tick(memory: MemoryStore, config: AppConfig | None = None) -> None:
+def run_heartbeat_tick(memory: MemoryStore, config: AppConfig | None = None, llm: OllamaClient | None = None) -> None:
     """Run one heartbeat tick."""
     if config is not None:
-        run_heartbeat_jobs(config)
+        run_heartbeat_jobs(config, llm_client=llm)
     memory.append_episodic("Heartbeat tick")
+    memory.log_event(event_type="heartbeat_tick", payload={"ok": True}, session_id=None)
     if config is not None and os.getenv("BLAIRE_HEARTBEAT_NOTIFY", "").strip().lower() == "true":
         notify_user(config, "Heartbeat tick executed", level="info")
 
