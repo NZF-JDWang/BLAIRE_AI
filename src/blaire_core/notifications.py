@@ -17,8 +17,8 @@ def _outbox_path(config: AppConfig) -> Path:
     return Path(config.paths.data_root) / "outbox.log"
 
 
-def notify_user(config: AppConfig, message: str, *, level: str = "info") -> bool:
-    """Always log outbound message locally; optionally fan out to Telegram."""
+def notify_user(config: AppConfig, message: str, *, level: str = "info", via_telegram: bool = False) -> bool:
+    """Always log outbound message locally; fan out only when explicitly requested."""
     now = datetime.now(timezone.utc)
     outbox = _outbox_path(config)
     outbox.parent.mkdir(parents=True, exist_ok=True)
@@ -31,6 +31,8 @@ def notify_user(config: AppConfig, message: str, *, level: str = "info") -> bool
     with outbox.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
+    if not via_telegram:
+        return True
     if not config.telegram.enabled:
         return True
     if not config.telegram.bot_token or not config.telegram.chat_id:
@@ -53,6 +55,7 @@ def notify_user_media(
     media_type: str = "document",
     caption: str | None = None,
     level: str = "info",
+    via_telegram: bool = False,
 ) -> bool:
     now = datetime.now(timezone.utc)
     outbox = _outbox_path(config)
@@ -67,6 +70,8 @@ def notify_user_media(
     with outbox.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
+    if not via_telegram:
+        return True
     if not config.telegram.enabled:
         return True
     if not config.telegram.bot_token or not config.telegram.chat_id:

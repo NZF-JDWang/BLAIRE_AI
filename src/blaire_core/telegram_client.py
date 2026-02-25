@@ -12,6 +12,24 @@ import urllib.request
 
 
 logger = logging.getLogger(__name__)
+_MAX_TELEGRAM_TEXT_CHARS = 4000
+
+
+def _chunk_text(text: str, max_chars: int = _MAX_TELEGRAM_TEXT_CHARS) -> list[str]:
+    if len(text) <= max_chars:
+        return [text]
+    chunks: list[str] = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= max_chars:
+            chunks.append(remaining)
+            break
+        split_at = remaining.rfind("\n", 0, max_chars)
+        if split_at <= 0:
+            split_at = max_chars
+        chunks.append(remaining[:split_at].rstrip())
+        remaining = remaining[split_at:].lstrip("\n")
+    return [chunk for chunk in chunks if chunk]
 
 
 def _telegram_api_request(bot_token: str, method: str, payload: dict[str, object], *, timeout: int = 10) -> tuple[bool, dict[str, object] | None]:
@@ -46,16 +64,20 @@ def send_telegram_message(
     parse_mode: str | None = None,
     disable_notification: bool = False,
 ) -> bool:
-    logger.info("telegram: sending message to chat_id=%s (len=%s)", chat_id, len(text))
-    payload: dict[str, object] = {
-        "chat_id": chat_id,
-        "text": text,
-        "disable_notification": disable_notification,
-    }
-    if parse_mode:
-        payload["parse_mode"] = parse_mode
-    ok, _ = _telegram_api_request(bot_token, "sendMessage", payload)
-    return ok
+    chunks = _chunk_text(text)
+    logger.info("telegram: sending message to chat_id=%s (len=%s, chunks=%s)", chat_id, len(text), len(chunks))
+    for chunk in chunks:
+        payload: dict[str, object] = {
+            "chat_id": chat_id,
+            "text": chunk,
+            "disable_notification": disable_notification,
+        }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+        ok, _ = _telegram_api_request(bot_token, "sendMessage", payload)
+        if not ok:
+            return False
+    return True
 
 
 def _multipart_payload(fields: dict[str, str], file_field: str, file_path: Path) -> tuple[bytes, str]:

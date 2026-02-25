@@ -55,6 +55,11 @@ Existing shell environment variables still win over `.env` values.
 - `BLAIRE_HEARTBEAT_INTERVAL`
 - `BLAIRE_BRAVE_API_KEY`
 - `BLAIRE_LOG_LEVEL`
+- `BLAIRE_TELEGRAM_ENABLED`
+- `BLAIRE_TELEGRAM_BOT_TOKEN`
+- `BLAIRE_TELEGRAM_CHAT_ID`
+- `BLAIRE_TELEGRAM_POLLING_ENABLED`
+- `BLAIRE_TELEGRAM_POLLING_TIMEOUT_SECONDS`
 
 ## Core CLI Commands
 - `/help`
@@ -66,9 +71,34 @@ Existing shell environment variables still win over `.env` values.
 - `/admin memory`
 - `/admin soul [--reset]`
 - `/heartbeat tick|start|stop|status`
+- `/telegram test "<message>"`
+- `/telegram listen`
+- `/telegram start|stop|status`
 - `/tool <name> <json_args>`
 - `/session new|list|use|current`
 - `/session cleanup --dry-run|--enforce [--active-key <session_id>]`
+
+## Telegram Two-Way Text
+Set these env vars to enable text send/receive:
+
+```powershell
+$env:BLAIRE_TELEGRAM_ENABLED="true"
+$env:BLAIRE_TELEGRAM_BOT_TOKEN="<your bot token>"
+$env:BLAIRE_TELEGRAM_CHAT_ID="<your numeric chat id>"
+$env:BLAIRE_TELEGRAM_POLLING_ENABLED="true"
+$env:BLAIRE_TELEGRAM_POLLING_TIMEOUT_SECONDS="20"
+```
+
+Then run:
+
+```powershell
+python -m blaire_core.main --env dev
+```
+
+Behavior:
+- outbound text from the model is sent to Telegram via `notify_user(...)`
+- inbound text from the configured chat is polled and routed into the model
+- polling starts automatically when `BLAIRE_TELEGRAM_POLLING_ENABLED=true`
 
 ## Restricted Mode (Invalid Config)
 If config validation fails at startup, BLAIRE enters diagnostics-only mode.

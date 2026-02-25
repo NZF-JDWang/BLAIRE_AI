@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import blaire_core.notifications as notifications
 import blaire_core.telegram_client as telegram_client
 from blaire_core.config import read_config_snapshot
 from blaire_core.notifications import notify_user, notify_user_media
@@ -50,6 +51,24 @@ def test_send_telegram_message_builds_request(monkeypatch) -> None:
     assert captured["method"] == "POST"
     assert captured["timeout"] == 10
     assert captured["body"] == {"chat_id": "42", "text": "hello", "disable_notification": False}
+
+
+def test_send_telegram_message_chunks_long_text(monkeypatch) -> None:
+    sent_payloads: list[dict[str, object]] = []
+
+    def _fake_request(bot_token: str, method: str, payload: dict[str, object], *, timeout: int = 10):
+        _ = (bot_token, method, timeout)
+        sent_payloads.append(payload)
+        return True, {"ok": True}
+
+    monkeypatch.setattr(telegram_client, "_telegram_api_request", _fake_request)
+
+    long_text = "x" * 9005
+    ok = telegram_client.send_telegram_message("token-123", "42", long_text)
+
+    assert ok is True
+    assert len(sent_payloads) == 3
+    assert "".join(str(p["text"]) for p in sent_payloads) == long_text
 
 
 def test_notify_user_writes_outbox_under_data_root(tmp_path: Path) -> None:
@@ -119,3 +138,51 @@ def test_notify_user_media_logs_even_when_telegram_disabled(tmp_path: Path) -> N
     outbox = tmp_path / "outbox.log"
     payload = json.loads(outbox.read_text(encoding="utf-8").strip().splitlines()[-1])
     assert payload["message"] == "media:voice"
+
+
+def test_notify_user_does_not_send_telegram_without_explicit_route(monkeypatch, tmp_path: Path) -> None:
+    snapshot = read_config_snapshot(
+        "dev",
+        {
+            "paths.data_root": str(tmp_path),
+            "telegram.enabled": "true",
+            "telegram.bot_token": "token-123",
+            "telegram.chat_id": "42",
+        },
+    )
+    assert snapshot.effective_config is not None
+    sent_calls: list[str] = []
+
+    def _fake_send(*args, **kwargs):
+        _ = (args, kwargs)
+        sent_calls.append("called")
+        return True
+
+    monkeypatch.setattr(notifications, "send_telegram_message", _fake_send)
+    ok = notify_user(snapshot.effective_config, "cli-only message", level="info")
+    assert ok is True
+    assert sent_calls == []
+
+
+def test_notify_user_sends_telegram_when_explicit_route(monkeypatch, tmp_path: Path) -> None:
+    snapshot = read_config_snapshot(
+        "dev",
+        {
+            "paths.data_root": str(tmp_path),
+            "telegram.enabled": "true",
+            "telegram.bot_token": "token-123",
+            "telegram.chat_id": "42",
+        },
+    )
+    assert snapshot.effective_config is not None
+    sent_calls: list[str] = []
+
+    def _fake_send(*args, **kwargs):
+        _ = (args, kwargs)
+        sent_calls.append("called")
+        return True
+
+    monkeypatch.setattr(notifications, "send_telegram_message", _fake_send)
+    ok = notify_user(snapshot.effective_config, "telegram message", level="info", via_telegram=True)
+    assert ok is True
+    assert len(sent_calls) == 1

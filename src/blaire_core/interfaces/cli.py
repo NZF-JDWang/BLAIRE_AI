@@ -11,6 +11,7 @@ from typing import Callable
 from blaire_core.memory.store import clean_stale_locks
 from blaire_core.notifications import notify_user, notify_user_media
 from blaire_core.orchestrator import AppContext, call_tool, diagnostics, handle_user_message, health_summary_quick
+from blaire_core.telegram_bridge import TelegramTextBridge, process_telegram_updates
 from blaire_core.telegram_client import get_telegram_updates
 
 
@@ -42,6 +43,7 @@ def _print_help() -> None:
     print("/heartbeat tick|start|stop|status")
     print('/telegram test "<message>"')
     print("/telegram listen")
+    print("/telegram start|stop|status")
     print("/telegram send-voice <path> [caption]")
     print("/telegram send-audio <path> [caption]")
     print("/telegram send-file <path> [caption]")
@@ -176,13 +178,35 @@ def _handle_health(context: AppContext) -> None:
     print(health_summary_quick(context))
 
 
-def _handle_telegram(context: AppContext, tokens: list[str]) -> int:
+def _handle_telegram(context: AppContext, tokens: list[str], bridge: TelegramTextBridge | None = None) -> int:
     if len(tokens) < 2:
-        print('Usage: /telegram test "<message>"|listen|send-voice|send-audio|send-file')
+        print('Usage: /telegram test "<message>"|listen|start|stop|status|send-voice|send-audio|send-file')
         return 2
     sub = tokens[1].lower()
     if sub == "listen":
         return _handle_telegram_listen(context)
+    if sub == "start":
+        if bridge is None:
+            print("Telegram bridge control is only available in interactive mode.")
+            return 2
+        if bridge.start():
+            print("Telegram polling started.")
+            return 0
+        print("Telegram polling did not start. Check telegram.enabled, token/chat_id, and polling_enabled.")
+        return 2
+    if sub == "stop":
+        if bridge is None:
+            print("Telegram bridge control is only available in interactive mode.")
+            return 2
+        bridge.stop()
+        print("Telegram polling stopped.")
+        return 0
+    if sub == "status":
+        if bridge is None:
+            print("Telegram bridge control is only available in interactive mode.")
+            return 2
+        print(json.dumps(bridge.status().__dict__, indent=2))
+        return 0
     if sub in {"send-voice", "send-audio", "send-file"}:
         if len(tokens) < 3:
             print(f"Usage: /telegram {sub} <path> [caption]")
@@ -190,7 +214,7 @@ def _handle_telegram(context: AppContext, tokens: list[str]) -> int:
         path = tokens[2]
         caption = " ".join(tokens[3:]).strip() or None
         media_map = {"send-voice": "voice", "send-audio": "audio", "send-file": "document"}
-        sent = notify_user_media(context.config, path, media_type=media_map[sub], caption=caption)
+        sent = notify_user_media(context.config, path, media_type=media_map[sub], caption=caption, via_telegram=True)
         if not context.config.telegram.enabled:
             print("Telegram is disabled in configuration; enable BLAIRE_TELEGRAM_ENABLED to send media.")
             return 0
@@ -200,7 +224,7 @@ def _handle_telegram(context: AppContext, tokens: list[str]) -> int:
         print("Telegram media send failed.")
         return 1
     if sub != "test" or len(tokens) < 3:
-        print('Usage: /telegram test "<message>"|listen|send-voice|send-audio|send-file')
+        print('Usage: /telegram test "<message>"|listen|start|stop|status|send-voice|send-audio|send-file')
         return 2
 
     message = " ".join(tokens[2:]).strip()
@@ -208,7 +232,7 @@ def _handle_telegram(context: AppContext, tokens: list[str]) -> int:
         print("Message cannot be empty.")
         return 2
 
-    sent = notify_user(context.config, message, level="info")
+    sent = notify_user(context.config, message, level="info", via_telegram=True)
     if not context.config.telegram.enabled:
         print("Telegram is disabled in configuration; enable BLAIRE_TELEGRAM_ENABLED to send messages.")
         return 0
@@ -234,24 +258,7 @@ def _handle_telegram_listen(context: AppContext) -> int:
                 offset=offset,
                 timeout=telegram.polling_timeout_seconds,
             )
-            for update in updates:
-                message = update.get("message")
-                if not isinstance(message, dict):
-                    continue
-                chat = message.get("chat")
-                if not isinstance(chat, dict):
-                    continue
-                chat_id = str(chat.get("id", ""))
-                if chat_id != telegram.chat_id:
-                    continue
-                session_id = f"telegram-{chat_id}"
-                text = message.get("text")
-                if isinstance(text, str) and text.strip():
-                    reply = handle_user_message(context, session_id=session_id, user_message=text)
-                    notify_user(context.config, reply, level="info")
-                    continue
-                if "voice" in message or "audio" in message or "document" in message:
-                    notify_user(context.config, "Received media file. Media ingestion is acknowledged.", level="info")
+            process_telegram_updates(context, updates)
     except KeyboardInterrupt:
         print("\nTelegram listener stopped.")
         return 0
@@ -270,7 +277,7 @@ def execute_single_command(context: AppContext, command_line: str, initial_sessi
         return 2
     command = tokens[0].lower()
     if command == "/telegram":
-        return _handle_telegram(context, tokens)
+        return _handle_telegram(context, tokens, None)
     print("Unsupported one-shot command.")
     return 2
 
@@ -278,9 +285,16 @@ def execute_single_command(context: AppContext, command_line: str, initial_sessi
 def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
     """Run CLI REPL."""
     state = CliState(active_session_id=initial_session_id or str(uuid.uuid4()))
+    telegram_bridge = TelegramTextBridge(context)
     context.memory.load_or_create_session(state.active_session_id)
     if context.config.heartbeat.interval_seconds > 0:
         context.heartbeat.start()
+    if context.config.telegram.polling_enabled:
+        started = telegram_bridge.start()
+        if started:
+            print("Telegram polling enabled and started.")
+        else:
+            print("Telegram polling is enabled in config but could not start.")
 
     print("BLAIRE CLI ready. Type /help for commands.")
     if not context.config_snapshot.valid:
@@ -296,7 +310,7 @@ def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
         "/admin": lambda tokens: _handle_admin(context, tokens),
         "/tool": lambda tokens: _handle_tool(context, tokens),
         "/session": lambda tokens: _handle_session(context, state, tokens),
-        "/telegram": lambda tokens: _handle_telegram(context, tokens),
+        "/telegram": lambda tokens: _handle_telegram(context, tokens, telegram_bridge),
     }
 
     try:
@@ -331,6 +345,7 @@ def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
     except KeyboardInterrupt:
         print("\nExiting...")
     finally:
+        telegram_bridge.stop()
         context.heartbeat.stop()
         scan = clean_stale_locks(context.config.paths.data_root)
         if scan.removed:
