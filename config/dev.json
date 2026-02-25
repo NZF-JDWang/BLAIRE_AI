@@ -27,6 +27,37 @@
       "safesearch": "off",
       "auto_use": true,
       "auto_count": 3
+    },
+    "server_health": {
+      "endpoints": [],
+      "api_token": "",
+      "timeout_seconds": 8,
+      "scope": "read:health"
+    },
+    "home_assistant": {
+      "base_url": "",
+      "access_token": "",
+      "timeout_seconds": 8,
+      "scope": "read:states"
+    },
+    "obsidian": {
+      "base_url": "",
+      "api_key": "",
+      "vault": "",
+      "timeout_seconds": 8,
+      "scope": "read:notes"
+    },
+    "calendar": {
+      "base_url": "",
+      "api_token": "",
+      "timeout_seconds": 8,
+      "scope": "read:events"
+    },
+    "email": {
+      "base_url": "",
+      "api_token": "",
+      "timeout_seconds": 8,
+      "scope": "read:inbox"
     }
   },
   "prompt": {

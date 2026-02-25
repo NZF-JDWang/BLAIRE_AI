@@ -50,6 +50,52 @@ class WebSearchSection:
 @dataclass(slots=True)
 class ToolsSection:
     web_search: WebSearchSection
+    server_health: "ServerHealthSection"
+    home_assistant: "HomeAssistantSection"
+    obsidian: "ObsidianSection"
+    calendar: "CalendarSection"
+    email: "EmailSection"
+
+
+@dataclass(slots=True)
+class ServerHealthSection:
+    endpoints: list[str]
+    api_token: str
+    timeout_seconds: int
+    scope: str
+
+
+@dataclass(slots=True)
+class HomeAssistantSection:
+    base_url: str
+    access_token: str
+    timeout_seconds: int
+    scope: str
+
+
+@dataclass(slots=True)
+class ObsidianSection:
+    base_url: str
+    api_key: str
+    vault: str
+    timeout_seconds: int
+    scope: str
+
+
+@dataclass(slots=True)
+class CalendarSection:
+    base_url: str
+    api_token: str
+    timeout_seconds: int
+    scope: str
+
+
+@dataclass(slots=True)
+class EmailSection:
+    base_url: str
+    api_token: str
+    timeout_seconds: int
+    scope: str
 
 
 @dataclass(slots=True)
@@ -180,6 +226,15 @@ def _env_overrides() -> dict[str, Any]:
         "BLAIRE_DATA_PATH": "paths.data_root",
         "BLAIRE_HEARTBEAT_INTERVAL": "heartbeat.interval_seconds",
         "BLAIRE_BRAVE_API_KEY": "tools.web_search.api_key",
+        "BLAIRE_SERVER_HEALTH_TOKEN": "tools.server_health.api_token",
+        "BLAIRE_HOME_ASSISTANT_BASE_URL": "tools.home_assistant.base_url",
+        "BLAIRE_HOME_ASSISTANT_TOKEN": "tools.home_assistant.access_token",
+        "BLAIRE_OBSIDIAN_BASE_URL": "tools.obsidian.base_url",
+        "BLAIRE_OBSIDIAN_API_KEY": "tools.obsidian.api_key",
+        "BLAIRE_CALENDAR_BASE_URL": "tools.calendar.base_url",
+        "BLAIRE_CALENDAR_TOKEN": "tools.calendar.api_token",
+        "BLAIRE_EMAIL_BASE_URL": "tools.email.base_url",
+        "BLAIRE_EMAIL_TOKEN": "tools.email.api_token",
         "BLAIRE_LOG_LEVEL": "logging.level",
         "BLAIRE_TELEGRAM_ENABLED": "telegram.enabled",
         "BLAIRE_TELEGRAM_BOT_TOKEN": "telegram.bot_token",
@@ -244,6 +299,19 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
             auto_count = ws.get("auto_count")
             if not isinstance(auto_count, int) or auto_count < 1 or auto_count > 10:
                 issues.append("tools.web_search.auto_count must be an integer between 1 and 10")
+        for name in ("server_health", "home_assistant", "obsidian", "calendar", "email"):
+            if name not in tools:
+                continue
+            section = tools.get(name)
+            if not isinstance(section, dict):
+                issues.append(f"tools.{name} must be an object")
+                continue
+            timeout = section.get("timeout_seconds", 8)
+            if not isinstance(timeout, int) or timeout < 1:
+                issues.append(f"tools.{name}.timeout_seconds must be a positive integer")
+            scope = str(section.get("scope", "")).strip()
+            if not scope:
+                issues.append(f"tools.{name}.scope must be a non-empty string")
     else:
         issues.append("tools must be an object")
 
@@ -283,6 +351,11 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
 
 def _to_config(raw: dict[str, Any]) -> AppConfig:
     ws = raw["tools"]["web_search"]
+    server_health = raw["tools"].get("server_health", {})
+    home_assistant = raw["tools"].get("home_assistant", {})
+    obsidian = raw["tools"].get("obsidian", {})
+    calendar = raw["tools"].get("calendar", {})
+    email = raw["tools"].get("email", {})
     maint = raw["session"]["maintenance"]
     telegram_raw = raw.get("telegram", {}) if isinstance(raw.get("telegram", {}), dict) else {}
     telegram_enabled = bool(telegram_raw.get("enabled", False))
@@ -318,7 +391,38 @@ def _to_config(raw: dict[str, Any]) -> AppConfig:
                 safesearch=str(ws["safesearch"]),
                 auto_use=bool(ws.get("auto_use", True)),
                 auto_count=int(ws.get("auto_count", 3)),
-            )
+            ),
+            server_health=ServerHealthSection(
+                endpoints=[str(v) for v in server_health.get("endpoints", []) if isinstance(v, str)],
+                api_token=str(server_health.get("api_token", "")),
+                timeout_seconds=int(server_health.get("timeout_seconds", 8)),
+                scope=str(server_health.get("scope", "read:health")),
+            ),
+            home_assistant=HomeAssistantSection(
+                base_url=str(home_assistant.get("base_url", "")),
+                access_token=str(home_assistant.get("access_token", "")),
+                timeout_seconds=int(home_assistant.get("timeout_seconds", 8)),
+                scope=str(home_assistant.get("scope", "read:states")),
+            ),
+            obsidian=ObsidianSection(
+                base_url=str(obsidian.get("base_url", "")),
+                api_key=str(obsidian.get("api_key", "")),
+                vault=str(obsidian.get("vault", "")),
+                timeout_seconds=int(obsidian.get("timeout_seconds", 8)),
+                scope=str(obsidian.get("scope", "read:notes")),
+            ),
+            calendar=CalendarSection(
+                base_url=str(calendar.get("base_url", "")),
+                api_token=str(calendar.get("api_token", "")),
+                timeout_seconds=int(calendar.get("timeout_seconds", 8)),
+                scope=str(calendar.get("scope", "read:events")),
+            ),
+            email=EmailSection(
+                base_url=str(email.get("base_url", "")),
+                api_token=str(email.get("api_token", "")),
+                timeout_seconds=int(email.get("timeout_seconds", 8)),
+                scope=str(email.get("scope", "read:inbox")),
+            ),
         ),
         prompt=PromptSection(soul_rules=str(raw["prompt"]["soul_rules"])),
         session=SessionSection(
@@ -366,7 +470,12 @@ def _bootstrap_config(env: str) -> AppConfig:
                 safesearch="off",
                 auto_use=True,
                 auto_count=3,
-            )
+            ),
+            server_health=ServerHealthSection(endpoints=[], api_token="", timeout_seconds=8, scope="read:health"),
+            home_assistant=HomeAssistantSection(base_url="", access_token="", timeout_seconds=8, scope="read:states"),
+            obsidian=ObsidianSection(base_url="", api_key="", vault="", timeout_seconds=8, scope="read:notes"),
+            calendar=CalendarSection(base_url="", api_token="", timeout_seconds=8, scope="read:events"),
+            email=EmailSection(base_url="", api_token="", timeout_seconds=8, scope="read:inbox"),
         ),
         prompt=PromptSection(soul_rules="You are BLAIRE Core. Be concise, safe, and practical."),
         session=SessionSection(

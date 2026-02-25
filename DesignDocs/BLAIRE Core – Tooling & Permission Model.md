@@ -15,27 +15,41 @@ Level 3 – Dangerous (requires confirmation)
 
 ---
 
-## Initial Tool Set (v1)
+## Tool Set Status
 
-- local_search
-- web_search
-- check_disk_space
-- check_cpu_mem
-- check_gpu_status
-- check_docker_containers
-- check_endpoint
+### Implemented (Level 1 safe/read-only)
+
+- `local_search`
+- `web_search`
+- `check_disk_space`
+- `check_server_health` (configured endpoint telemetry summary)
+- `home_assistant_read` (entity/sensor/light state reads)
+- `obsidian_search` (vault search/index reads)
+- `calendar_summary` (today/next events reads)
+- `email_summary` (unread sender/topic summaries)
+
+### Planned / Stubbed
+
+- `check_cpu_mem`
+- `check_gpu_status`
+- `check_docker_containers` (currently stubbed)
+- `check_endpoint`
 
 ---
 
 ## Tool Invocation Flow
 
 LLM outputs structured intent:
+
+```json
 {
   "tool": "check_disk_space",
   "args": {}
 }
+```
 
 Orchestrator validates:
+
 - Allowed?
 - Rate limited?
 - Within autonomy level?

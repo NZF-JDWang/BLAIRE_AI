@@ -6,13 +6,18 @@ from pathlib import Path
 from blaire_core.config import (
     AppConfig,
     AppSection,
+    CalendarSection,
+    EmailSection,
     HeartbeatSection,
+    HomeAssistantSection,
     LLMSection,
     LoggingSection,
+    ObsidianSection,
     PathsSection,
     PromptSection,
     SessionMaintenanceSection,
     SessionSection,
+    ServerHealthSection,
     ToolsSection,
     WebSearchSection,
 )
@@ -34,7 +39,12 @@ def _config_for_path(tmp_path: Path) -> AppConfig:
                 safesearch="off",
                 auto_use=True,
                 auto_count=3,
-            )
+            ),
+            server_health=ServerHealthSection(endpoints=[], api_token="", timeout_seconds=8, scope="read:health"),
+            home_assistant=HomeAssistantSection(base_url="", access_token="", timeout_seconds=8, scope="read:states"),
+            obsidian=ObsidianSection(base_url="", api_key="", vault="", timeout_seconds=8, scope="read:notes"),
+            calendar=CalendarSection(base_url="", api_token="", timeout_seconds=8, scope="read:events"),
+            email=EmailSection(base_url="", api_token="", timeout_seconds=8, scope="read:inbox"),
         ),
         prompt=PromptSection(soul_rules="Be useful."),
         session=SessionSection(

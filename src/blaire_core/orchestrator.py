@@ -19,7 +19,12 @@ from blaire_core.prompting.composer import build_system_prompt
 from blaire_core.tools.builtin_tools import (
     check_disk_space,
     check_docker_containers_stub,
+    make_calendar_summary_tool,
+    make_check_server_health_tool,
+    make_email_summary_tool,
+    make_home_assistant_read_tool,
     make_local_search_tool,
+    make_obsidian_search_tool,
     make_web_search_tool,
 )
 from blaire_core.tools.registry import Tool, ToolRegistry
@@ -167,6 +172,11 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
     registry.register(Tool("local_search", "Search local facts and lessons", "safe", make_local_search_tool(config.paths.data_root)))
     registry.register(Tool("web_search", "Search web via Brave", "safe", make_web_search_tool(config)))
     registry.register(Tool("check_disk_space", "Check disk usage", "safe", check_disk_space))
+    registry.register(Tool("check_server_health", "Read server temps/load/disk from configured endpoints", "safe", make_check_server_health_tool(config)))
+    registry.register(Tool("home_assistant_read", "Read Home Assistant entity states", "safe", make_home_assistant_read_tool(config)))
+    registry.register(Tool("obsidian_search", "Search Obsidian vault index (read-only)", "safe", make_obsidian_search_tool(config)))
+    registry.register(Tool("calendar_summary", "Read today/next calendar events", "safe", make_calendar_summary_tool(config)))
+    registry.register(Tool("email_summary", "Read unread email summaries", "safe", make_email_summary_tool(config)))
     registry.register(Tool("check_docker_containers", "Docker containers (stub)", "safe", check_docker_containers_stub))
 
     context = AppContext(
