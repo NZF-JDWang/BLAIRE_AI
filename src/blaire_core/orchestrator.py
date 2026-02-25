@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 import re
+import os
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.jobs import run_heartbeat_jobs
@@ -13,6 +14,7 @@ from blaire_core.learning.routine import apply_learning_updates
 from blaire_core.learning.soul_growth import apply_soul_growth_updates
 from blaire_core.llm.client import OllamaClient
 from blaire_core.memory.store import MemoryStore, clean_stale_locks
+from blaire_core.notifications import notify_user
 from blaire_core.prompting.composer import build_system_prompt
 from blaire_core.tools.builtin_tools import (
     check_disk_space,
@@ -136,6 +138,8 @@ def run_heartbeat_tick(memory: MemoryStore, config: AppConfig | None = None) -> 
     if config is not None:
         run_heartbeat_jobs(config)
     memory.append_episodic("Heartbeat tick")
+    if config is not None and os.getenv("BLAIRE_HEARTBEAT_NOTIFY", "").strip().lower() == "true":
+        notify_user(config, "Heartbeat tick executed", level="info")
 
 
 def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:

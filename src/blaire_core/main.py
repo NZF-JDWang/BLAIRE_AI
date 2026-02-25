@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from blaire_core.config import ensure_runtime_config, read_config_snapshot
-from blaire_core.interfaces.cli import run_cli
+from blaire_core.interfaces.cli import execute_single_command, run_cli
 from blaire_core.orchestrator import build_context
 
 
@@ -20,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--llm-base-url", default=None)
     parser.add_argument("--llm-model", default=None)
     parser.add_argument("--heartbeat-interval", default=None)
+    parser.add_argument("command", nargs=argparse.REMAINDER)
     return parser.parse_args()
 
 
@@ -62,6 +63,10 @@ def main() -> int:
 
     runtime_config = ensure_runtime_config(snapshot, env=args.env)
     context = build_context(config=runtime_config, snapshot=snapshot)
+
+    if args.command:
+        command_line = " ".join(args.command).strip()
+        return execute_single_command(context, command_line, initial_session_id=args.session_id)
 
     run_cli(context, initial_session_id=args.session_id)
     return 0

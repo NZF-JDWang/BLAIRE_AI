@@ -9,7 +9,9 @@ from dataclasses import dataclass
 from typing import Callable
 
 from blaire_core.memory.store import clean_stale_locks
+from blaire_core.notifications import notify_user, notify_user_media
 from blaire_core.orchestrator import AppContext, call_tool, diagnostics, handle_user_message, health_summary_quick
+from blaire_core.telegram_client import get_telegram_updates
 
 
 RESTRICTED_ALLOWED_PREFIXES = {
@@ -38,6 +40,11 @@ def _print_help() -> None:
     print("/exit")
     print("/health")
     print("/heartbeat tick|start|stop|status")
+    print('/telegram test "<message>"')
+    print("/telegram listen")
+    print("/telegram send-voice <path> [caption]")
+    print("/telegram send-audio <path> [caption]")
+    print("/telegram send-file <path> [caption]")
     print("/tool <name> <json_args>")
     print("/session new|list|use|current")
     print("/session cleanup --dry-run|--enforce [--active-key <id>]")
@@ -169,6 +176,105 @@ def _handle_health(context: AppContext) -> None:
     print(health_summary_quick(context))
 
 
+def _handle_telegram(context: AppContext, tokens: list[str]) -> int:
+    if len(tokens) < 2:
+        print('Usage: /telegram test "<message>"|listen|send-voice|send-audio|send-file')
+        return 2
+    sub = tokens[1].lower()
+    if sub == "listen":
+        return _handle_telegram_listen(context)
+    if sub in {"send-voice", "send-audio", "send-file"}:
+        if len(tokens) < 3:
+            print(f"Usage: /telegram {sub} <path> [caption]")
+            return 2
+        path = tokens[2]
+        caption = " ".join(tokens[3:]).strip() or None
+        media_map = {"send-voice": "voice", "send-audio": "audio", "send-file": "document"}
+        sent = notify_user_media(context.config, path, media_type=media_map[sub], caption=caption)
+        if not context.config.telegram.enabled:
+            print("Telegram is disabled in configuration; enable BLAIRE_TELEGRAM_ENABLED to send media.")
+            return 0
+        if sent:
+            print("Telegram media sent.")
+            return 0
+        print("Telegram media send failed.")
+        return 1
+    if sub != "test" or len(tokens) < 3:
+        print('Usage: /telegram test "<message>"|listen|send-voice|send-audio|send-file')
+        return 2
+
+    message = " ".join(tokens[2:]).strip()
+    if not message:
+        print("Message cannot be empty.")
+        return 2
+
+    sent = notify_user(context.config, message, level="info")
+    if not context.config.telegram.enabled:
+        print("Telegram is disabled in configuration; enable BLAIRE_TELEGRAM_ENABLED to send messages.")
+        return 0
+    if sent:
+        print("Telegram test message sent.")
+        return 0
+    print("Telegram send failed. Check bot token/chat id and network connectivity.")
+    return 1
+
+
+def _handle_telegram_listen(context: AppContext) -> int:
+    telegram = context.config.telegram
+    if not telegram.enabled or not telegram.bot_token or not telegram.chat_id:
+        print("Telegram is disabled or misconfigured; set enabled, bot token, and chat id.")
+        return 2
+
+    offset: int | None = None
+    print("Telegram listener started. Ctrl+C to stop.")
+    try:
+        while True:
+            updates, offset = get_telegram_updates(
+                telegram.bot_token,
+                offset=offset,
+                timeout=telegram.polling_timeout_seconds,
+            )
+            for update in updates:
+                message = update.get("message")
+                if not isinstance(message, dict):
+                    continue
+                chat = message.get("chat")
+                if not isinstance(chat, dict):
+                    continue
+                chat_id = str(chat.get("id", ""))
+                if chat_id != telegram.chat_id:
+                    continue
+                session_id = f"telegram-{chat_id}"
+                text = message.get("text")
+                if isinstance(text, str) and text.strip():
+                    reply = handle_user_message(context, session_id=session_id, user_message=text)
+                    notify_user(context.config, reply, level="info")
+                    continue
+                if "voice" in message or "audio" in message or "document" in message:
+                    notify_user(context.config, "Received media file. Media ingestion is acknowledged.", level="info")
+    except KeyboardInterrupt:
+        print("\nTelegram listener stopped.")
+        return 0
+
+
+def execute_single_command(context: AppContext, command_line: str, initial_session_id: str | None = None) -> int:
+    state = CliState(active_session_id=initial_session_id or str(uuid.uuid4()))
+    context.memory.load_or_create_session(state.active_session_id)
+    try:
+        tokens = shlex.split(command_line)
+    except ValueError as exc:
+        print(f"Parse error: {exc}")
+        return 2
+    if not tokens:
+        print("Empty command.")
+        return 2
+    command = tokens[0].lower()
+    if command == "/telegram":
+        return _handle_telegram(context, tokens)
+    print("Unsupported one-shot command.")
+    return 2
+
+
 def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
     """Run CLI REPL."""
     state = CliState(active_session_id=initial_session_id or str(uuid.uuid4()))
@@ -190,6 +296,7 @@ def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
         "/admin": lambda tokens: _handle_admin(context, tokens),
         "/tool": lambda tokens: _handle_tool(context, tokens),
         "/session": lambda tokens: _handle_session(context, state, tokens),
+        "/telegram": lambda tokens: _handle_telegram(context, tokens),
     }
 
     try:

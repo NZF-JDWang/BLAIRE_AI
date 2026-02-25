@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +78,15 @@ class LoggingSection:
 
 
 @dataclass(slots=True)
+class TelegramSection:
+    enabled: bool
+    bot_token: str | None
+    chat_id: str | None
+    polling_enabled: bool
+    polling_timeout_seconds: int
+
+
+@dataclass(slots=True)
 class AppConfig:
     app: AppSection
     paths: PathsSection
@@ -87,6 +96,15 @@ class AppConfig:
     prompt: PromptSection
     session: SessionSection
     logging: LoggingSection
+    telegram: TelegramSection = field(
+        default_factory=lambda: TelegramSection(
+            enabled=False,
+            bot_token=None,
+            chat_id=None,
+            polling_enabled=False,
+            polling_timeout_seconds=20,
+        )
+    )
 
 
 @dataclass(slots=True)
@@ -158,6 +176,11 @@ def _env_overrides() -> dict[str, Any]:
         "BLAIRE_HEARTBEAT_INTERVAL": "heartbeat.interval_seconds",
         "BLAIRE_BRAVE_API_KEY": "tools.web_search.api_key",
         "BLAIRE_LOG_LEVEL": "logging.level",
+        "BLAIRE_TELEGRAM_ENABLED": "telegram.enabled",
+        "BLAIRE_TELEGRAM_BOT_TOKEN": "telegram.bot_token",
+        "BLAIRE_TELEGRAM_CHAT_ID": "telegram.chat_id",
+        "BLAIRE_TELEGRAM_POLLING_ENABLED": "telegram.polling_enabled",
+        "BLAIRE_TELEGRAM_POLLING_TIMEOUT_SECONDS": "telegram.polling_timeout_seconds",
     }
     out: dict[str, Any] = {}
     for env_name, cfg_path in mapping.items():
@@ -172,7 +195,8 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
     issues: list[str] = []
     warnings: list[str] = []
     top_required = {"app", "paths", "llm", "heartbeat", "tools", "prompt", "session", "logging"}
-    top_unknown = set(raw.keys()) - top_required
+    top_optional = {"telegram"}
+    top_unknown = set(raw.keys()) - top_required - top_optional
     if top_unknown:
         issues.append(f"Unknown top-level keys: {', '.join(sorted(top_unknown))}")
     for key in sorted(top_required):
@@ -230,12 +254,43 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
     else:
         issues.append("session must be an object")
 
+    telegram = raw.get("telegram", {})
+    if isinstance(telegram, dict):
+        enabled = bool(telegram.get("enabled", False))
+        polling_enabled = bool(telegram.get("polling_enabled", False))
+        polling_timeout_seconds = telegram.get("polling_timeout_seconds", 20)
+        if not isinstance(polling_timeout_seconds, int) or polling_timeout_seconds < 1 or polling_timeout_seconds > 60:
+            issues.append("telegram.polling_timeout_seconds must be an integer between 1 and 60")
+        if enabled:
+            token = str(telegram.get("bot_token", "")).strip()
+            chat_id = str(telegram.get("chat_id", "")).strip()
+            if not token or not chat_id:
+                warnings.append(
+                    "telegram is enabled but bot_token/chat_id is missing; Telegram notifications will be disabled"
+                )
+        if polling_enabled and not enabled:
+            warnings.append("telegram polling enabled while telegram is disabled; polling will be disabled")
+    else:
+        issues.append("telegram must be an object when provided")
+
     return issues, warnings
 
 
 def _to_config(raw: dict[str, Any]) -> AppConfig:
     ws = raw["tools"]["web_search"]
     maint = raw["session"]["maintenance"]
+    telegram_raw = raw.get("telegram", {}) if isinstance(raw.get("telegram", {}), dict) else {}
+    telegram_enabled = bool(telegram_raw.get("enabled", False))
+    telegram_bot_token = str(telegram_raw.get("bot_token", "")).strip() or None
+    telegram_chat_id = str(telegram_raw.get("chat_id", "")).strip() or None
+    telegram_polling_enabled = bool(telegram_raw.get("polling_enabled", False))
+    telegram_polling_timeout_seconds = int(telegram_raw.get("polling_timeout_seconds", 20))
+    if telegram_enabled and (telegram_bot_token is None or telegram_chat_id is None):
+        telegram_enabled = False
+        telegram_polling_enabled = False
+    if not telegram_enabled:
+        telegram_polling_enabled = False
+
     return AppConfig(
         app=AppSection(env=str(raw["app"]["env"])),
         paths=PathsSection(data_root=str(raw["paths"]["data_root"]), log_dir=str(raw["paths"]["log_dir"])),
@@ -272,6 +327,13 @@ def _to_config(raw: dict[str, Any]) -> AppConfig:
             ),
         ),
         logging=LoggingSection(level=str(raw["logging"]["level"])),
+        telegram=TelegramSection(
+            enabled=telegram_enabled,
+            bot_token=telegram_bot_token,
+            chat_id=telegram_chat_id,
+            polling_enabled=telegram_polling_enabled,
+            polling_timeout_seconds=telegram_polling_timeout_seconds,
+        ),
     )
 
 
@@ -313,6 +375,13 @@ def _bootstrap_config(env: str) -> AppConfig:
             ),
         ),
         logging=LoggingSection(level="info"),
+        telegram=TelegramSection(
+            enabled=False,
+            bot_token=None,
+            chat_id=None,
+            polling_enabled=False,
+            polling_timeout_seconds=20,
+        ),
     )
 
 
