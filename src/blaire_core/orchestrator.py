@@ -8,6 +8,7 @@ import re
 import os
 
 from blaire_core.config import AppConfig, ConfigSnapshot
+from blaire_core.heartbeat.jobs import run_heartbeat_jobs
 from blaire_core.heartbeat.loop import HeartbeatLoop
 from blaire_core.learning.routine import apply_learning_updates
 from blaire_core.learning.soul_growth import apply_soul_growth_updates
@@ -83,7 +84,7 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
         memory=memory,
         llm=llm,
         tools=registry,
-        heartbeat=HeartbeatLoop(interval_seconds=config.heartbeat.interval_seconds, tick_fn=lambda: run_heartbeat_tick(config, memory)),
+        heartbeat=HeartbeatLoop(interval_seconds=config.heartbeat.interval_seconds, tick_fn=lambda: run_heartbeat_tick(memory, config)),
     )
     return context
 
@@ -132,10 +133,12 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
     return answer
 
 
-def run_heartbeat_tick(config: AppConfig, memory: MemoryStore) -> None:
+def run_heartbeat_tick(memory: MemoryStore, config: AppConfig | None = None) -> None:
     """Run one heartbeat tick."""
+    if config is not None:
+        run_heartbeat_jobs(config)
     memory.append_episodic("Heartbeat tick")
-    if os.getenv("BLAIRE_HEARTBEAT_NOTIFY", "").strip().lower() == "true":
+    if config is not None and os.getenv("BLAIRE_HEARTBEAT_NOTIFY", "").strip().lower() == "true":
         notify_user(config, "Heartbeat tick executed", level="info")
 
 

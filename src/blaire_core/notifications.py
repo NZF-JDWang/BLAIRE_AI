@@ -10,7 +10,6 @@ from pathlib import Path
 from blaire_core.config import AppConfig
 from blaire_core.telegram_client import send_telegram_audio, send_telegram_document, send_telegram_message, send_telegram_voice
 
-
 logger = logging.getLogger(__name__)
 
 
