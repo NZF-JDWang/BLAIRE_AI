@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import difflib
+import json
 from typing import Any
 import re
 import os
-import json
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.jobs import run_heartbeat_jobs
@@ -17,7 +18,7 @@ from blaire_core.learning.tool_memory import distill_tool_result_to_memory
 from blaire_core.llm.client import OllamaClient
 from blaire_core.memory.store import MemoryStore, clean_stale_locks
 from blaire_core.notifications import notify_user
-from blaire_core.prompting.composer import build_system_prompt
+from blaire_core.prompting.composer import BrainComposer
 from blaire_core.tools.builtin_tools import (
     check_disk_space,
     check_docker_containers_stub,
@@ -111,6 +112,7 @@ class AppContext:
     llm: OllamaClient
     tools: ToolRegistry
     heartbeat: HeartbeatLoop
+    brain_composer: BrainComposer
 
 
 _AUTO_WEB_SEARCH_PATTERNS = [
@@ -236,6 +238,68 @@ def _build_web_context(web_result: dict[str, Any]) -> str:
     return "\n".join(rows)
 
 
+
+
+def _propose_soul_brain_update(context: AppContext, soul_growth: dict[str, Any], session_id: str) -> None:
+    if not soul_growth.get("updated"):
+        return
+    proposed = soul_growth.get("proposed_soul")
+    if not isinstance(proposed, dict):
+        return
+
+    context.brain_composer.ensure_brain_files()
+    soul_path = context.brain_composer.brain_dir / "SOUL.md"
+    existing = soul_path.read_text(encoding="utf-8") if soul_path.exists() else "# SOUL\n\n"
+
+    alignment_notes = [str(v) for v in proposed.get("user_alignment_notes", []) if isinstance(v, str)]
+    growth_notes = [str(v) for v in proposed.get("growth_notes", []) if isinstance(v, str)]
+    update_block_lines = [
+        "",
+        "## Proposed Conservative Updates",
+        "",
+        "### Recent Alignment Signals",
+    ]
+    update_block_lines.extend(f"- {item}" for item in alignment_notes[-5:])
+    update_block_lines.extend(["", "### Recent Growth Signals"])
+    update_block_lines.extend(f"- {item}" for item in growth_notes[-5:])
+    proposed_text = existing.rstrip() + "\n" + "\n".join(update_block_lines).rstrip() + "\n"
+
+    diff = "\n".join(
+        difflib.unified_diff(
+            existing.splitlines(),
+            proposed_text.splitlines(),
+            fromfile="SOUL.md",
+            tofile="SOUL.md (proposed)",
+            lineterm="",
+        )
+    )
+
+    proposal_id = f"soul-{context.memory.log_event(event_type='soul_update_proposed', session_id=session_id, payload={'notes': len(growth_notes)})}"
+    proposals_dir = context.memory.data_root / "brain" / "proposals"
+    proposals_dir.mkdir(parents=True, exist_ok=True)
+    proposal_payload = {
+        "proposal_id": proposal_id,
+        "target_file": str(soul_path),
+        "session_id": session_id,
+        "status": "pending_approval",
+        "diff": diff,
+        "proposed_content": proposed_text,
+    }
+    (proposals_dir / f"{proposal_id}.json").write_text(json.dumps(proposal_payload, indent=2), encoding="utf-8")
+
+    notify_user(
+        context.config,
+        (
+            "Conservative soul update proposed (approval required before write).\n"
+            f"Proposal: {proposal_id}\n"
+            "Approve by copying the proposal content into SOUL.md after review.\n\n"
+            f"Diff preview:\n{diff[:1400]}"
+        ),
+        level="info",
+        via_telegram=True,
+    )
+
+
 def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
     memory = MemoryStore(config.paths.data_root)
     memory.initialize()
@@ -283,6 +347,9 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
         )
     )
 
+    brain_composer = BrainComposer(memory=memory, data_root=config.paths.data_root, soul_rules=config.prompt.soul_rules)
+    brain_composer.ensure_brain_files()
+
     context = AppContext(
         config=config,
         config_snapshot=snapshot,
@@ -293,19 +360,25 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
             interval_seconds=config.heartbeat.interval_seconds,
             tick_fn=lambda: run_heartbeat_tick(memory, config, llm),
         ),
+        brain_composer=brain_composer,
     )
     return context
 
 
-def _build_messages_for_llm(memory: MemoryStore, session_id: str, user_message: str, recent_pairs: int, soul_rules: str) -> tuple[str, list[dict[str, str]]]:
+def _build_messages_for_llm(
+    memory: MemoryStore,
+    brain_composer: BrainComposer,
+    session_id: str,
+    user_message: str,
+    recent_pairs: int,
+) -> tuple[str, list[dict[str, str]]]:
     session = memory.load_or_create_session(session_id)
     recent = session.messages[-(recent_pairs * 2) :]
     recent_lines = [f"{m.role}: {m.content}" for m in recent[-6:]]
     memory_query = "\n".join([*recent_lines, f"user: {user_message}"])
     include_patterns = bool(re.search(r"\b(pattern|behavio[u]?r|audit|introspect)\b", user_message, re.IGNORECASE))
-    system_prompt = build_system_prompt(
-        memory=memory,
-        soul_rules=soul_rules,
+    system_prompt = brain_composer.compose_system_prompt_sync(
+        context_type="chat",
         session_id=session_id,
         memory_query=memory_query,
         include_pattern_context=include_patterns,
@@ -329,8 +402,8 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         memory=context.memory,
         session_id=session_id,
         user_message=user_message,
+        brain_composer=context.brain_composer,
         recent_pairs=context.config.session.recent_pairs,
-        soul_rules=context.config.prompt.soul_rules,
     )
     web_attempted = False
     recent_messages = messages[-6:]
@@ -384,7 +457,13 @@ def _persist_assistant_turn(context: AppContext, session_id: str, user_message: 
     )
     notify_user(context.config, answer, level="info", via_telegram=True)
     learning = apply_learning_updates(context.memory, user_message=user_message, assistant_message=answer)
-    soul_growth = apply_soul_growth_updates(context.memory, user_message=user_message, assistant_message=answer)
+    soul_growth = apply_soul_growth_updates(
+        context.memory,
+        user_message=user_message,
+        assistant_message=answer,
+        auto_apply=False,
+    )
+    _propose_soul_brain_update(context, soul_growth=soul_growth, session_id=session_id)
     if learning["profile_updates"] or learning["preferences_updates"] or learning["facts_added"] or soul_growth["updated"]:
         context.memory.append_episodic(f"Learning updates: {learning}; soul_growth: {soul_growth}")
     maint = context.config.session.maintenance
@@ -422,10 +501,10 @@ def handle_user_message_with_tool(
 
     system_prompt, messages = _build_messages_for_llm(
         memory=context.memory,
+        brain_composer=context.brain_composer,
         session_id=session_id,
         user_message=user_message,
         recent_pairs=context.config.session.recent_pairs,
-        soul_rules=context.config.prompt.soul_rules,
     )
     tool_context = {
         "tool": tool_name,

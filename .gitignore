@@ -22,8 +22,14 @@ Thumbs.db
 .idea/
 
 # Runtime artifacts
-data/
 *.egg-info/
+
+# Track brain markdown defaults only
+data/*
+!data/
+!data/brain/
+data/brain/*
+!data/brain/*.md
 
 # Local environment files
 .env

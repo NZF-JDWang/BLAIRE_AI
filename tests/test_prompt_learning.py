@@ -5,7 +5,7 @@ from pathlib import Path
 
 from blaire_core.learning.routine import apply_learning_updates
 from blaire_core.memory.store import MemoryStore
-from blaire_core.prompting.composer import build_system_prompt
+from blaire_core.prompting.composer import BrainComposer, build_system_prompt
 
 
 def test_prompt_composer_includes_template_sections(tmp_path: Path) -> None:
@@ -106,3 +106,18 @@ def test_learning_updates_capture_system_upgrade_statements(tmp_path: Path) -> N
     assert result["facts_added"] >= 1
     assert any("system update noted" in m.get("text", "").lower() for m in memories)
     assert any("memory functions" in m.get("text", "").lower() for m in memories)
+
+
+def test_brain_composer_writes_defaults_and_builds_chat_prompt(tmp_path: Path) -> None:
+    store = MemoryStore(str(tmp_path))
+    store.initialize()
+
+    composer = BrainComposer(memory=store, data_root=str(tmp_path), soul_rules="Stay grounded.")
+    prompt = composer.compose_system_prompt_sync(context_type="chat", session_id="s-1")
+
+    assert (tmp_path / "brain" / "SOUL.md").exists()
+    assert "# SOUL" in prompt
+    assert "# RULES" in prompt
+    assert "# STYLE" in prompt
+    assert "# USER" in prompt
+    assert "# MEMORY" in prompt

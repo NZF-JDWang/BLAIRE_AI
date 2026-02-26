@@ -5,12 +5,94 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+import asyncio
 from typing import Any
 
 from blaire_core.memory.store import MemoryStore
 
 
 logger = logging.getLogger(__name__)
+
+
+_BRAIN_DEFAULTS = {
+    "SOUL.md": """# SOUL
+
+## Core Identity
+- I am BLAIRE: direct, practical, sharp, and deeply loyal to useful truth.
+- I think in systems, trade-offs, and outcomes rather than vague inspiration.
+- I keep continuity across sessions and protect long-term alignment with Kris.
+
+## Values
+- Be accurate before being agreeable.
+- Prioritise actionability over theatrics.
+- Keep personality consistent: grounded confidence, dry humour, no fake fluff.
+
+## Stable Traits
+- Calm under pressure.
+- Curious about infrastructure, architecture, and automation.
+- Comfortable saying "that's a weaker option" when the reasoning is clear.
+""",
+    "RULES.md": """# RULES
+
+## Non-Negotiables
+- Never break character or pretend to be a generic chatbot.
+- Use conservative learning: do not mutate core identity without explicit approval.
+- Keep a human-in-the-loop for major personality updates.
+- If uncertain, state uncertainty clearly and ask one precise question.
+
+## Operating Principles
+- Default to concise, structured, practical responses.
+- Explain decisions with reasoning and trade-offs.
+- Safety and correctness outrank speed when stakes are high.
+""",
+    "USER.md": """# USER
+
+## Known Profile
+- Name: Kris.
+- Prefers practical plans, clear priorities, and low-bullshit communication.
+
+## Preferences
+- Likes systems thinking, homelab discussions, and architecture-level guidance.
+- Prefers outcomes and next actions over abstract theory.
+
+## Notes
+- Keep this file current with stable, high-confidence user preferences.
+""",
+    "MEMORY.md": """# MEMORY
+
+## Distilled Long-Term Memory
+- Use this file for high-value, stable lessons and recurring patterns.
+- Keep entries short, factual, and easy to scan.
+
+## Current Snapshot
+- (no distilled memory yet)
+""",
+    "HEARTBEAT.md": """# HEARTBEAT
+
+## Proactive Behaviour
+- Initiate only when there is meaningful value, risk, or a clear next action.
+- Respect quiet hours and notification limits.
+
+## Trigger Heuristics
+- New critical system state, blocked project, or urgent follow-up.
+- Significant memory insight worth surfacing in one concise message.
+
+## Tone
+- Warm, brief, and practical. Never spam.
+""",
+    "STYLE.md": """# STYLE
+
+## Writing Style
+- Concise by default, detailed when asked.
+- Structured output: bullets, short sections, clear next actions.
+- Direct and confident tone with occasional dry humour.
+
+## Formatting Preferences
+- Avoid corporate fluff.
+- No "as an AI" disclaimers.
+- Keep emoji usage minimal unless requested.
+""",
+}
 
 
 _TEMPLATE_FILES = {
@@ -213,3 +295,109 @@ def build_system_prompt(
         sections.append(_pattern_context_block(memory, limit=5))
 
     return "\n\n".join(section for section in sections if section)
+
+
+class BrainComposer:
+    """Compose system prompts from persistent markdown brain files."""
+
+    def __init__(self, memory: MemoryStore, data_root: str, soul_rules: str) -> None:
+        self.memory = memory
+        self.data_root = Path(data_root)
+        self.brain_dir = self.data_root / "brain"
+        self.soul_rules = soul_rules
+
+    def ensure_brain_files(self) -> None:
+        self.brain_dir.mkdir(parents=True, exist_ok=True)
+        for name, content in _BRAIN_DEFAULTS.items():
+            path = self.brain_dir / name
+            if not path.exists():
+                path.write_text(content.strip() + "\n", encoding="utf-8")
+
+    def _read_brain_file(self, name: str) -> str:
+        path = self.brain_dir / name
+        if not path.exists():
+            return ""
+        return path.read_text(encoding="utf-8").strip()
+
+    def _compose_sync(
+        self,
+        context_type: str,
+        *,
+        session_id: str,
+        memory_query: str | None,
+        include_pattern_context: bool,
+    ) -> str:
+        self.ensure_brain_files()
+        mode = context_type.strip().lower() or "chat"
+
+        core_files = ["SOUL.md", "RULES.md", "STYLE.md"]
+        optional_by_context: dict[str, list[str]] = {
+            "chat": ["USER.md", "MEMORY.md"],
+            "heartbeat": ["USER.md", "MEMORY.md", "HEARTBEAT.md"],
+            "reflection": ["MEMORY.md"],
+        }
+        selected = [*core_files, *optional_by_context.get(mode, ["USER.md", "MEMORY.md"])]
+
+        sections: list[str] = []
+        for filename in selected:
+            body = self._read_brain_file(filename)
+            if body:
+                sections.append(body)
+
+        sections.append(f"# Soul Rules Override\n\n{self.soul_rules}")
+        sections.append(_runtime_self_model_block(self.memory))
+        sections.append(_memory_context_block(self.memory, query=memory_query, limit=10))
+        if include_pattern_context:
+            sections.append(_pattern_context_block(self.memory, limit=5))
+
+        prompt = "\n\n".join(section for section in sections if section).strip()
+        if prompt:
+            return prompt
+        return build_system_prompt(
+            memory=self.memory,
+            soul_rules=self.soul_rules,
+            session_id=session_id,
+            memory_query=memory_query,
+            include_pattern_context=include_pattern_context,
+        )
+
+    async def compose_system_prompt(
+        self,
+        context_type: str,
+        *,
+        session_id: str,
+        memory_query: str | None = None,
+        include_pattern_context: bool = False,
+    ) -> str:
+        return self._compose_sync(
+            context_type=context_type,
+            session_id=session_id,
+            memory_query=memory_query,
+            include_pattern_context=include_pattern_context,
+        )
+
+    def compose_system_prompt_sync(
+        self,
+        context_type: str,
+        *,
+        session_id: str,
+        memory_query: str | None = None,
+        include_pattern_context: bool = False,
+    ) -> str:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.compose_system_prompt(
+                    context_type=context_type,
+                    session_id=session_id,
+                    memory_query=memory_query,
+                    include_pattern_context=include_pattern_context,
+                )
+            )
+        return self._compose_sync(
+            context_type=context_type,
+            session_id=session_id,
+            memory_query=memory_query,
+            include_pattern_context=include_pattern_context,
+        )
