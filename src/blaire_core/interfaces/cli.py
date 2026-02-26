@@ -14,6 +14,7 @@ from blaire_core.memory.store import clean_stale_locks
 from blaire_core.notifications import notify_user, notify_user_media
 from blaire_core.orchestrator import (
     AppContext,
+    approve_tool_call,
     call_tool,
     diagnostics,
     handle_user_message,
@@ -96,6 +97,8 @@ def _print_help() -> None:
     print("/telegram send-audio <path> [caption]")
     print("/telegram send-file <path> [caption]")
     print("/tool <name> <json_args>  (admin/debug: direct raw tool call)")
+    print("/approvals list")
+    print("/approve <token> <tool> <json_args>")
     print("/brain soul|rules|user|memory|heartbeat|style")
     print("/session new|list|use|current")
     print("/session cleanup --dry-run|--enforce [--active-key <id>]")
@@ -309,6 +312,39 @@ def _handle_tool(context: AppContext, tokens: list[str]) -> None:
     print(json.dumps(result, indent=2))
 
 
+def _handle_approvals(context: AppContext, tokens: list[str]) -> None:
+    if len(tokens) < 2 or tokens[1].lower() != "list":
+        print("Usage: /approvals list")
+        return
+    now = __import__("time").time()
+    rows = [
+        {
+            "token": row.token,
+            "tool": row.tool_name,
+            "expires_at": row.expires_at,
+            "used": row.used,
+        }
+        for row in context.pending_approvals.values()
+        if (not row.used) and row.expires_at > now
+    ]
+    print(json.dumps({"pending": rows}, indent=2))
+
+
+def _handle_approve(context: AppContext, tokens: list[str]) -> None:
+    if len(tokens) < 4:
+        print("Usage: /approve <token> <tool> <json_args>")
+        return
+    token = tokens[1].strip()
+    tool = tokens[2].strip()
+    try:
+        args = json.loads(" ".join(tokens[3:]))
+    except json.JSONDecodeError as exc:
+        print(f"Invalid JSON args: {exc}")
+        return
+    result = approve_tool_call(context, token=token, tool_name=tool, args=args)
+    print(json.dumps(result, indent=2))
+
+
 def _handle_session(context: AppContext, state: CliState, tokens: list[str]) -> None:
     if len(tokens) < 2:
         print("Usage: /session new|list|use|current|cleanup")
@@ -478,6 +514,12 @@ def execute_single_command(context: AppContext, command_line: str, initial_sessi
     if command == "/tool":
         _handle_tool(context, tokens)
         return 0
+    if command == "/approvals":
+        _handle_approvals(context, tokens)
+        return 0
+    if command == "/approve":
+        _handle_approve(context, tokens)
+        return 0
     if command == "/brain":
         _handle_brain(context, tokens)
         return 0
@@ -528,6 +570,8 @@ def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
         "/heartbeat": lambda tokens: _handle_heartbeat(context, tokens),
         "/admin": lambda tokens: _handle_admin(context, tokens),
         "/tool": lambda tokens: _handle_tool(context, tokens),
+        "/approvals": lambda tokens: _handle_approvals(context, tokens),
+        "/approve": lambda tokens: _handle_approve(context, tokens),
         "/brain": lambda tokens: _handle_brain(context, tokens),
         "/session": lambda tokens: _handle_session(context, state, tokens),
         "/telegram": lambda tokens: _handle_telegram(context, tokens, telegram_bridge),

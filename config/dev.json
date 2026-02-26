@@ -32,6 +32,92 @@
       "enabled": true,
       "max_calls_per_turn": 2,
       "confidence_threshold": 0.55
+    },
+    "ssh": {
+      "hosts": {
+        "bsl1": {
+          "host": "192.168.0.10",
+          "user": "kris",
+          "port": 22,
+          "key_path": ""
+        },
+        "bsl2": {
+          "host": "192.168.0.20",
+          "user": "kris",
+          "port": 22,
+          "key_path": ""
+        }
+      },
+      "connect_timeout_seconds": 8,
+      "command_allowlist": [
+        "host_health_snapshot",
+        "docker ps",
+        "docker logs",
+        "docker restart"
+      ]
+    },
+    "integrations": {
+      "obsidian": {
+        "base_url": "",
+        "api_key": "",
+        "username": "",
+        "password": "",
+        "collection": ""
+      },
+      "qdrant": {
+        "base_url": "",
+        "api_key": "",
+        "username": "",
+        "password": "",
+        "collection": ""
+      },
+      "whisper": {
+        "base_url": "",
+        "api_key": "",
+        "username": "",
+        "password": "",
+        "collection": ""
+      },
+      "chatterbox": {
+        "base_url": "",
+        "api_key": "",
+        "username": "",
+        "password": "",
+        "collection": ""
+      },
+      "sonarr": {
+        "base_url": "",
+        "api_key": "",
+        "username": "",
+        "password": "",
+        "collection": ""
+      },
+      "radarr": {
+        "base_url": "",
+        "api_key": "",
+        "username": "",
+        "password": "",
+        "collection": ""
+      },
+      "qbittorrent": {
+        "base_url": "",
+        "api_key": "",
+        "username": "",
+        "password": "",
+        "collection": ""
+      },
+      "uptime_kuma": {
+        "base_url": "",
+        "api_key": "",
+        "username": "",
+        "password": "",
+        "collection": ""
+      }
+    },
+    "approvals": {
+      "token_ttl_seconds": 180,
+      "max_pending": 50,
+      "require_confirmation": true
     }
   },
   "prompt": {

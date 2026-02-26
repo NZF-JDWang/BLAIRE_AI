@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import difflib
+import hashlib
 import json
 from typing import Any
 import re
 import os
+import secrets
+import time
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.jobs import run_heartbeat_jobs
@@ -22,8 +25,20 @@ from blaire_core.prompting.composer import BrainComposer
 from blaire_core.tools.builtin_tools import (
     check_disk_space,
     check_docker_containers_stub,
+    make_chatterbox_tts_preview_tool,
+    make_docker_container_list_tool,
+    make_docker_container_logs_tool,
+    make_docker_container_restart_tool,
+    make_host_health_snapshot_tool,
     make_local_search_tool,
+    make_media_pipeline_status_tool,
+    make_obsidian_get_note_tool,
+    make_obsidian_search_tool,
+    make_qdrant_semantic_search_tool,
+    make_service_http_probe_tool,
+    make_uptime_kuma_summary_tool,
     make_web_search_tool,
+    make_whisper_transcribe_tool,
 )
 from blaire_core.tools.registry import Tool, ToolRegistry
 
@@ -35,6 +50,16 @@ class ToolPlan:
     reason: str
     confidence: float
     requires_followup: bool = False
+
+
+@dataclass(slots=True)
+class ToolApproval:
+    token: str
+    tool_name: str
+    args_hash: str
+    expires_at: float
+    created_at: float
+    used: bool = False
 
 
 def plan_tool_calls(
@@ -83,6 +108,16 @@ def plan_tool_calls(
 
         if any(term in lowered for term in ("docker", "containers", "container status")):
             _add("check_docker_containers", {}, "Message asks for container health/status.", 0.74, requires_followup=True)
+        if any(term in lowered for term in ("host health", "cpu", "memory usage", "uptime")):
+            _add("host_health_snapshot", {"host": "bsl1"}, "Message asks for host-level metrics.", 0.78)
+        if any(term in lowered for term in ("obsidian", "vault notes", "knowledge base")):
+            _add("obsidian_search", {"query": user_message, "limit": 8}, "Message asks for vault/notes lookup.", 0.81)
+        if any(term in lowered for term in ("semantic search", "qdrant", "vector")):
+            _add("qdrant_semantic_search", {"query": user_message, "limit": 8}, "Message asks for semantic retrieval.", 0.76)
+        if any(term in lowered for term in ("sonarr", "radarr", "qbittorrent", "downloads pipeline")):
+            _add("media_pipeline_status", {}, "Message asks for media pipeline summary.", 0.79)
+        if any(term in lowered for term in ("uptime kuma", "monitor status", "outage")):
+            _add("uptime_kuma_summary", {}, "Message asks for monitor health summary.", 0.75)
     elif context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
         _add(
             "web_search",
@@ -113,6 +148,7 @@ class AppContext:
     tools: ToolRegistry
     heartbeat: HeartbeatLoop
     brain_composer: BrainComposer
+    pending_approvals: dict[str, ToolApproval]
 
 
 _AUTO_WEB_SEARCH_PATTERNS = [
@@ -251,6 +287,58 @@ def _build_tool_context(tool_name: str, result: dict[str, Any]) -> str:
     )
 
 
+def _stable_args_hash(args: dict[str, Any]) -> str:
+    payload = json.dumps(args, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def request_tool_approval(context: AppContext, tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    now = time.time()
+    ttl = max(30, int(context.config.tools.approvals.token_ttl_seconds))
+    max_pending = max(1, int(context.config.tools.approvals.max_pending))
+    if len([a for a in context.pending_approvals.values() if not a.used and a.expires_at > now]) >= max_pending:
+        return {"ok": False, "error": {"code": "approval_queue_full", "message": "Too many pending approvals"}}
+    token = secrets.token_urlsafe(18)
+    row = ToolApproval(
+        token=token,
+        tool_name=tool_name,
+        args_hash=_stable_args_hash(args),
+        created_at=now,
+        expires_at=now + ttl,
+        used=False,
+    )
+    context.pending_approvals[token] = row
+    context.memory.log_event(
+        event_type="tool_approval_requested",
+        session_id=None,
+        payload={"tool": tool_name, "token": token, "expires_at": row.expires_at},
+    )
+    return {"ok": True, "token": token, "expires_at": row.expires_at}
+
+
+def approve_tool_call(context: AppContext, token: str, tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    row = context.pending_approvals.get(token)
+    now = time.time()
+    if not row:
+        return {"ok": False, "error": {"code": "approval_not_found", "message": "Unknown approval token"}}
+    if row.used:
+        return {"ok": False, "error": {"code": "approval_used", "message": "Approval token has already been used"}}
+    if row.expires_at <= now:
+        return {"ok": False, "error": {"code": "approval_expired", "message": "Approval token has expired"}}
+    if row.tool_name != tool_name:
+        return {"ok": False, "error": {"code": "approval_mismatch", "message": "Approval token tool mismatch"}}
+    if row.args_hash != _stable_args_hash(args):
+        return {"ok": False, "error": {"code": "approval_mismatch", "message": "Approval token argument mismatch"}}
+    approved_args = dict(args)
+    approved_args["_approval_token"] = token
+    context.memory.log_event(
+        event_type="tool_approval_granted",
+        session_id=None,
+        payload={"tool": tool_name, "token": token},
+    )
+    return call_tool(context, name=tool_name, args=approved_args)
+
+
 
 
 def _propose_soul_brain_update(context: AppContext, soul_growth: dict[str, Any], session_id: str) -> None:
@@ -327,6 +415,8 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
             make_local_search_tool(config.paths.data_root),
             arg_schema={"query": "string (required)", "limit": "int 1-50"},
             usage_hints=["Finds stored local memory/facts", "Best for recall and prior notes"],
+            timeout_seconds=8,
+            max_payload_bytes=8192,
         )
     )
     registry.register(
@@ -337,6 +427,8 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
             make_web_search_tool(config),
             arg_schema={"query": "string (required)", "count": "int 1-10", "freshness": "optional string"},
             usage_hints=["Use for current events or internet lookups", "Requires Brave API key"],
+            timeout_seconds=12,
+            max_payload_bytes=8192,
         )
     )
     registry.register(
@@ -347,6 +439,8 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
             check_disk_space,
             arg_schema={"path": "string path (optional)"},
             usage_hints=["Use for storage capacity checks"],
+            timeout_seconds=3,
+            max_payload_bytes=4096,
         )
     )
     registry.register(
@@ -357,6 +451,159 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
             check_docker_containers_stub,
             arg_schema={},
             usage_hints=["Use for docker/container diagnostics"],
+            timeout_seconds=5,
+            max_payload_bytes=4096,
+        )
+    )
+    registry.register(
+        Tool(
+            "host_health_snapshot",
+            "Host-level health snapshot over SSH",
+            "safe",
+            make_host_health_snapshot_tool(config),
+            arg_schema={"host": "bsl1|bsl2"},
+            usage_hints=["Use for host load, memory, uptime, and root disk checks"],
+            host_scope=["bsl1", "bsl2"],
+            timeout_seconds=12,
+            max_payload_bytes=4096,
+        )
+    )
+    registry.register(
+        Tool(
+            "docker_container_list",
+            "List Docker containers over SSH",
+            "safe",
+            make_docker_container_list_tool(config),
+            arg_schema={"host": "bsl1|bsl2"},
+            usage_hints=["Use for container inventory and status checks"],
+            host_scope=["bsl1", "bsl2"],
+            timeout_seconds=12,
+            max_payload_bytes=4096,
+        )
+    )
+    registry.register(
+        Tool(
+            "docker_container_logs",
+            "Read container logs over SSH",
+            "safe",
+            make_docker_container_logs_tool(config),
+            arg_schema={"host": "bsl1|bsl2", "container": "string", "tail": "int 1-2000"},
+            usage_hints=["Use for recent operational troubleshooting details"],
+            host_scope=["bsl1", "bsl2"],
+            timeout_seconds=12,
+            max_payload_bytes=8192,
+        )
+    )
+    registry.register(
+        Tool(
+            "docker_container_restart",
+            "Restart one Docker container over SSH (gated)",
+            "safe",
+            make_docker_container_restart_tool(config),
+            arg_schema={"host": "bsl1|bsl2", "container": "string"},
+            usage_hints=["Use only after confirming degraded service and approval"],
+            mutating=True,
+            approval_required=True,
+            approval_scope="container_restart",
+            host_scope=["bsl1", "bsl2"],
+            timeout_seconds=12,
+            max_payload_bytes=4096,
+        )
+    )
+    registry.register(
+        Tool(
+            "service_http_probe",
+            "Probe HTTP service health",
+            "safe",
+            make_service_http_probe_tool(config),
+            arg_schema={"urls": "list[str]"},
+            usage_hints=["Use for connectivity and latency checks across services"],
+            timeout_seconds=10,
+            max_payload_bytes=8192,
+        )
+    )
+    registry.register(
+        Tool(
+            "obsidian_search",
+            "Search Obsidian vault index",
+            "safe",
+            make_obsidian_search_tool(config),
+            arg_schema={"query": "string", "limit": "int 1-25"},
+            usage_hints=["Use for vault note discovery and contextual snippets"],
+            timeout_seconds=10,
+            max_payload_bytes=8192,
+        )
+    )
+    registry.register(
+        Tool(
+            "obsidian_get_note",
+            "Fetch one Obsidian note",
+            "safe",
+            make_obsidian_get_note_tool(config),
+            arg_schema={"path": "string"},
+            usage_hints=["Use when exact note content is needed"],
+            timeout_seconds=10,
+            max_payload_bytes=4096,
+        )
+    )
+    registry.register(
+        Tool(
+            "qdrant_semantic_search",
+            "Semantic retrieval from Qdrant",
+            "safe",
+            make_qdrant_semantic_search_tool(config),
+            arg_schema={"query": "string", "collection": "optional string", "limit": "int 1-50"},
+            usage_hints=["Use for semantic context retrieval from vector memory"],
+            timeout_seconds=12,
+            max_payload_bytes=8192,
+        )
+    )
+    registry.register(
+        Tool(
+            "whisper_transcribe",
+            "Speech-to-text transcription",
+            "safe",
+            make_whisper_transcribe_tool(config),
+            arg_schema={"audio_path": "optional string", "audio_url": "optional string", "task": "optional string"},
+            usage_hints=["Use for transcribing user-provided audio"],
+            timeout_seconds=30,
+            max_payload_bytes=8192,
+        )
+    )
+    registry.register(
+        Tool(
+            "chatterbox_tts_preview",
+            "Generate TTS preview",
+            "safe",
+            make_chatterbox_tts_preview_tool(config),
+            arg_schema={"text": "string", "voice": "optional string"},
+            usage_hints=["Use for short speech synthesis previews"],
+            timeout_seconds=25,
+            max_payload_bytes=8192,
+        )
+    )
+    registry.register(
+        Tool(
+            "media_pipeline_status",
+            "Summarize Sonarr/Radarr/qBittorrent pipeline state",
+            "safe",
+            make_media_pipeline_status_tool(config),
+            arg_schema={},
+            usage_hints=["Use for queue, failures, and transfer bottleneck checks"],
+            timeout_seconds=15,
+            max_payload_bytes=4096,
+        )
+    )
+    registry.register(
+        Tool(
+            "uptime_kuma_summary",
+            "Roll up monitor status from Uptime Kuma",
+            "safe",
+            make_uptime_kuma_summary_tool(config),
+            arg_schema={},
+            usage_hints=["Use for recent uptime/degraded service overview"],
+            timeout_seconds=10,
+            max_payload_bytes=4096,
         )
     )
 
@@ -374,6 +621,7 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
             tick_fn=lambda: run_heartbeat_tick(memory, config, llm),
         ),
         brain_composer=brain_composer,
+        pending_approvals={},
     )
     return context
 
@@ -551,15 +799,17 @@ def run_heartbeat_tick(memory: MemoryStore, config: AppConfig | None = None, llm
 
 def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
     """Call registered tool by name."""
+    sanitized_args = dict(args)
+    approval_token = str(sanitized_args.pop("_approval_token", "")).strip()
     context.memory.log_event(
         event_type="tool_call_started",
         session_id=None,
         payload={
             "tool": name,
-            "args": args,
+            "args": sanitized_args,
             "summary": {
-                "arg_keys": sorted(args.keys()),
-                "arg_count": len(args),
+                "arg_keys": sorted(sanitized_args.keys()),
+                "arg_count": len(sanitized_args),
             },
         },
     )
@@ -577,7 +827,7 @@ def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
             session_id=None,
             payload={
                 "tool": name,
-                "args": args,
+                "args": sanitized_args,
                 "summary": {
                     "ok": False,
                     "error_code": "not_found",
@@ -586,8 +836,60 @@ def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
             },
         )
         return result
+    payload_size = len(json.dumps(sanitized_args, ensure_ascii=False, default=str).encode("utf-8"))
+    if tool.max_payload_bytes is not None and payload_size > tool.max_payload_bytes:
+        return {
+            "ok": False,
+            "tool": name,
+            "data": None,
+            "error": {
+                "code": "payload_too_large",
+                "message": f"Payload size {payload_size} exceeds max {tool.max_payload_bytes}",
+            },
+            "metadata": {"payload_bytes": payload_size, "max_payload_bytes": tool.max_payload_bytes},
+        }
+    if tool.host_scope:
+        host_value = str(sanitized_args.get("host", "")).strip().lower()
+        if host_value and host_value not in tool.host_scope:
+            return {
+                "ok": False,
+                "tool": name,
+                "data": None,
+                "error": {"code": "host_not_allowed", "message": f"Host '{host_value}' not allowed for tool '{name}'"},
+                "metadata": {"allowed_hosts": tool.host_scope},
+            }
+    if tool.approval_required and context.config.tools.approvals.require_confirmation:
+        approval = context.pending_approvals.get(approval_token) if approval_token else None
+        if (
+            not approval
+            or approval.used
+            or approval.expires_at <= time.time()
+            or approval.tool_name != name
+            or approval.args_hash != _stable_args_hash(sanitized_args)
+        ):
+            requested = request_tool_approval(context, name, sanitized_args)
+            if not requested.get("ok"):
+                return {
+                    "ok": False,
+                    "tool": name,
+                    "data": None,
+                    "error": requested.get("error", {"code": "approval_error", "message": "approval request failed"}),
+                    "metadata": {},
+                }
+            return {
+                "ok": False,
+                "tool": name,
+                "data": None,
+                "error": {"code": "approval_required", "message": "Approval token required before executing mutating tool"},
+                "metadata": {
+                    "approval_required": True,
+                    "approval_token": requested["token"],
+                    "expires_at": requested["expires_at"],
+                },
+            }
+        approval.used = True
     try:
-        result = tool.fn(args)
+        result = tool.fn(sanitized_args)
     except Exception as exc:  # noqa: BLE001
         result = {
             "ok": False,
@@ -601,7 +903,7 @@ def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
             session_id=None,
             payload={
                 "tool": name,
-                "args": args,
+                "args": sanitized_args,
                 "summary": {
                     "ok": False,
                     "error_code": "exception",
@@ -612,13 +914,13 @@ def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
         return result
 
     if result.get("ok"):
-        distill_summary = distill_tool_result_to_memory(memory=context.memory, tool_name=name, args=args, result=result)
+        distill_summary = distill_tool_result_to_memory(memory=context.memory, tool_name=name, args=sanitized_args, result=result)
         context.memory.log_event(
             event_type="tool_call_finished",
             session_id=None,
             payload={
                 "tool": name,
-                "args": args,
+                "args": sanitized_args,
                 "summary": {
                     "ok": True,
                     "metadata": result.get("metadata", {}),
@@ -634,7 +936,7 @@ def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
             session_id=None,
             payload={
                 "tool": name,
-                "args": args,
+                "args": sanitized_args,
                 "summary": {
                     "ok": False,
                     "error_code": error.get("code", "unknown"),
@@ -700,6 +1002,11 @@ def diagnostics(context: AppContext, deep: bool = False) -> dict[str, Any]:
         "brave": {"ready": brave_key},
         "brave_probe": brave_probe,
         "heartbeat": asdict(context.heartbeat.status()),
+        "tools": context.tools.names(),
+        "approvals": {
+            "pending": len([a for a in context.pending_approvals.values() if not a.used and a.expires_at > time.time()]),
+            "token_ttl_seconds": context.config.tools.approvals.token_ttl_seconds,
+        },
         "deep": deep,
         "locks": lock_scan,
     }

@@ -55,9 +55,78 @@ class ToolPlannerSection:
 
 
 @dataclass(slots=True)
+class SSHHostSection:
+    host: str
+    user: str
+    port: int
+    key_path: str
+
+
+@dataclass(slots=True)
+class SSHSection:
+    hosts: dict[str, SSHHostSection]
+    connect_timeout_seconds: int
+    command_allowlist: list[str]
+
+
+@dataclass(slots=True)
+class IntegrationServiceSection:
+    base_url: str
+    api_key: str
+    username: str
+    password: str
+    collection: str
+
+
+@dataclass(slots=True)
+class ToolsIntegrationsSection:
+    obsidian: IntegrationServiceSection
+    qdrant: IntegrationServiceSection
+    whisper: IntegrationServiceSection
+    chatterbox: IntegrationServiceSection
+    sonarr: IntegrationServiceSection
+    radarr: IntegrationServiceSection
+    qbittorrent: IntegrationServiceSection
+    uptime_kuma: IntegrationServiceSection
+
+
+@dataclass(slots=True)
+class ToolApprovalsSection:
+    token_ttl_seconds: int
+    max_pending: int
+    require_confirmation: bool
+
+
+@dataclass(slots=True)
 class ToolsSection:
     web_search: WebSearchSection
     planner: ToolPlannerSection
+    ssh: SSHSection = field(
+        default_factory=lambda: SSHSection(
+            hosts={},
+            connect_timeout_seconds=8,
+            command_allowlist=[],
+        )
+    )
+    integrations: ToolsIntegrationsSection = field(
+        default_factory=lambda: ToolsIntegrationsSection(
+            obsidian=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+            qdrant=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+            whisper=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+            chatterbox=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+            sonarr=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+            radarr=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+            qbittorrent=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+            uptime_kuma=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+        )
+    )
+    approvals: ToolApprovalsSection = field(
+        default_factory=lambda: ToolApprovalsSection(
+            token_ttl_seconds=180,
+            max_pending=50,
+            require_confirmation=True,
+        )
+    )
 
 
 @dataclass(slots=True)
@@ -188,6 +257,22 @@ def _env_overrides() -> dict[str, Any]:
         "BLAIRE_DATA_PATH": "paths.data_root",
         "BLAIRE_HEARTBEAT_INTERVAL": "heartbeat.interval_seconds",
         "BLAIRE_BRAVE_API_KEY": "tools.web_search.api_key",
+        "BLAIRE_OBSIDIAN_BASE_URL": "tools.integrations.obsidian.base_url",
+        "BLAIRE_OBSIDIAN_API_KEY": "tools.integrations.obsidian.api_key",
+        "BLAIRE_QDRANT_BASE_URL": "tools.integrations.qdrant.base_url",
+        "BLAIRE_QDRANT_API_KEY": "tools.integrations.qdrant.api_key",
+        "BLAIRE_QDRANT_COLLECTION": "tools.integrations.qdrant.collection",
+        "BLAIRE_WHISPER_BASE_URL": "tools.integrations.whisper.base_url",
+        "BLAIRE_CHATTERBOX_BASE_URL": "tools.integrations.chatterbox.base_url",
+        "BLAIRE_SONARR_BASE_URL": "tools.integrations.sonarr.base_url",
+        "BLAIRE_SONARR_API_KEY": "tools.integrations.sonarr.api_key",
+        "BLAIRE_RADARR_BASE_URL": "tools.integrations.radarr.base_url",
+        "BLAIRE_RADARR_API_KEY": "tools.integrations.radarr.api_key",
+        "BLAIRE_QBITTORRENT_BASE_URL": "tools.integrations.qbittorrent.base_url",
+        "BLAIRE_QBITTORRENT_USERNAME": "tools.integrations.qbittorrent.username",
+        "BLAIRE_QBITTORRENT_PASSWORD": "tools.integrations.qbittorrent.password",
+        "BLAIRE_UPTIME_KUMA_BASE_URL": "tools.integrations.uptime_kuma.base_url",
+        "BLAIRE_UPTIME_KUMA_API_KEY": "tools.integrations.uptime_kuma.api_key",
         "BLAIRE_LOG_LEVEL": "logging.level",
         "BLAIRE_TELEGRAM_ENABLED": "telegram.enabled",
         "BLAIRE_TELEGRAM_BOT_TOKEN": "telegram.bot_token",
@@ -264,6 +349,15 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
             confidence_threshold = planner.get("confidence_threshold")
             if not isinstance(confidence_threshold, (int, float)) or confidence_threshold < 0 or confidence_threshold > 1:
                 issues.append("tools.planner.confidence_threshold must be a number between 0 and 1")
+        ssh = tools.get("ssh", {})
+        if ssh and not isinstance(ssh, dict):
+            issues.append("tools.ssh must be an object")
+        approvals = tools.get("approvals", {})
+        if approvals and not isinstance(approvals, dict):
+            issues.append("tools.approvals must be an object")
+        integrations = tools.get("integrations", {})
+        if integrations and not isinstance(integrations, dict):
+            issues.append("tools.integrations must be an object")
     else:
         issues.append("tools must be an object")
 
@@ -304,6 +398,9 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
 def _to_config(raw: dict[str, Any]) -> AppConfig:
     ws = raw["tools"]["web_search"]
     planner = raw["tools"]["planner"]
+    ssh_raw = raw["tools"].get("ssh", {}) if isinstance(raw["tools"].get("ssh"), dict) else {}
+    approvals_raw = raw["tools"].get("approvals", {}) if isinstance(raw["tools"].get("approvals"), dict) else {}
+    integrations_raw = raw["tools"].get("integrations", {}) if isinstance(raw["tools"].get("integrations"), dict) else {}
     maint = raw["session"]["maintenance"]
     telegram_raw = raw.get("telegram", {}) if isinstance(raw.get("telegram", {}), dict) else {}
     telegram_enabled = bool(telegram_raw.get("enabled", False))
@@ -316,6 +413,27 @@ def _to_config(raw: dict[str, Any]) -> AppConfig:
         telegram_polling_enabled = False
     if not telegram_enabled:
         telegram_polling_enabled = False
+
+    def _service(name: str) -> IntegrationServiceSection:
+        row = integrations_raw.get(name, {}) if isinstance(integrations_raw.get(name), dict) else {}
+        return IntegrationServiceSection(
+            base_url=str(row.get("base_url", "")),
+            api_key=str(row.get("api_key", "")),
+            username=str(row.get("username", "")),
+            password=str(row.get("password", "")),
+            collection=str(row.get("collection", "")),
+        )
+
+    ssh_hosts: dict[str, SSHHostSection] = {}
+    for alias, row in (ssh_raw.get("hosts", {}) if isinstance(ssh_raw.get("hosts"), dict) else {}).items():
+        if not isinstance(row, dict):
+            continue
+        ssh_hosts[str(alias)] = SSHHostSection(
+            host=str(row.get("host", "")),
+            user=str(row.get("user", "")),
+            port=int(row.get("port", 22)),
+            key_path=str(row.get("key_path", "")),
+        )
 
     return AppConfig(
         app=AppSection(env=str(raw["app"]["env"])),
@@ -344,6 +462,26 @@ def _to_config(raw: dict[str, Any]) -> AppConfig:
                 enabled=bool(planner.get("enabled", True)),
                 max_calls_per_turn=int(planner.get("max_calls_per_turn", 2)),
                 confidence_threshold=float(planner.get("confidence_threshold", 0.55)),
+            ),
+            ssh=SSHSection(
+                hosts=ssh_hosts,
+                connect_timeout_seconds=int(ssh_raw.get("connect_timeout_seconds", 8)),
+                command_allowlist=[str(v) for v in ssh_raw.get("command_allowlist", []) if isinstance(v, str)],
+            ),
+            integrations=ToolsIntegrationsSection(
+                obsidian=_service("obsidian"),
+                qdrant=_service("qdrant"),
+                whisper=_service("whisper"),
+                chatterbox=_service("chatterbox"),
+                sonarr=_service("sonarr"),
+                radarr=_service("radarr"),
+                qbittorrent=_service("qbittorrent"),
+                uptime_kuma=_service("uptime_kuma"),
+            ),
+            approvals=ToolApprovalsSection(
+                token_ttl_seconds=int(approvals_raw.get("token_ttl_seconds", 180)),
+                max_pending=int(approvals_raw.get("max_pending", 50)),
+                require_confirmation=bool(approvals_raw.get("require_confirmation", True)),
             ),
         ),
         prompt=PromptSection(soul_rules=str(raw["prompt"]["soul_rules"])),
@@ -397,6 +535,26 @@ def _bootstrap_config(env: str) -> AppConfig:
                 enabled=True,
                 max_calls_per_turn=2,
                 confidence_threshold=0.55,
+            ),
+            ssh=SSHSection(
+                hosts={},
+                connect_timeout_seconds=8,
+                command_allowlist=[],
+            ),
+            integrations=ToolsIntegrationsSection(
+                obsidian=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+                qdrant=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+                whisper=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+                chatterbox=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+                sonarr=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+                radarr=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+                qbittorrent=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+                uptime_kuma=IntegrationServiceSection(base_url="", api_key="", username="", password="", collection=""),
+            ),
+            approvals=ToolApprovalsSection(
+                token_ttl_seconds=180,
+                max_pending=50,
+                require_confirmation=True,
             ),
         ),
         prompt=PromptSection(soul_rules="You are BLAIRE Core. Be concise, safe, and practical."),

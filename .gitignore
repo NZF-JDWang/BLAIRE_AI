@@ -34,3 +34,7 @@ data/brain/*
 # Local environment files
 .env
 config/local.json
+.secrets.local.json
+
+# Local reference docs
+BlacksiteLab-Reference.md

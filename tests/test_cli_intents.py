@@ -115,3 +115,32 @@ def test_help_brain_command_does_not_advertise_edit(monkeypatch, tmp_path, capsy
     output = capsys.readouterr().out
     assert "/brain soul|rules|user|memory|heartbeat|style" in output
     assert "edit <file>" not in output
+
+
+def test_approvals_commands_roundtrip(monkeypatch, tmp_path, capsys) -> None:
+    snapshot = read_config_snapshot("dev", {"paths.data_root": str(tmp_path), "llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    monkeypatch.setattr(
+        cli,
+        "approve_tool_call",
+        lambda context, token, tool_name, args: {
+            "ok": True,
+            "tool": tool_name,
+            "metadata": {"token": token},
+            "data": args,
+            "error": None,
+        },
+    )
+
+    list_code = cli.execute_single_command(context, "/approvals list")
+    approve_code = cli.execute_single_command(
+        context, "/approve tok-1 docker_container_restart '{\"host\":\"bsl1\",\"container\":\"jellyfin\"}'"
+    )
+
+    assert list_code == 0
+    assert approve_code == 0
+    output = capsys.readouterr().out
+    assert "pending" in output
+    assert "docker_container_restart" in output
