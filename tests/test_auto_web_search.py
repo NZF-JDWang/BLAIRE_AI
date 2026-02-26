@@ -202,6 +202,39 @@ def test_planner_prefers_local_search_for_memory_prompt() -> None:
     assert any(plan.tool_name == "local_search" for plan in plans)
 
 
+def test_planner_routes_container_host_query_to_docker_container_list() -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    plans = plan_tool_calls(
+        context,
+        session_id="s-plan-containers-bsl1",
+        user_message="Are there any issues with the containers on BSL1?",
+        recent_messages=[],
+    )
+
+    assert any(plan.tool_name == "docker_container_list" and plan.args.get("host") == "bsl1" for plan in plans)
+    assert not any(plan.tool_name == "check_docker_containers" for plan in plans)
+
+
+def test_planner_routes_cross_host_disk_query_to_two_host_health_calls() -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    plans = plan_tool_calls(
+        context,
+        session_id="s-plan-disk-both-hosts",
+        user_message="Can you break down disk space across both BSL1 and 2?",
+        recent_messages=[],
+    )
+
+    host_plans = [plan for plan in plans if plan.tool_name == "host_health_snapshot"]
+    hosts = sorted(str(plan.args.get("host", "")) for plan in host_plans)
+    assert hosts == ["bsl1", "bsl2"]
+
+
 def test_planner_disabled_uses_regex_web_fallback(monkeypatch) -> None:
     snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
     assert snapshot.effective_config is not None

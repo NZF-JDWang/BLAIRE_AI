@@ -63,6 +63,27 @@ class ToolApproval:
     used: bool = False
 
 
+def _infer_target_hosts(user_message: str) -> list[str]:
+    lowered = user_message.strip().lower()
+    if not lowered:
+        return []
+    bsl1 = bool(re.search(r"\bbsl[\s-]?1\b", lowered))
+    bsl2 = bool(re.search(r"\bbsl[\s-]?2\b", lowered))
+    bsl1_and_2 = bool(re.search(r"\bbsl[\s-]?1\s*(?:and|&)\s*2\b", lowered))
+    bsl2_and_1 = bool(re.search(r"\bbsl[\s-]?2\s*(?:and|&)\s*1\b", lowered))
+    if bsl1_and_2 or bsl2_and_1:
+        return ["bsl1", "bsl2"]
+    if bsl1 and bsl2:
+        return ["bsl1", "bsl2"]
+    if bsl1:
+        return ["bsl1"]
+    if bsl2:
+        return ["bsl2"]
+    if "bsl" in lowered and "both" in lowered:
+        return ["bsl1", "bsl2"]
+    return []
+
+
 def plan_tool_calls(
     context: AppContext, session_id: str, user_message: str, recent_messages: list[dict[str, str]]
 ) -> list[ToolPlan]:
@@ -73,6 +94,7 @@ def plan_tool_calls(
 
     plans: list[ToolPlan] = []
     tool_map = {tool.name: tool for tool in context.tools.all_tools()}
+    target_hosts = _infer_target_hosts(user_message)
 
     def _add(name: str, args: dict[str, Any], reason: str, confidence: float, requires_followup: bool = False) -> None:
         tool = tool_map.get(name)
@@ -105,12 +127,34 @@ def plan_tool_calls(
             _add("local_search", {"query": user_message, "limit": 10}, "Message asks for recalled local knowledge.", 0.82)
 
         if any(term in lowered for term in ("disk", "storage", "free space", "filesystem usage")):
-            _add("check_disk_space", {"path": "."}, "Message asks for system storage status.", 0.86, requires_followup=True)
+            wants_multi_host = bool(re.search(r"\b(across|both|compare)\b", lowered))
+            if target_hosts or wants_multi_host:
+                hosts = target_hosts or ["bsl1", "bsl2"]
+                for host in hosts:
+                    _add(
+                        "host_health_snapshot",
+                        {"host": host},
+                        "Message asks for host storage/system status across target hosts.",
+                        0.88,
+                        requires_followup=True,
+                    )
+            else:
+                _add("check_disk_space", {"path": "."}, "Message asks for system storage status.", 0.86, requires_followup=True)
 
         if any(term in lowered for term in ("docker", "containers", "container status")):
-            _add("check_docker_containers", {}, "Message asks for container health/status.", 0.74, requires_followup=True)
+            hosts = target_hosts or ["bsl1"]
+            for host in hosts:
+                _add(
+                    "docker_container_list",
+                    {"host": host},
+                    "Message asks for container health/status on target host(s).",
+                    0.9,
+                    requires_followup=True,
+                )
         if any(term in lowered for term in ("host health", "cpu", "memory usage", "uptime")):
-            _add("host_health_snapshot", {"host": "bsl1"}, "Message asks for host-level metrics.", 0.78)
+            hosts = target_hosts or ["bsl1"]
+            for host in hosts:
+                _add("host_health_snapshot", {"host": host}, "Message asks for host-level metrics.", 0.78)
         if any(term in lowered for term in ("obsidian", "vault notes", "knowledge base")):
             _add("obsidian_search", {"query": user_message, "limit": 8}, "Message asks for vault/notes lookup.", 0.81)
         if any(term in lowered for term in ("semantic search", "qdrant", "vector")):
@@ -132,7 +176,8 @@ def plan_tool_calls(
     for plan in sorted(plans, key=lambda row: row.confidence, reverse=True):
         if plan.confidence < threshold:
             continue
-        if any(existing.tool_name == plan.tool_name for existing in selected):
+        plan_key = (plan.tool_name, json.dumps(plan.args, sort_keys=True, default=str))
+        if any((existing.tool_name, json.dumps(existing.args, sort_keys=True, default=str)) == plan_key for existing in selected):
             continue
         selected.append(plan)
         if len(selected) >= context.config.tools.planner.max_calls_per_turn:
