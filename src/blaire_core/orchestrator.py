@@ -12,7 +12,6 @@ import re
 import os
 import secrets
 import time
-from urllib.parse import urlparse
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.jobs import run_heartbeat_jobs
@@ -335,31 +334,18 @@ def _build_web_context(web_result: dict[str, Any]) -> str:
     data = web_result.get("data", {})
     query = data.get("query", "")
     provider = data.get("provider", "brave")
-    query_text = str(query).lower()
-    winner_query = bool(re.search(r"\b(who won|winner|gold medal|final result|champion)\b", query_text))
-    rows: list[str] = [f"Web search context ({provider}) for query: {query}"]
-    if winner_query:
-        rows.extend(
-            [
-                "Winner Query Guardrails:",
-                "- Do not infer winners from semi-finals, previews, or schedules.",
-                "- Only report a winner if an item explicitly states final/gold-medal result.",
-                "- If evidence is ambiguous or conflicting, say you cannot verify winner yet.",
-            ]
-        )
+    rows: list[str] = [
+        f"Web search context ({provider}) for query: {query}",
+        "Evidence Use Guardrails:",
+        "- Ground factual claims in retrieved snippets/titles; do not invent unsupported details.",
+        "- If results conflict or are ambiguous, say you cannot verify and ask to refine query.",
+        "- Prefer explicit source-backed wording over confident speculation.",
+    ]
     for item in data.get("results", [])[:3]:
         title = str(item.get("title", ""))
         url = str(item.get("url", ""))
         snippet = str(item.get("snippet", "")).replace("\n", " ")
-        text = f"{title} {snippet}".lower()
-        final_signal = bool(re.search(r"\b(final|gold medal|won gold|defeated .* in (the )?final|champion)\b", text))
-        semifinal_signal = bool(re.search(r"\b(semi[- ]?final|quarter[- ]?final|group stage|preview|schedule)\b", text))
-        domain = urlparse(url).netloc
         rows.append(f"- {title} | {url}")
-        rows.append(
-            f"  signals: domain={domain or 'unknown'}, final_evidence={'yes' if final_signal else 'no'}, "
-            f"semifinal_or_preview={'yes' if semifinal_signal else 'no'}"
-        )
         rows.append(f"  snippet: {snippet[:280]}")
     return "\n".join(rows)
 

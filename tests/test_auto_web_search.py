@@ -56,7 +56,7 @@ def test_auto_web_search_injected_into_messages(monkeypatch) -> None:
     assert "Web search context" in captured["messages"][0]["content"]
 
 
-def test_winner_query_web_context_adds_guardrails(monkeypatch) -> None:
+def test_web_context_adds_generic_evidence_guardrails(monkeypatch) -> None:
     snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
     assert snapshot.effective_config is not None
     cfg = snapshot.effective_config
@@ -91,12 +91,12 @@ def test_winner_query_web_context_adds_guardrails(monkeypatch) -> None:
     context.tools.get("web_search").fn = _fake_web  # type: ignore[union-attr]
     monkeypatch.setattr(context.llm, "generate", _fake_generate)
 
-    handle_user_message(context, session_id="s-winner-guardrails", user_message="Who won the 2026 Winter Olympics ice hockey?")
+    handle_user_message(context, session_id="s-evidence-guardrails", user_message="Who won the 2026 Winter Olympics ice hockey?")
 
     assert captured["messages"]
     context_block = captured["messages"][0]["content"]
-    assert "Winner Query Guardrails" in context_block
-    assert "Do not infer winners from semi-finals" in context_block
+    assert "Evidence Use Guardrails" in context_block
+    assert "Ground factual claims in retrieved snippets/titles" in context_block
 
 
 def test_capability_drift_triggers_single_regeneration(monkeypatch) -> None:
