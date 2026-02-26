@@ -56,6 +56,49 @@ def test_auto_web_search_injected_into_messages(monkeypatch) -> None:
     assert "Web search context" in captured["messages"][0]["content"]
 
 
+def test_winner_query_web_context_adds_guardrails(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    cfg = snapshot.effective_config
+    cfg = replace(
+        cfg,
+        tools=replace(
+            cfg.tools,
+            web_search=replace(cfg.tools.web_search, auto_use=True, auto_count=2),
+        ),
+    )
+    context = build_context(cfg, snapshot)
+
+    captured = {"messages": None}
+
+    def _fake_web(args: dict) -> dict:
+        return {
+            "ok": True,
+            "data": {
+                "query": args["query"],
+                "provider": "brave",
+                "results": [
+                    {"title": "Semi-final recap", "url": "https://example.com/semi", "snippet": "Semi-final match recap"}
+                ],
+            },
+        }
+
+    def _fake_generate(system_prompt: str, messages: list[dict], max_tokens: int) -> str:
+        _ = (system_prompt, max_tokens)
+        captured["messages"] = messages
+        return "ok"
+
+    context.tools.get("web_search").fn = _fake_web  # type: ignore[union-attr]
+    monkeypatch.setattr(context.llm, "generate", _fake_generate)
+
+    handle_user_message(context, session_id="s-winner-guardrails", user_message="Who won the 2026 Winter Olympics ice hockey?")
+
+    assert captured["messages"]
+    context_block = captured["messages"][0]["content"]
+    assert "Winner Query Guardrails" in context_block
+    assert "Do not infer winners from semi-finals" in context_block
+
+
 def test_capability_drift_triggers_single_regeneration(monkeypatch) -> None:
     snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
     assert snapshot.effective_config is not None
