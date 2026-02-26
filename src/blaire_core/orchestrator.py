@@ -155,8 +155,6 @@ _AUTO_WEB_SEARCH_PATTERNS = [
     r"\b(latest|most recent|today|news|breaking)\b",
     r"\b(current|currently|as of)\b",
     r"\b(price|stock|market|weather|score)\b",
-    r"\b(who won|winner|winners|result|results)\b",
-    r"\b(olympics|world cup|tournament|final)\b",
     r"\b(version|release|changelog)\b",
     r"\b(search|look up|lookup)\b.{0,40}\b(web|internet)\b",
 ]
@@ -168,9 +166,39 @@ def _should_auto_web_search(user_message: str) -> bool:
         return False
     if any(re.search(pattern, text) for pattern in _AUTO_WEB_SEARCH_PATTERNS):
         return True
-    if re.search(r"\b(19|20)\d{2}\b", text) and re.search(r"\b(won|winner|result|results|champion)\b", text):
-        return True
     return text.startswith(("who is", "what is", "when is", "where is", "how to")) and text.endswith("?")
+
+
+def _is_factoid_question(user_message: str) -> bool:
+    text = user_message.strip().lower()
+    if not text:
+        return False
+    if text.endswith("?"):
+        return True
+    return text.startswith(("who", "what", "when", "where", "why", "how", "which"))
+
+
+_LOW_CONFIDENCE_PATTERNS = [
+    r"\bi (do not|don't) know\b",
+    r"\bnot sure\b",
+    r"\buncertain\b",
+    r"\bcan't confirm\b",
+    r"\bcannot confirm\b",
+    r"\bmight be\b",
+    r"\bmaybe\b",
+    r"\bprobably\b",
+    r"\blikely\b",
+    r"\bi think\b",
+    r"\bcould be\b",
+    r"\bappears to\b",
+]
+
+
+def _answer_is_low_confidence(answer: str) -> bool:
+    lowered = answer.strip().lower()
+    if not lowered:
+        return True
+    return any(re.search(pattern, lowered) for pattern in _LOW_CONFIDENCE_PATTERNS)
 
 
 def _capability_guard_message() -> str:
@@ -680,6 +708,20 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
             web_attempted = True
 
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
+    if (
+        context.config.tools.web_search.auto_use
+        and not web_attempted
+        and _is_factoid_question(user_message)
+        and _answer_is_low_confidence(answer)
+    ):
+        web_result = call_tool(
+            context,
+            name="web_search",
+            args={"query": user_message, "count": context.config.tools.web_search.auto_count},
+        )
+        messages.insert(0, {"role": "system", "content": _build_web_context(web_result)})
+        web_attempted = True
+        answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
     if _has_capability_drift(answer):
         context.memory.log_event(
             event_type="capability_drift_detected",

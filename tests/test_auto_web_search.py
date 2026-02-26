@@ -11,7 +11,6 @@ def test_should_auto_web_search_patterns() -> None:
     assert _should_auto_web_search("latest ollama release notes")
     assert _should_auto_web_search("What is the current weather in Wellington?")
     assert _should_auto_web_search("can you search the web for qwen release notes?")
-    assert _should_auto_web_search("who won the 2026 winter olympics ice hockey")
     assert not _should_auto_web_search("rewrite this paragraph")
 
 
@@ -211,3 +210,38 @@ def test_planned_non_web_tool_uses_call_tool_and_injects_context(monkeypatch) ->
     assert captured["tool_name"] == "local_search"
     assert isinstance(captured["messages"], list)
     assert "Tool context (local_search)" in captured["messages"][0]["content"]  # type: ignore[index]
+
+
+def test_low_confidence_answer_triggers_web_lookup(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    captured = {"web_called": 0, "llm_calls": 0}
+
+    def _fake_web(args: dict) -> dict:
+        captured["web_called"] += 1
+        return {
+            "ok": True,
+            "data": {
+                "query": args["query"],
+                "provider": "brave",
+                "results": [{"title": "IIHF", "url": "https://example.com", "snippet": "winner"}],
+            },
+        }
+
+    def _fake_generate(system_prompt: str, messages: list[dict], max_tokens: int) -> str:
+        _ = (system_prompt, messages, max_tokens)
+        captured["llm_calls"] += 1
+        if captured["llm_calls"] == 1:
+            return "I'm not sure who won."
+        return "After checking, Team X won."
+
+    context.tools.get("web_search").fn = _fake_web  # type: ignore[union-attr]
+    monkeypatch.setattr(context.llm, "generate", _fake_generate)
+
+    answer = handle_user_message(context, session_id="s-low-confidence", user_message="Who won the 2026 winter olympics ice hockey?")
+
+    assert captured["web_called"] == 1
+    assert captured["llm_calls"] == 2
+    assert "after checking" in answer.lower()
