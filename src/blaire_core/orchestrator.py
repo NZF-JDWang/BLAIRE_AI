@@ -178,6 +178,17 @@ def _is_factoid_question(user_message: str) -> bool:
     return text.startswith(("who", "what", "when", "where", "why", "how", "which"))
 
 
+def _is_time_sensitive_factoid(user_message: str) -> bool:
+    text = user_message.strip().lower()
+    if not text:
+        return False
+    years = [int(match) for match in re.findall(r"\b(20\d{2})\b", text)]
+    if not years:
+        return False
+    current_year = time.gmtime().tm_year
+    return _is_factoid_question(user_message) and any(year >= current_year - 1 for year in years)
+
+
 _LOW_CONFIDENCE_PATTERNS = [
     r"\bi (do not|don't) know\b",
     r"\bnot sure\b",
@@ -224,6 +235,9 @@ _CAPABILITY_DRIFT_PATTERNS = [
     r"\bi don't have memory beyond this session\b",
     r"\bcan't retain context between sessions\b",
     r"\bcannot retain context between sessions\b",
+    r"\bknowledge cutoff\b",
+    r"\blive data source\b",
+    r"\bno live data\b",
     r"\bknowledge is static\b",
     r"\b2023 cutoff\b",
     r"\bmemory is disabled\b",
@@ -719,7 +733,7 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         context.config.tools.web_search.auto_use
         and not web_attempted
         and _is_factoid_question(user_message)
-        and _answer_is_low_confidence(answer)
+        and (_answer_is_low_confidence(answer) or _is_time_sensitive_factoid(user_message))
     ):
         web_result = call_tool(
             context,

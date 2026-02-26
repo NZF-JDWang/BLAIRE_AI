@@ -278,3 +278,42 @@ def test_low_confidence_lookup_adds_disclosure_when_missing(monkeypatch) -> None
     answer = handle_user_message(context, session_id="s-low-confidence-disclose", user_message="Who won?")
     assert calls["count"] == 2
     assert answer.lower().startswith("i wasn't fully sure, so i looked it up.")
+
+
+def test_time_sensitive_factoid_triggers_web_even_if_first_answer_confident(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    captured = {"web_called": 0, "llm_calls": 0}
+
+    def _fake_web(args: dict) -> dict:
+        captured["web_called"] += 1
+        return {
+            "ok": True,
+            "data": {
+                "query": args["query"],
+                "provider": "brave",
+                "results": [{"title": "Official Result", "url": "https://example.com", "snippet": "winner"}],
+            },
+        }
+
+    def _fake_generate(system_prompt: str, messages: list[dict], max_tokens: int) -> str:
+        _ = (system_prompt, messages, max_tokens)
+        captured["llm_calls"] += 1
+        if captured["llm_calls"] == 1:
+            return "No winner exists yet."
+        return "The winner was Team X."
+
+    context.tools.get("web_search").fn = _fake_web  # type: ignore[union-attr]
+    monkeypatch.setattr(context.llm, "generate", _fake_generate)
+
+    answer = handle_user_message(
+        context,
+        session_id="s-time-sensitive-factoid",
+        user_message="Who won the 2026 Winter Olympics ice hockey?",
+    )
+
+    assert captured["web_called"] == 1
+    assert captured["llm_calls"] == 2
+    assert "looked it up" in answer.lower() or "winner was team x" in answer.lower()
