@@ -91,7 +91,7 @@ def plan_tool_calls(
         )
 
     if context.config.tools.planner.enabled:
-        if context.config.tools.web_search.auto_use and any(word in lowered for word in ("latest", "today", "news", "current", "web", "internet")):
+        if context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
             _add(
                 "web_search",
                 {"query": user_message, "count": context.config.tools.web_search.auto_count},
@@ -155,6 +155,8 @@ _AUTO_WEB_SEARCH_PATTERNS = [
     r"\b(latest|most recent|today|news|breaking)\b",
     r"\b(current|currently|as of)\b",
     r"\b(price|stock|market|weather|score)\b",
+    r"\b(who won|winner|winners|result|results)\b",
+    r"\b(olympics|world cup|tournament|final)\b",
     r"\b(version|release|changelog)\b",
     r"\b(search|look up|lookup)\b.{0,40}\b(web|internet)\b",
 ]
@@ -165,6 +167,8 @@ def _should_auto_web_search(user_message: str) -> bool:
     if not text:
         return False
     if any(re.search(pattern, text) for pattern in _AUTO_WEB_SEARCH_PATTERNS):
+        return True
+    if re.search(r"\b(19|20)\d{2}\b", text) and re.search(r"\b(won|winner|result|results|champion)\b", text):
         return True
     return text.startswith(("who is", "what is", "when is", "where is", "how to")) and text.endswith("?")
 
@@ -397,7 +401,7 @@ def _propose_soul_brain_update(context: AppContext, soul_growth: dict[str, Any],
             f"Diff preview:\n{diff[:1400]}"
         ),
         level="info",
-        via_telegram=True,
+        via_telegram=False,
     )
 
 

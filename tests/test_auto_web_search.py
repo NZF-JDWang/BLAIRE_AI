@@ -11,6 +11,7 @@ def test_should_auto_web_search_patterns() -> None:
     assert _should_auto_web_search("latest ollama release notes")
     assert _should_auto_web_search("What is the current weather in Wellington?")
     assert _should_auto_web_search("can you search the web for qwen release notes?")
+    assert _should_auto_web_search("who won the 2026 winter olympics ice hockey")
     assert not _should_auto_web_search("rewrite this paragraph")
 
 
