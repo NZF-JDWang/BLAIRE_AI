@@ -245,3 +245,36 @@ def test_low_confidence_answer_triggers_web_lookup(monkeypatch) -> None:
     assert captured["web_called"] == 1
     assert captured["llm_calls"] == 2
     assert "after checking" in answer.lower()
+
+
+def test_low_confidence_lookup_adds_disclosure_when_missing(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    calls = {"count": 0}
+
+    def _fake_web(args: dict) -> dict:
+        _ = args
+        return {
+            "ok": True,
+            "data": {
+                "query": "x",
+                "provider": "brave",
+                "results": [{"title": "Example", "url": "https://example.com", "snippet": "snippet"}],
+            },
+        }
+
+    def _fake_generate(system_prompt: str, messages: list[dict], max_tokens: int) -> str:
+        _ = (system_prompt, messages, max_tokens)
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return "I'm not sure."
+        return "Team X won."
+
+    context.tools.get("web_search").fn = _fake_web  # type: ignore[union-attr]
+    monkeypatch.setattr(context.llm, "generate", _fake_generate)
+
+    answer = handle_user_message(context, session_id="s-low-confidence-disclose", user_message="Who won?")
+    assert calls["count"] == 2
+    assert answer.lower().startswith("i wasn't fully sure, so i looked it up.")

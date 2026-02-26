@@ -201,6 +201,13 @@ def _answer_is_low_confidence(answer: str) -> bool:
     return any(re.search(pattern, lowered) for pattern in _LOW_CONFIDENCE_PATTERNS)
 
 
+def _answer_mentions_lookup(answer: str) -> bool:
+    lowered = answer.strip().lower()
+    return bool(
+        re.search(r"\b(looked up|looked it up|checked the web|searched the web|verified online|after checking)\b", lowered)
+    )
+
+
 def _capability_guard_message() -> str:
     return (
         "Capability Guard (non-negotiable):\n"
@@ -722,6 +729,8 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         messages.insert(0, {"role": "system", "content": _build_web_context(web_result)})
         web_attempted = True
         answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
+        if web_result.get("ok") and not _answer_mentions_lookup(answer):
+            answer = f"I wasn't fully sure, so I looked it up. {answer}"
     if _has_capability_drift(answer):
         context.memory.log_event(
             event_type="capability_drift_detected",
