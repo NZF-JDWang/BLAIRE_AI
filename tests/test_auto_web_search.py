@@ -317,3 +317,28 @@ def test_time_sensitive_factoid_triggers_web_even_if_first_answer_confident(monk
     assert captured["web_called"] == 1
     assert captured["llm_calls"] == 2
     assert "looked it up" in answer.lower() or "winner was team x" in answer.lower()
+
+
+def test_capability_fallback_includes_web_tool_error(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    calls = {"web": 0, "llm": 0}
+
+    def _fake_web(args: dict) -> dict:
+        _ = args
+        calls["web"] += 1
+        return {"ok": False, "error": {"code": "missing_brave_api_key", "message": "Set API key"}, "metadata": {}}
+
+    def _fake_generate(system_prompt: str, messages: list[dict], max_tokens: int) -> str:
+        _ = (system_prompt, messages, max_tokens)
+        calls["llm"] += 1
+        return "My knowledge cutoff is 2023. You need a live data source."
+
+    context.tools.get("web_search").fn = _fake_web  # type: ignore[union-attr]
+    monkeypatch.setattr(context.llm, "generate", _fake_generate)
+
+    answer = handle_user_message(context, session_id="s-cap-fallback-tool-error", user_message="Who won the 2026 Winter Olympics ice hockey?")
+    assert calls["web"] >= 1
+    assert "missing_brave_api_key" in answer

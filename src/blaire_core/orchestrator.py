@@ -291,25 +291,28 @@ def _memory_recall_answer_looks_invalid(answer: str) -> bool:
     )
 
 
-def _capability_safe_fallback(user_message: str, web_attempted: bool) -> str:
+def _capability_safe_fallback(user_message: str, web_attempted: bool, tool_error: str | None = None) -> str:
     lowered = user_message.strip().lower()
     asks_web = bool(re.search(r"\b(search|look up|lookup)\b.{0,40}\b(web|internet)\b", lowered)) or _should_auto_web_search(
         user_message
     )
     if asks_web:
         if web_attempted:
-            return (
+            base = (
                 "Yes. I have persistent memory in this runtime and I can use the web-search tool here. "
                 "Share the exact query and I will run it now."
             )
-        return (
+            return f"{base} Tool status: {tool_error}" if tool_error else base
+        base = (
             "Yes. I have persistent memory in this runtime and can run web search when configured. "
             "Give me the exact query and I will search it now."
         )
-    return (
+        return f"{base} Tool status: {tool_error}" if tool_error else base
+    base = (
         "I have persistent memory in this runtime and I can use configured tools (including web search). "
         "Tell me the next task and I will execute it."
     )
+    return f"{base} Tool status: {tool_error}" if tool_error else base
 
 
 def _build_web_context(web_result: dict[str, Any]) -> str:
@@ -720,6 +723,7 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         recent_pairs=context.config.session.recent_pairs,
     )
     web_attempted = False
+    last_tool_error: str | None = None
     recent_messages = messages[-6:]
     tool_plans = plan_tool_calls(context, session_id, user_message, recent_messages)
     for plan in tool_plans:
@@ -727,6 +731,9 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         messages.insert(0, {"role": "system", "content": _build_tool_context(plan.tool_name, result)})
         if plan.tool_name == "web_search":
             web_attempted = True
+            if not result.get("ok"):
+                err = result.get("error", {}) if isinstance(result.get("error"), dict) else {}
+                last_tool_error = f"{err.get('code', 'unknown')} - {err.get('message', '')}".strip()
 
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
     if (
@@ -742,6 +749,9 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         )
         messages.insert(0, {"role": "system", "content": _build_web_context(web_result)})
         web_attempted = True
+        if not web_result.get("ok"):
+            err = web_result.get("error", {}) if isinstance(web_result.get("error"), dict) else {}
+            last_tool_error = f"{err.get('code', 'unknown')} - {err.get('message', '')}".strip()
         answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
         if web_result.get("ok") and not _answer_mentions_lookup(answer):
             answer = f"I wasn't fully sure, so I looked it up. {answer}"
@@ -764,9 +774,9 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
                 if recall_fallback:
                     answer = recall_fallback
                 else:
-                    answer = _capability_safe_fallback(user_message, web_attempted=web_attempted)
+                    answer = _capability_safe_fallback(user_message, web_attempted=web_attempted, tool_error=last_tool_error)
             else:
-                answer = _capability_safe_fallback(user_message, web_attempted=web_attempted)
+                answer = _capability_safe_fallback(user_message, web_attempted=web_attempted, tool_error=last_tool_error)
     if _is_memory_recall_prompt(user_message) and _memory_recall_answer_looks_invalid(answer):
         fallback = _memory_recall_fallback(context.memory, user_message)
         if fallback:
