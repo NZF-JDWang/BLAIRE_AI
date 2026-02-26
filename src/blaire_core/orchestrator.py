@@ -14,6 +14,7 @@ from blaire_core.heartbeat.jobs import run_heartbeat_jobs
 from blaire_core.heartbeat.loop import HeartbeatLoop
 from blaire_core.learning.routine import apply_learning_updates
 from blaire_core.learning.soul_growth import apply_soul_growth_updates
+from blaire_core.learning.tool_memory import distill_tool_result_to_memory
 from blaire_core.llm.client import OllamaClient
 from blaire_core.memory.store import MemoryStore, clean_stale_locks
 from blaire_core.notifications import notify_user
@@ -25,6 +26,82 @@ from blaire_core.tools.builtin_tools import (
     make_web_search_tool,
 )
 from blaire_core.tools.registry import Tool, ToolRegistry
+
+
+@dataclass(slots=True)
+class ToolPlan:
+    tool_name: str
+    args: dict[str, Any]
+    reason: str
+    confidence: float
+    requires_followup: bool = False
+
+
+def plan_tool_calls(
+    context: AppContext, session_id: str, user_message: str, recent_messages: list[dict[str, str]]
+) -> list[ToolPlan]:
+    _ = (session_id, recent_messages)
+    lowered = user_message.strip().lower()
+    if not lowered:
+        return []
+
+    plans: list[ToolPlan] = []
+    tool_map = {tool.name: tool for tool in context.tools.all_tools()}
+
+    def _add(name: str, args: dict[str, Any], reason: str, confidence: float, requires_followup: bool = False) -> None:
+        tool = tool_map.get(name)
+        if not tool:
+            return
+        grounded_reason = reason
+        if tool.usage_hints:
+            grounded_reason = f"{reason} Hint: {tool.usage_hints[0]}"
+        plans.append(
+            ToolPlan(
+                tool_name=name,
+                args=args,
+                reason=grounded_reason,
+                confidence=confidence,
+                requires_followup=requires_followup,
+            )
+        )
+
+    if context.config.tools.planner.enabled:
+        if context.config.tools.web_search.auto_use and any(word in lowered for word in ("latest", "today", "news", "current", "web", "internet")):
+            _add(
+                "web_search",
+                {"query": user_message, "count": context.config.tools.web_search.auto_count},
+                "Message likely needs current/external web data.",
+                0.9,
+            )
+
+        local_terms = ("remember", "from memory", "we discussed", "stored", "saved", "long-term", "long term")
+        if any(term in lowered for term in local_terms):
+            _add("local_search", {"query": user_message, "limit": 10}, "Message asks for recalled local knowledge.", 0.82)
+
+        if any(term in lowered for term in ("disk", "storage", "free space", "filesystem usage")):
+            _add("check_disk_space", {"path": "."}, "Message asks for system storage status.", 0.86, requires_followup=True)
+
+        if any(term in lowered for term in ("docker", "containers", "container status")):
+            _add("check_docker_containers", {}, "Message asks for container health/status.", 0.74, requires_followup=True)
+    elif context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
+        _add(
+            "web_search",
+            {"query": user_message, "count": context.config.tools.web_search.auto_count},
+            "Fallback regex web-search trigger while planner is disabled.",
+            0.7,
+        )
+
+    threshold = context.config.tools.planner.confidence_threshold
+    selected: list[ToolPlan] = []
+    for plan in sorted(plans, key=lambda row: row.confidence, reverse=True):
+        if plan.confidence < threshold:
+            continue
+        if any(existing.tool_name == plan.tool_name for existing in selected):
+            continue
+        selected.append(plan)
+        if len(selected) >= context.config.tools.planner.max_calls_per_turn:
+            break
+    return selected
 
 
 @dataclass(slots=True)
@@ -229,10 +306,46 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
     llm = OllamaClient(config)
 
     registry = ToolRegistry()
-    registry.register(Tool("local_search", "Search local facts and lessons", "safe", make_local_search_tool(config.paths.data_root)))
-    registry.register(Tool("web_search", "Search web via Brave", "safe", make_web_search_tool(config)))
-    registry.register(Tool("check_disk_space", "Check disk usage", "safe", check_disk_space))
-    registry.register(Tool("check_docker_containers", "Docker containers (stub)", "safe", check_docker_containers_stub))
+    registry.register(
+        Tool(
+            "local_search",
+            "Search local facts and lessons",
+            "safe",
+            make_local_search_tool(config.paths.data_root),
+            arg_schema={"query": "string (required)", "limit": "int 1-50"},
+            usage_hints=["Finds stored local memory/facts", "Best for recall and prior notes"],
+        )
+    )
+    registry.register(
+        Tool(
+            "web_search",
+            "Search web via Brave",
+            "safe",
+            make_web_search_tool(config),
+            arg_schema={"query": "string (required)", "count": "int 1-10", "freshness": "optional string"},
+            usage_hints=["Use for current events or internet lookups", "Requires Brave API key"],
+        )
+    )
+    registry.register(
+        Tool(
+            "check_disk_space",
+            "Check disk usage",
+            "safe",
+            check_disk_space,
+            arg_schema={"path": "string path (optional)"},
+            usage_hints=["Use for storage capacity checks"],
+        )
+    )
+    registry.register(
+        Tool(
+            "check_docker_containers",
+            "Docker containers (stub)",
+            "safe",
+            check_docker_containers_stub,
+            arg_schema={},
+            usage_hints=["Use for docker/container diagnostics"],
+        )
+    )
 
     brain_composer = BrainComposer(memory=memory, data_root=config.paths.data_root, soul_rules=config.prompt.soul_rules)
     brain_composer.ensure_brain_files()
@@ -293,11 +406,15 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         recent_pairs=context.config.session.recent_pairs,
     )
     web_attempted = False
-    if context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
-        tool = context.tools.get("web_search")
-        if tool:
-            web_result = tool.fn({"query": user_message, "count": context.config.tools.web_search.auto_count})
-            messages.insert(0, {"role": "system", "content": _build_web_context(web_result)})
+    recent_messages = messages[-6:]
+    tool_plans = plan_tool_calls(context, session_id, user_message, recent_messages)
+    for plan in tool_plans:
+        tool = context.tools.get(plan.tool_name)
+        if not tool:
+            continue
+        result = tool.fn(plan.args)
+        if plan.tool_name == "web_search":
+            messages.insert(0, {"role": "system", "content": _build_web_context(result)})
             web_attempted = True
 
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
@@ -327,6 +444,11 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         fallback = _memory_recall_fallback(context.memory, user_message)
         if fallback:
             answer = fallback
+    _persist_assistant_turn(context, session_id, user_message, answer)
+    return answer
+
+
+def _persist_assistant_turn(context: AppContext, session_id: str, user_message: str, answer: str) -> None:
     context.memory.append_session_message(session_id=session_id, role="assistant", content=answer)
     context.memory.log_event(
         event_type="assistant_message",
@@ -353,6 +475,57 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         high_water_ratio=maint.high_water_ratio,
         active_key=session_id,
     )
+
+
+def handle_user_message_with_tool(
+    context: AppContext,
+    session_id: str,
+    user_message: str,
+    tool_name: str,
+    args: dict[str, Any],
+    debug_mode: bool = False,
+) -> str:
+    """Handle a user message by executing a specific tool first."""
+    context.memory.append_session_message(session_id=session_id, role="user", content=user_message)
+    context.memory.log_event(
+        event_type="user_message",
+        session_id=session_id,
+        payload={"content": user_message, "tool_routed": tool_name},
+    )
+    tool_result = call_tool(context, name=tool_name, args=args)
+
+    if debug_mode:
+        answer = json.dumps(tool_result, indent=2)
+        _persist_assistant_turn(context, session_id, user_message, answer)
+        return answer
+
+    system_prompt, messages = _build_messages_for_llm(
+        memory=context.memory,
+        brain_composer=context.brain_composer,
+        session_id=session_id,
+        user_message=user_message,
+        recent_pairs=context.config.session.recent_pairs,
+    )
+    tool_context = {
+        "tool": tool_name,
+        "ok": bool(tool_result.get("ok")),
+        "data": tool_result.get("data"),
+        "error": tool_result.get("error"),
+        "metadata": tool_result.get("metadata", {}),
+    }
+    messages.insert(
+        0,
+        {
+            "role": "system",
+            "content": (
+                "Tool execution result is available. Use it directly and answer in BLAIRE's conversational voice. "
+                "Do not expose raw JSON unless the user explicitly asked for debug output.\n"
+                f"{json.dumps(tool_context, ensure_ascii=False)}"
+            ),
+        },
+    )
+    answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
+    _persist_assistant_turn(context, session_id, user_message, answer)
     return answer
 
 
@@ -368,10 +541,99 @@ def run_heartbeat_tick(memory: MemoryStore, config: AppConfig | None = None, llm
 
 def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
     """Call registered tool by name."""
+    context.memory.log_event(
+        event_type="tool_call_started",
+        session_id=None,
+        payload={
+            "tool": name,
+            "args": args,
+            "summary": {
+                "arg_keys": sorted(args.keys()),
+                "arg_count": len(args),
+            },
+        },
+    )
     tool = context.tools.get(name)
     if not tool:
-        return {"ok": False, "tool": name, "data": None, "error": {"code": "not_found", "message": f"Unknown tool: {name}"}, "metadata": {}}
-    return tool.fn(args)
+        result = {
+            "ok": False,
+            "tool": name,
+            "data": None,
+            "error": {"code": "not_found", "message": f"Unknown tool: {name}"},
+            "metadata": {},
+        }
+        context.memory.log_event(
+            event_type="tool_call_failed",
+            session_id=None,
+            payload={
+                "tool": name,
+                "args": args,
+                "summary": {
+                    "ok": False,
+                    "error_code": "not_found",
+                    "error_message": result["error"]["message"],
+                },
+            },
+        )
+        return result
+    try:
+        result = tool.fn(args)
+    except Exception as exc:  # noqa: BLE001
+        result = {
+            "ok": False,
+            "tool": name,
+            "data": None,
+            "error": {"code": "exception", "message": str(exc)},
+            "metadata": {},
+        }
+        context.memory.log_event(
+            event_type="tool_call_failed",
+            session_id=None,
+            payload={
+                "tool": name,
+                "args": args,
+                "summary": {
+                    "ok": False,
+                    "error_code": "exception",
+                    "error_message": str(exc),
+                },
+            },
+        )
+        return result
+
+    if result.get("ok"):
+        distill_summary = distill_tool_result_to_memory(memory=context.memory, tool_name=name, args=args, result=result)
+        context.memory.log_event(
+            event_type="tool_call_finished",
+            session_id=None,
+            payload={
+                "tool": name,
+                "args": args,
+                "summary": {
+                    "ok": True,
+                    "metadata": result.get("metadata", {}),
+                    "data_keys": sorted(result.get("data", {}).keys()) if isinstance(result.get("data"), dict) else [],
+                    "memory_distilled": distill_summary,
+                },
+            },
+        )
+    else:
+        error = result.get("error", {}) if isinstance(result.get("error"), dict) else {}
+        context.memory.log_event(
+            event_type="tool_call_failed",
+            session_id=None,
+            payload={
+                "tool": name,
+                "args": args,
+                "summary": {
+                    "ok": False,
+                    "error_code": error.get("code", "unknown"),
+                    "error_message": error.get("message", ""),
+                    "metadata": result.get("metadata", {}),
+                },
+            },
+        )
+    return result
 
 
 def health_summary_quick(context: AppContext) -> str:

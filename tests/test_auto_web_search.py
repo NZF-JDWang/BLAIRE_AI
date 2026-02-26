@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from blaire_core.config import read_config_snapshot
-from blaire_core.orchestrator import _should_auto_web_search, build_context, handle_user_message
+from blaire_core.orchestrator import _should_auto_web_search, build_context, handle_user_message, plan_tool_calls
 
 
 def test_should_auto_web_search_patterns() -> None:
@@ -124,3 +124,61 @@ def test_memory_recall_prompt_uses_profile_fallback_when_model_claims_memory_dis
 
     assert "your name is jd" in answer.lower()
     assert "ship blaire" in answer.lower()
+
+
+def test_planner_selects_multiple_candidates() -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    plans = plan_tool_calls(
+        context,
+        session_id="s-plan",
+        user_message="Check current news and my disk storage usage",
+        recent_messages=[],
+    )
+
+    plan_names = [plan.tool_name for plan in plans]
+    assert "web_search" in plan_names
+    assert "check_disk_space" in plan_names
+
+
+def test_planner_prefers_local_search_for_memory_prompt() -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    plans = plan_tool_calls(
+        context,
+        session_id="s-plan-memory",
+        user_message="What did we discuss and store in long-term memory about release plans?",
+        recent_messages=[],
+    )
+
+    assert any(plan.tool_name == "local_search" for plan in plans)
+
+
+def test_planner_disabled_uses_regex_web_fallback(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    cfg = replace(
+        snapshot.effective_config,
+        tools=replace(
+            snapshot.effective_config.tools,
+            planner=replace(snapshot.effective_config.tools.planner, enabled=False),
+        ),
+    )
+    context = build_context(cfg, snapshot)
+
+    called = {"web": 0}
+
+    def _fake_web(args: dict) -> dict:
+        called["web"] += 1
+        return {"ok": True, "data": {"query": args["query"], "provider": "brave", "results": []}}
+
+    monkeypatch.setattr(context.llm, "generate", lambda system_prompt, messages, max_tokens: "ok")
+    context.tools.get("web_search").fn = _fake_web  # type: ignore[union-attr]
+
+    handle_user_message(context, session_id="s-plan-fallback", user_message="latest release news today")
+
+    assert called["web"] == 1

@@ -15,6 +15,8 @@ class Tool:
     description: str
     risk_level: str
     fn: ToolCallable
+    arg_schema: dict[str, str] | None = None
+    usage_hints: list[str] | None = None
 
 
 class ToolRegistry:
@@ -34,3 +36,5 @@ class ToolRegistry:
     def names(self) -> list[str]:
         return sorted(self._tools.keys())
 
+    def all_tools(self) -> list[Tool]:
+        return [self._tools[name] for name in self.names()]
