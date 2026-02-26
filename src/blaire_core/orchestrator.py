@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 import difflib
 import hashlib
 import json
@@ -313,6 +314,17 @@ def _capability_safe_fallback(user_message: str, web_attempted: bool, tool_error
         "Tell me the next task and I will execute it."
     )
     return f"{base} Tool status: {tool_error}" if tool_error else base
+
+
+def _runtime_clock_message() -> str:
+    now_local = datetime.now().astimezone()
+    now_utc = datetime.now(timezone.utc)
+    return (
+        "Runtime Clock (non-negotiable):\n"
+        f"- Local now: {now_local.strftime('%A, %B %d, %Y %H:%M:%S %z')}\n"
+        f"- UTC now: {now_utc.strftime('%Y-%m-%d %H:%M:%S %Z')}\n"
+        "- Use these timestamps for time-sensitive answers; avoid stale cutoffs."
+    )
 
 
 def _build_web_context(web_result: dict[str, Any]) -> str:
@@ -701,7 +713,10 @@ def _build_messages_for_llm(
         include_pattern_context=include_patterns,
     )
     system_prompt = f"{system_prompt}\n\n# Session Summary\n{session.running_summary or '(none)'}"
-    messages = [{"role": "system", "content": _capability_guard_message()}]
+    messages = [
+        {"role": "system", "content": _capability_guard_message()},
+        {"role": "system", "content": _runtime_clock_message()},
+    ]
     messages.extend({"role": m.role, "content": m.content} for m in recent)
     messages.append({"role": "user", "content": user_message})
     return system_prompt, messages

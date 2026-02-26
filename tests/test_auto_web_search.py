@@ -342,3 +342,26 @@ def test_capability_fallback_includes_web_tool_error(monkeypatch) -> None:
     answer = handle_user_message(context, session_id="s-cap-fallback-tool-error", user_message="Who won the 2026 Winter Olympics ice hockey?")
     assert calls["web"] >= 1
     assert "missing_brave_api_key" in answer
+
+
+def test_runtime_clock_context_is_injected(monkeypatch) -> None:
+    snapshot = read_config_snapshot("dev", {"llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    captured = {"messages": None}
+
+    def _fake_generate(system_prompt: str, messages: list[dict], max_tokens: int) -> str:
+        _ = (system_prompt, max_tokens)
+        captured["messages"] = messages
+        return "ok"
+
+    monkeypatch.setattr(context.llm, "generate", _fake_generate)
+
+    handle_user_message(context, session_id="s-runtime-clock", user_message="what time is it?")
+
+    assert isinstance(captured["messages"], list)
+    assert any(
+        row.get("role") == "system" and "Runtime Clock (non-negotiable)" in row.get("content", "")
+        for row in captured["messages"]
+    )
