@@ -144,3 +144,26 @@ def test_approvals_commands_roundtrip(monkeypatch, tmp_path, capsys) -> None:
     output = capsys.readouterr().out
     assert "pending" in output
     assert "docker_container_restart" in output
+
+
+def test_execute_single_command_tool_raw_json_not_mangled(monkeypatch, tmp_path, capsys) -> None:
+    snapshot = read_config_snapshot("dev", {"paths.data_root": str(tmp_path), "llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    captured: dict[str, object] = {}
+
+    def _fake_call_tool(context_arg, name: str, args: dict):
+        _ = context_arg
+        captured["name"] = name
+        captured["args"] = args
+        return {"ok": True, "tool": name, "data": args, "error": None, "metadata": {}}
+
+    monkeypatch.setattr(cli, "call_tool", _fake_call_tool)
+
+    code = cli.execute_single_command(context, '/tool web_search {"query":"latest olympics ice hockey result","count":3}')
+
+    assert code == 0
+    assert captured["name"] == "web_search"
+    assert captured["args"] == {"query": "latest olympics ice hockey result", "count": 3}
+    assert "latest olympics ice hockey result" in capsys.readouterr().out
