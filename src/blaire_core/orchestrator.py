@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 import re
 import os
+import json
 
 from blaire_core.config import AppConfig, ConfigSnapshot
 from blaire_core.heartbeat.jobs import run_heartbeat_jobs
@@ -369,6 +370,11 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         fallback = _memory_recall_fallback(context.memory, user_message)
         if fallback:
             answer = fallback
+    _persist_assistant_turn(context, session_id, user_message, answer)
+    return answer
+
+
+def _persist_assistant_turn(context: AppContext, session_id: str, user_message: str, answer: str) -> None:
     context.memory.append_session_message(session_id=session_id, role="assistant", content=answer)
     context.memory.log_event(
         event_type="assistant_message",
@@ -389,6 +395,57 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         high_water_ratio=maint.high_water_ratio,
         active_key=session_id,
     )
+
+
+def handle_user_message_with_tool(
+    context: AppContext,
+    session_id: str,
+    user_message: str,
+    tool_name: str,
+    args: dict[str, Any],
+    debug_mode: bool = False,
+) -> str:
+    """Handle a user message by executing a specific tool first."""
+    context.memory.append_session_message(session_id=session_id, role="user", content=user_message)
+    context.memory.log_event(
+        event_type="user_message",
+        session_id=session_id,
+        payload={"content": user_message, "tool_routed": tool_name},
+    )
+    tool_result = call_tool(context, name=tool_name, args=args)
+
+    if debug_mode:
+        answer = json.dumps(tool_result, indent=2)
+        _persist_assistant_turn(context, session_id, user_message, answer)
+        return answer
+
+    system_prompt, messages = _build_messages_for_llm(
+        memory=context.memory,
+        session_id=session_id,
+        user_message=user_message,
+        recent_pairs=context.config.session.recent_pairs,
+        soul_rules=context.config.prompt.soul_rules,
+    )
+    tool_context = {
+        "tool": tool_name,
+        "ok": bool(tool_result.get("ok")),
+        "data": tool_result.get("data"),
+        "error": tool_result.get("error"),
+        "metadata": tool_result.get("metadata", {}),
+    }
+    messages.insert(
+        0,
+        {
+            "role": "system",
+            "content": (
+                "Tool execution result is available. Use it directly and answer in BLAIRE's conversational voice. "
+                "Do not expose raw JSON unless the user explicitly asked for debug output.\n"
+                f"{json.dumps(tool_context, ensure_ascii=False)}"
+            ),
+        },
+    )
+    answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)
+    _persist_assistant_turn(context, session_id, user_message, answer)
     return answer
 
 

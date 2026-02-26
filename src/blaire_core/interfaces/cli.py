@@ -8,10 +8,18 @@ import uuid
 from dataclasses import asdict
 from dataclasses import dataclass
 from typing import Callable
+import re
 
 from blaire_core.memory.store import clean_stale_locks
 from blaire_core.notifications import notify_user, notify_user_media
-from blaire_core.orchestrator import AppContext, call_tool, diagnostics, handle_user_message, health_summary_quick
+from blaire_core.orchestrator import (
+    AppContext,
+    call_tool,
+    diagnostics,
+    handle_user_message,
+    handle_user_message_with_tool,
+    health_summary_quick,
+)
 from blaire_core.telegram_bridge import TelegramTextBridge, process_telegram_updates
 from blaire_core.telegram_client import get_telegram_updates
 
@@ -37,6 +45,44 @@ class CliState:
     active_session_id: str
 
 
+@dataclass(slots=True)
+class ExplicitToolIntent:
+    tool_name: str
+    args: dict[str, object]
+
+
+def parse_explicit_tool_intent(user_message: str) -> ExplicitToolIntent | None:
+    """Parse lightweight user intents that should route to direct tool invocation."""
+    lowered = user_message.strip().lower()
+    if not lowered:
+        return None
+
+    disk_patterns = (
+        r"\b(check|show|tell me)\b.{0,20}\b(disk|storage)\b.{0,20}\b(space|usage|status)\b",
+        r"\bhow much\b.{0,20}\b(disk|storage)\b.{0,20}\b(left|free|available)\b",
+    )
+    if any(re.search(pattern, lowered) for pattern in disk_patterns):
+        path_match = re.search(r"\b(?:on|for|at)\s+(/[^\s]+)", user_message)
+        return ExplicitToolIntent(
+            tool_name="check_disk_space",
+            args={"path": path_match.group(1) if path_match else "."},
+        )
+
+    if re.search(r"\b(search|find|look up|lookup)\b.{0,20}\b(notes|memory|memories)\b", lowered):
+        query = re.sub(r"^\s*(?:can you\s+|please\s+)?(?:search|find|look up|lookup)\s+(?:my\s+)?(?:notes|memory|memories)\s*(?:for\s+)?", "", lowered).strip(" ?.!")
+        return ExplicitToolIntent(
+            tool_name="local_search",
+            args={"query": query or "notes", "limit": 5},
+        )
+
+    if re.search(r"\bups\b", lowered) and re.search(r"\b(status|tracking|update|where)\b", lowered):
+        cleaned = re.sub(r"\b(?:what(?:'s| is)|check|tell me|show me)\b", "", user_message, flags=re.IGNORECASE)
+        query = cleaned.strip(" ?.!") or "UPS status"
+        return ExplicitToolIntent(tool_name="web_search", args={"query": query, "count": 3})
+
+    return None
+
+
 def _print_help() -> None:
     print("Commands:")
     print("/help")
@@ -49,10 +95,11 @@ def _print_help() -> None:
     print("/telegram send-voice <path> [caption]")
     print("/telegram send-audio <path> [caption]")
     print("/telegram send-file <path> [caption]")
-    print("/tool <name> <json_args>")
+    print("/tool <name> <json_args>  (admin/debug: direct raw tool call)")
     print("/session new|list|use|current")
     print("/session cleanup --dry-run|--enforce [--active-key <id>]")
     print("/admin status|config [--effective]|diagnostics [--deep]|selfcheck|memory [stats|recent|patterns|search]|soul [state|--reset]")
+    print("Tip: plain language requests (e.g. 'check disk space', 'search my notes', 'what\'s UPS status') auto-route tools.")
 
 
 def _parse_limit(tokens: list[str], default: int) -> int:
@@ -401,8 +448,21 @@ def execute_single_command(context: AppContext, command_line: str, initial_sessi
     if command == "/help":
         _print_help()
         return 0
-    print("Unsupported one-shot command.")
-    return 2
+    intent = parse_explicit_tool_intent(command_line)
+    if intent:
+        answer = handle_user_message_with_tool(
+            context,
+            session_id=state.active_session_id,
+            user_message=command_line,
+            tool_name=intent.tool_name,
+            args=intent.args,
+            debug_mode=False,
+        )
+        print(answer)
+        return 0
+    answer = handle_user_message(context, session_id=state.active_session_id, user_message=command_line)
+    print(answer)
+    return 0
 
 
 def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
@@ -463,7 +523,18 @@ def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
                     break
                 continue
 
-            response = handle_user_message(context, session_id=state.active_session_id, user_message=raw)
+            intent = parse_explicit_tool_intent(raw)
+            if intent:
+                response = handle_user_message_with_tool(
+                    context,
+                    session_id=state.active_session_id,
+                    user_message=raw,
+                    tool_name=intent.tool_name,
+                    args=intent.args,
+                    debug_mode=False,
+                )
+            else:
+                response = handle_user_message(context, session_id=state.active_session_id, user_message=raw)
             print(response)
     except KeyboardInterrupt:
         print("\nExiting...")
