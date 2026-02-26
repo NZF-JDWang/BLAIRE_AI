@@ -96,7 +96,7 @@ def _print_help() -> None:
     print("/telegram send-audio <path> [caption]")
     print("/telegram send-file <path> [caption]")
     print("/tool <name> <json_args>  (admin/debug: direct raw tool call)")
-    print("/brain soul|rules|user|memory|heartbeat|style|edit <file>")
+    print("/brain soul|rules|user|memory|heartbeat|style")
     print("/session new|list|use|current")
     print("/session cleanup --dry-run|--enforce [--active-key <id>]")
     print("/admin status|config [--effective]|diagnostics [--deep]|selfcheck|memory [stats|recent|patterns|search]|soul [state|--reset]")
@@ -274,15 +274,10 @@ _BRAIN_FILE_MAP = {
 
 def _handle_brain(context: AppContext, tokens: list[str]) -> None:
     if len(tokens) < 2:
-        print("Usage: /brain soul|rules|user|memory|heartbeat|style|edit <file>")
+        print("Usage: /brain soul|rules|user|memory|heartbeat|style")
         return
 
     command = tokens[1].lower()
-    if command == "edit":
-        if len(tokens) < 3:
-            print("Usage: /brain edit <file>")
-            return
-        command = tokens[2].lower()
 
     filename = _BRAIN_FILE_MAP.get(command)
     if not filename:

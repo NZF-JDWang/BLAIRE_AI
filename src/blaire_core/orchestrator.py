@@ -238,6 +238,19 @@ def _build_web_context(web_result: dict[str, Any]) -> str:
     return "\n".join(rows)
 
 
+def _build_tool_context(tool_name: str, result: dict[str, Any]) -> str:
+    if tool_name == "web_search":
+        return _build_web_context(result)
+    if result.get("ok"):
+        data = result.get("data", {})
+        return f"Tool context ({tool_name}): {json.dumps(data, ensure_ascii=False, default=str)}"
+    error = result.get("error", {}) if isinstance(result, dict) else {}
+    return (
+        f"Tool {tool_name} failed: "
+        f"{error.get('code', 'unknown')} - {error.get('message', '')}"
+    )
+
+
 
 
 def _propose_soul_brain_update(context: AppContext, soul_growth: dict[str, Any], session_id: str) -> None:
@@ -409,12 +422,9 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
     recent_messages = messages[-6:]
     tool_plans = plan_tool_calls(context, session_id, user_message, recent_messages)
     for plan in tool_plans:
-        tool = context.tools.get(plan.tool_name)
-        if not tool:
-            continue
-        result = tool.fn(plan.args)
+        result = call_tool(context, name=plan.tool_name, args=plan.args)
+        messages.insert(0, {"role": "system", "content": _build_tool_context(plan.tool_name, result)})
         if plan.tool_name == "web_search":
-            messages.insert(0, {"role": "system", "content": _build_web_context(result)})
             web_attempted = True
 
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)

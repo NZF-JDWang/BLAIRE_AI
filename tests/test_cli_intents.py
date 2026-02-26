@@ -102,3 +102,16 @@ def test_handle_user_message_with_tool_debug_returns_json(tmp_path) -> None:
 
     assert '"tool": "check_disk_space"' in answer
     assert '"ok": true' in answer.lower()
+
+
+def test_help_brain_command_does_not_advertise_edit(monkeypatch, tmp_path, capsys) -> None:
+    snapshot = read_config_snapshot("dev", {"paths.data_root": str(tmp_path), "llm.model": "test-model"})
+    assert snapshot.effective_config is not None
+    context = build_context(snapshot.effective_config, snapshot)
+
+    code = cli.execute_single_command(context, "/help")
+
+    assert code == 0
+    output = capsys.readouterr().out
+    assert "/brain soul|rules|user|memory|heartbeat|style" in output
+    assert "edit <file>" not in output
