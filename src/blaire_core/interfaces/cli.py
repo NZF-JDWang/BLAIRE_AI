@@ -312,6 +312,30 @@ def _handle_tool(context: AppContext, tokens: list[str]) -> None:
     print(json.dumps(result, indent=2))
 
 
+def _handle_tool_raw(context: AppContext, raw_line: str) -> int:
+    match = re.match(r"^/tool\s+(\S+)(?:\s+(.*))?$", raw_line.strip(), re.IGNORECASE)
+    if not match:
+        print("Usage: /tool <name> <json_args>")
+        return 2
+    tool_name = match.group(1)
+    arg_text = (match.group(2) or "").strip()
+    args: dict[str, object] = {}
+    if arg_text:
+        if len(arg_text) >= 2 and arg_text[0] == arg_text[-1] and arg_text[0] in {"'", '"'}:
+            arg_text = arg_text[1:-1]
+        try:
+            args = json.loads(arg_text)
+        except json.JSONDecodeError as exc:
+            print(f"Invalid JSON args: {exc}")
+            return 2
+        if not isinstance(args, dict):
+            print("Invalid JSON args: expected a JSON object")
+            return 2
+    result = call_tool(context, name=tool_name, args=args)
+    print(json.dumps(result, indent=2))
+    return 0
+
+
 def _handle_approvals(context: AppContext, tokens: list[str]) -> None:
     if len(tokens) < 2 or tokens[1].lower() != "list":
         print("Usage: /approvals list")
@@ -343,6 +367,32 @@ def _handle_approve(context: AppContext, tokens: list[str]) -> None:
         return
     result = approve_tool_call(context, token=token, tool_name=tool, args=args)
     print(json.dumps(result, indent=2))
+
+
+def _handle_approve_raw(context: AppContext, raw_line: str) -> int:
+    match = re.match(r"^/approve\s+(\S+)\s+(\S+)(?:\s+(.*))?$", raw_line.strip(), re.IGNORECASE)
+    if not match:
+        print("Usage: /approve <token> <tool> <json_args>")
+        return 2
+    token = match.group(1)
+    tool = match.group(2)
+    arg_text = (match.group(3) or "").strip()
+    if not arg_text:
+        print("Usage: /approve <token> <tool> <json_args>")
+        return 2
+    if len(arg_text) >= 2 and arg_text[0] == arg_text[-1] and arg_text[0] in {"'", '"'}:
+        arg_text = arg_text[1:-1]
+    try:
+        args = json.loads(arg_text)
+    except json.JSONDecodeError as exc:
+        print(f"Invalid JSON args: {exc}")
+        return 2
+    if not isinstance(args, dict):
+        print("Invalid JSON args: expected a JSON object")
+        return 2
+    result = approve_tool_call(context, token=token, tool_name=tool, args=args)
+    print(json.dumps(result, indent=2))
+    return 0
 
 
 def _handle_session(context: AppContext, state: CliState, tokens: list[str]) -> None:
@@ -488,6 +538,10 @@ def _handle_telegram_listen(context: AppContext) -> int:
 def execute_single_command(context: AppContext, command_line: str, initial_session_id: str | None = None) -> int:
     state = CliState(active_session_id=initial_session_id or str(uuid.uuid4()))
     context.memory.load_or_create_session(state.active_session_id)
+    if command_line.strip().lower().startswith("/tool "):
+        return _handle_tool_raw(context, command_line)
+    if command_line.strip().lower().startswith("/approve "):
+        return _handle_approve_raw(context, command_line)
     try:
         tokens = shlex.split(command_line)
     except ValueError as exc:
@@ -587,6 +641,12 @@ def run_cli(context: AppContext, initial_session_id: str | None = None) -> None:
                 continue
 
             if raw.startswith("/"):
+                if raw.lower().startswith("/tool "):
+                    _ = _handle_tool_raw(context, raw)
+                    continue
+                if raw.lower().startswith("/approve "):
+                    _ = _handle_approve_raw(context, raw)
+                    continue
                 try:
                     tokens = shlex.split(raw)
                 except ValueError as exc:
