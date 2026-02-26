@@ -14,6 +14,7 @@ from blaire_core.config import (
     PromptSection,
     SessionMaintenanceSection,
     SessionSection,
+    ToolPlannerSection,
     ToolsSection,
     WebSearchSection,
 )
@@ -36,7 +37,8 @@ def _config(api_key: str = "") -> AppConfig:
                 safesearch="off",
                 auto_use=True,
                 auto_count=3,
-            )
+            ),
+            planner=ToolPlannerSection(enabled=True, max_calls_per_turn=2, confidence_threshold=0.55),
         ),
         prompt=PromptSection(soul_rules="x"),
         session=SessionSection(

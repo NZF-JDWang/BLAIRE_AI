@@ -27,6 +27,11 @@
       "safesearch": "off",
       "auto_use": true,
       "auto_count": 3
+    },
+    "planner": {
+      "enabled": true,
+      "max_calls_per_turn": 2,
+      "confidence_threshold": 0.55
     }
   },
   "prompt": {

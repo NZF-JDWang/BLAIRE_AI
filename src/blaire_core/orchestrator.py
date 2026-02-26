@@ -26,6 +26,82 @@ from blaire_core.tools.registry import Tool, ToolRegistry
 
 
 @dataclass(slots=True)
+class ToolPlan:
+    tool_name: str
+    args: dict[str, Any]
+    reason: str
+    confidence: float
+    requires_followup: bool = False
+
+
+def plan_tool_calls(
+    context: AppContext, session_id: str, user_message: str, recent_messages: list[dict[str, str]]
+) -> list[ToolPlan]:
+    _ = (session_id, recent_messages)
+    lowered = user_message.strip().lower()
+    if not lowered:
+        return []
+
+    plans: list[ToolPlan] = []
+    tool_map = {tool.name: tool for tool in context.tools.all_tools()}
+
+    def _add(name: str, args: dict[str, Any], reason: str, confidence: float, requires_followup: bool = False) -> None:
+        tool = tool_map.get(name)
+        if not tool:
+            return
+        grounded_reason = reason
+        if tool.usage_hints:
+            grounded_reason = f"{reason} Hint: {tool.usage_hints[0]}"
+        plans.append(
+            ToolPlan(
+                tool_name=name,
+                args=args,
+                reason=grounded_reason,
+                confidence=confidence,
+                requires_followup=requires_followup,
+            )
+        )
+
+    if context.config.tools.planner.enabled:
+        if context.config.tools.web_search.auto_use and any(word in lowered for word in ("latest", "today", "news", "current", "web", "internet")):
+            _add(
+                "web_search",
+                {"query": user_message, "count": context.config.tools.web_search.auto_count},
+                "Message likely needs current/external web data.",
+                0.9,
+            )
+
+        local_terms = ("remember", "from memory", "we discussed", "stored", "saved", "long-term", "long term")
+        if any(term in lowered for term in local_terms):
+            _add("local_search", {"query": user_message, "limit": 10}, "Message asks for recalled local knowledge.", 0.82)
+
+        if any(term in lowered for term in ("disk", "storage", "free space", "filesystem usage")):
+            _add("check_disk_space", {"path": "."}, "Message asks for system storage status.", 0.86, requires_followup=True)
+
+        if any(term in lowered for term in ("docker", "containers", "container status")):
+            _add("check_docker_containers", {}, "Message asks for container health/status.", 0.74, requires_followup=True)
+    elif context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
+        _add(
+            "web_search",
+            {"query": user_message, "count": context.config.tools.web_search.auto_count},
+            "Fallback regex web-search trigger while planner is disabled.",
+            0.7,
+        )
+
+    threshold = context.config.tools.planner.confidence_threshold
+    selected: list[ToolPlan] = []
+    for plan in sorted(plans, key=lambda row: row.confidence, reverse=True):
+        if plan.confidence < threshold:
+            continue
+        if any(existing.tool_name == plan.tool_name for existing in selected):
+            continue
+        selected.append(plan)
+        if len(selected) >= context.config.tools.planner.max_calls_per_turn:
+            break
+    return selected
+
+
+@dataclass(slots=True)
 class AppContext:
     config: AppConfig
     config_snapshot: ConfigSnapshot
@@ -164,10 +240,46 @@ def build_context(config: AppConfig, snapshot: ConfigSnapshot) -> AppContext:
     llm = OllamaClient(config)
 
     registry = ToolRegistry()
-    registry.register(Tool("local_search", "Search local facts and lessons", "safe", make_local_search_tool(config.paths.data_root)))
-    registry.register(Tool("web_search", "Search web via Brave", "safe", make_web_search_tool(config)))
-    registry.register(Tool("check_disk_space", "Check disk usage", "safe", check_disk_space))
-    registry.register(Tool("check_docker_containers", "Docker containers (stub)", "safe", check_docker_containers_stub))
+    registry.register(
+        Tool(
+            "local_search",
+            "Search local facts and lessons",
+            "safe",
+            make_local_search_tool(config.paths.data_root),
+            arg_schema={"query": "string (required)", "limit": "int 1-50"},
+            usage_hints=["Finds stored local memory/facts", "Best for recall and prior notes"],
+        )
+    )
+    registry.register(
+        Tool(
+            "web_search",
+            "Search web via Brave",
+            "safe",
+            make_web_search_tool(config),
+            arg_schema={"query": "string (required)", "count": "int 1-10", "freshness": "optional string"},
+            usage_hints=["Use for current events or internet lookups", "Requires Brave API key"],
+        )
+    )
+    registry.register(
+        Tool(
+            "check_disk_space",
+            "Check disk usage",
+            "safe",
+            check_disk_space,
+            arg_schema={"path": "string path (optional)"},
+            usage_hints=["Use for storage capacity checks"],
+        )
+    )
+    registry.register(
+        Tool(
+            "check_docker_containers",
+            "Docker containers (stub)",
+            "safe",
+            check_docker_containers_stub,
+            arg_schema={},
+            usage_hints=["Use for docker/container diagnostics"],
+        )
+    )
 
     context = AppContext(
         config=config,
@@ -219,11 +331,15 @@ def handle_user_message(context: AppContext, session_id: str, user_message: str)
         soul_rules=context.config.prompt.soul_rules,
     )
     web_attempted = False
-    if context.config.tools.web_search.auto_use and _should_auto_web_search(user_message):
-        tool = context.tools.get("web_search")
-        if tool:
-            web_result = tool.fn({"query": user_message, "count": context.config.tools.web_search.auto_count})
-            messages.insert(0, {"role": "system", "content": _build_web_context(web_result)})
+    recent_messages = messages[-6:]
+    tool_plans = plan_tool_calls(context, session_id, user_message, recent_messages)
+    for plan in tool_plans:
+        tool = context.tools.get(plan.tool_name)
+        if not tool:
+            continue
+        result = tool.fn(plan.args)
+        if plan.tool_name == "web_search":
+            messages.insert(0, {"role": "system", "content": _build_web_context(result)})
             web_attempted = True
 
     answer = context.llm.generate(system_prompt=system_prompt, messages=messages, max_tokens=800)

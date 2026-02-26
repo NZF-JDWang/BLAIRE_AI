@@ -48,8 +48,16 @@ class WebSearchSection:
 
 
 @dataclass(slots=True)
+class ToolPlannerSection:
+    enabled: bool
+    max_calls_per_turn: int
+    confidence_threshold: float
+
+
+@dataclass(slots=True)
 class ToolsSection:
     web_search: WebSearchSection
+    planner: ToolPlannerSection
 
 
 @dataclass(slots=True)
@@ -244,6 +252,18 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
             auto_count = ws.get("auto_count")
             if not isinstance(auto_count, int) or auto_count < 1 or auto_count > 10:
                 issues.append("tools.web_search.auto_count must be an integer between 1 and 10")
+        planner = tools.get("planner", {})
+        if not isinstance(planner, dict):
+            issues.append("tools.planner must be an object")
+        else:
+            if not isinstance(planner.get("enabled"), bool):
+                issues.append("tools.planner.enabled must be a boolean")
+            max_calls_per_turn = planner.get("max_calls_per_turn")
+            if not isinstance(max_calls_per_turn, int) or max_calls_per_turn < 1 or max_calls_per_turn > 5:
+                issues.append("tools.planner.max_calls_per_turn must be an integer between 1 and 5")
+            confidence_threshold = planner.get("confidence_threshold")
+            if not isinstance(confidence_threshold, (int, float)) or confidence_threshold < 0 or confidence_threshold > 1:
+                issues.append("tools.planner.confidence_threshold must be a number between 0 and 1")
     else:
         issues.append("tools must be an object")
 
@@ -283,6 +303,7 @@ def _validate(raw: dict[str, Any]) -> tuple[list[str], list[str]]:
 
 def _to_config(raw: dict[str, Any]) -> AppConfig:
     ws = raw["tools"]["web_search"]
+    planner = raw["tools"]["planner"]
     maint = raw["session"]["maintenance"]
     telegram_raw = raw.get("telegram", {}) if isinstance(raw.get("telegram", {}), dict) else {}
     telegram_enabled = bool(telegram_raw.get("enabled", False))
@@ -318,7 +339,12 @@ def _to_config(raw: dict[str, Any]) -> AppConfig:
                 safesearch=str(ws["safesearch"]),
                 auto_use=bool(ws.get("auto_use", True)),
                 auto_count=int(ws.get("auto_count", 3)),
-            )
+            ),
+            planner=ToolPlannerSection(
+                enabled=bool(planner.get("enabled", True)),
+                max_calls_per_turn=int(planner.get("max_calls_per_turn", 2)),
+                confidence_threshold=float(planner.get("confidence_threshold", 0.55)),
+            ),
         ),
         prompt=PromptSection(soul_rules=str(raw["prompt"]["soul_rules"])),
         session=SessionSection(
@@ -366,7 +392,12 @@ def _bootstrap_config(env: str) -> AppConfig:
                 safesearch="off",
                 auto_use=True,
                 auto_count=3,
-            )
+            ),
+            planner=ToolPlannerSection(
+                enabled=True,
+                max_calls_per_turn=2,
+                confidence_threshold=0.55,
+            ),
         ),
         prompt=PromptSection(soul_rules="You are BLAIRE Core. Be concise, safe, and practical."),
         session=SessionSection(

@@ -63,7 +63,8 @@ def test_local_config_is_merged_before_env_and_cli(tmp_path: Path, monkeypatch) 
                         "safesearch": "off",
                         "auto_use": True,
                         "auto_count": 3,
-                    }
+                    },
+                    "planner": {"enabled": True, "max_calls_per_turn": 2, "confidence_threshold": 0.55}
                 },
                 "prompt": {"soul_rules": "base"},
                 "session": {
@@ -126,7 +127,8 @@ def test_admin_config_effective_outputs_merged_view(tmp_path: Path, monkeypatch,
                         "safesearch": "off",
                         "auto_use": True,
                         "auto_count": 3,
-                    }
+                    },
+                    "planner": {"enabled": True, "max_calls_per_turn": 2, "confidence_threshold": 0.55}
                 },
                 "prompt": {"soul_rules": "base"},
                 "session": {
