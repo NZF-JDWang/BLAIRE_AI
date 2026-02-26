@@ -13,6 +13,7 @@ from blaire_core.heartbeat.jobs import run_heartbeat_jobs
 from blaire_core.heartbeat.loop import HeartbeatLoop
 from blaire_core.learning.routine import apply_learning_updates
 from blaire_core.learning.soul_growth import apply_soul_growth_updates
+from blaire_core.learning.tool_memory import distill_tool_result_to_memory
 from blaire_core.llm.client import OllamaClient
 from blaire_core.memory.store import MemoryStore, clean_stale_locks
 from blaire_core.notifications import notify_user
@@ -461,10 +462,99 @@ def run_heartbeat_tick(memory: MemoryStore, config: AppConfig | None = None, llm
 
 def call_tool(context: AppContext, name: str, args: dict[str, Any]) -> dict:
     """Call registered tool by name."""
+    context.memory.log_event(
+        event_type="tool_call_started",
+        session_id=None,
+        payload={
+            "tool": name,
+            "args": args,
+            "summary": {
+                "arg_keys": sorted(args.keys()),
+                "arg_count": len(args),
+            },
+        },
+    )
     tool = context.tools.get(name)
     if not tool:
-        return {"ok": False, "tool": name, "data": None, "error": {"code": "not_found", "message": f"Unknown tool: {name}"}, "metadata": {}}
-    return tool.fn(args)
+        result = {
+            "ok": False,
+            "tool": name,
+            "data": None,
+            "error": {"code": "not_found", "message": f"Unknown tool: {name}"},
+            "metadata": {},
+        }
+        context.memory.log_event(
+            event_type="tool_call_failed",
+            session_id=None,
+            payload={
+                "tool": name,
+                "args": args,
+                "summary": {
+                    "ok": False,
+                    "error_code": "not_found",
+                    "error_message": result["error"]["message"],
+                },
+            },
+        )
+        return result
+    try:
+        result = tool.fn(args)
+    except Exception as exc:  # noqa: BLE001
+        result = {
+            "ok": False,
+            "tool": name,
+            "data": None,
+            "error": {"code": "exception", "message": str(exc)},
+            "metadata": {},
+        }
+        context.memory.log_event(
+            event_type="tool_call_failed",
+            session_id=None,
+            payload={
+                "tool": name,
+                "args": args,
+                "summary": {
+                    "ok": False,
+                    "error_code": "exception",
+                    "error_message": str(exc),
+                },
+            },
+        )
+        return result
+
+    if result.get("ok"):
+        distill_summary = distill_tool_result_to_memory(memory=context.memory, tool_name=name, args=args, result=result)
+        context.memory.log_event(
+            event_type="tool_call_finished",
+            session_id=None,
+            payload={
+                "tool": name,
+                "args": args,
+                "summary": {
+                    "ok": True,
+                    "metadata": result.get("metadata", {}),
+                    "data_keys": sorted(result.get("data", {}).keys()) if isinstance(result.get("data"), dict) else [],
+                    "memory_distilled": distill_summary,
+                },
+            },
+        )
+    else:
+        error = result.get("error", {}) if isinstance(result.get("error"), dict) else {}
+        context.memory.log_event(
+            event_type="tool_call_failed",
+            session_id=None,
+            payload={
+                "tool": name,
+                "args": args,
+                "summary": {
+                    "ok": False,
+                    "error_code": error.get("code", "unknown"),
+                    "error_message": error.get("message", ""),
+                    "metadata": result.get("metadata", {}),
+                },
+            },
+        )
+    return result
 
 
 def health_summary_quick(context: AppContext) -> str:
